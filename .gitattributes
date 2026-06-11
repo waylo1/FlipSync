@@ -1,0 +1,8 @@
+# Normalise les fins de ligne en LF dans le dépôt (cohérence cross-platform).
+* text=auto eol=lf
+
+# Binaires — jamais de conversion.
+*.gguf binary
+*.png binary
+*.jpg binary
+*.docx binary

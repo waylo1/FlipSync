@@ -1,0 +1,55 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Env — JAMAIS commiter de secrets. Seul .env.example est versionné.
+.env
+.env.local
+.env.*.local
+
+# Build outputs
+dist/
+build/
+*.tsbuildinfo
+
+# Turborepo
+.turbo/
+
+# Prisma
+packages/db/src/generated/
+packages/db/node_modules/.prisma/
+
+# Expo / React Native
+apps/mobile/.expo/
+apps/mobile/android/
+apps/mobile/ios/
+apps/mobile/*.jks
+apps/mobile/*.p8
+apps/mobile/*.p12
+apps/mobile/*.key
+apps/mobile/*.mobileprovision
+
+# Modèles IA (volumineux, hors git)
+*.gguf
+
+# Photos uploadées (dev local)
+apps/api/uploads/
+
+# Logs
+*.log
+npm-debug.log*
+logs/
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Claude Code — réglages locaux par machine (settings.json reste versionné)
+.claude/settings.local.json
+
+# Tests
+coverage/

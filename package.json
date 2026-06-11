@@ -1,0 +1,30 @@
+{
+  "name": "flipsync",
+  "private": true,
+  "version": "0.0.1",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "db:push": "turbo run db:push --filter=@flipsync/db",
+    "db:gen": "turbo run db:generate --filter=@flipsync/db",
+    "db:migrate": "turbo run db:migrate --filter=@flipsync/db",
+    "db:studio": "turbo run db:studio --filter=@flipsync/db"
+  },
+  "devDependencies": {
+    "turbo": "^2.0.0",
+    "typescript": "^5.4.0",
+    "prettier": "^3.2.0",
+    "@types/node": "^20.0.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "packageManager": "npm@11.13.0"
+}

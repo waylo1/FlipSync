@@ -1,0 +1,45 @@
+{
+  "expo": {
+    "name": "FlipSync",
+    "slug": "flipsync",
+    "scheme": "flipsync",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "owner": "TODO_expo_account",
+    "runtimeVersion": {
+      "policy": "fingerprint"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/TODO_eas_project_id",
+      "fallbackToCacheTimeout": 0
+    },
+    "android": {
+      "package": "fr.flipsync.app"
+    },
+    "ios": {
+      "bundleIdentifier": "fr.flipsync.app",
+      "supportsTablet": false
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "react-native-vision-camera",
+        {
+          "cameraPermissionText": "FlipSync utilise la caméra pour photographier vos objets à vendre.",
+          "enableMicrophonePermission": false
+        }
+      ],
+      "expo-updates"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "TODO_eas_project_id"
+      }
+    }
+  }
+}

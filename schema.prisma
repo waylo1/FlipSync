@@ -1,0 +1,150 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─── USER ─────────────────────────────────────────────────────────────────────
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  wallet   UserWallet?
+  listings Listing[]
+}
+
+// ─── WALLET ───────────────────────────────────────────────────────────────────
+
+model UserWallet {
+  id                    String   @id @default(cuid())
+  userId                String   @unique
+  balance               Int      @default(0)     // centimes — ex: 1000 = 10,00 €
+  freeListingsRemaining Int      @default(3)
+  freeListingsResetAt   DateTime @default(dbgenerated("NOW() + INTERVAL '1 month'"))
+  autoRechargeEnabled   Boolean  @default(false)
+  autoRechargeThreshold Int      @default(100)   // centimes — ex: 100 = 1,00 €
+  autoRechargeAmount    Int      @default(1000)  // centimes — ex: 1000 = 10,00 €
+  lifetimeRecharged     Int      @default(0)     // centimes
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions WalletTransaction[]
+}
+
+model WalletTransaction {
+  id          String          @id @default(cuid())
+  walletId    String
+  type        TransactionType
+  amount      Int                                 // centimes
+  source      PaymentSource
+  listingId   String?
+  stripeId    String?
+  description String?
+  createdAt   DateTime        @default(now())
+
+  wallet  UserWallet @relation(fields: [walletId], references: [id])
+  listing Listing?   @relation(fields: [listingId], references: [id])
+}
+
+// ─── LISTING ──────────────────────────────────────────────────────────────────
+
+model Listing {
+  id            String        @id @default(cuid())
+  userId        String
+  tier          ListingTier
+  status        ListingStatus @default(PENDING_AUTH)
+  paymentSource PaymentSource
+  cost          Int                                // centimes
+
+  // Données IA
+  titre           String?
+  description     String?
+  categorieLbc    String?
+  categorieVinted String?
+  etat            ItemCondition?
+  prixPlancher    Int?                             // centimes
+  prixHaut        Int?                             // centimes
+  prixPublie      Int?                             // centimes — prix final choisi par l'utilisateur
+  marque          String?
+  confidence      Float?                           // score 0–1, pas de l'argent → Float intentionnel
+
+  // Plateformes
+  publishedLbc    Boolean @default(false)
+  publishedVinted Boolean @default(false)
+  lbcUrl          String?
+  vintedUrl       String?
+
+  // Diplomatie : true si prixPublie > prixHaut * 1.2
+  isPriceFlagged Boolean @default(false)
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  publishedAt DateTime?
+
+  user         User                @relation(fields: [userId], references: [id])
+  photos       ListingPhoto[]
+  transactions WalletTransaction[]
+}
+
+model ListingPhoto {
+  id        String   @id @default(cuid())
+  listingId String
+  url       String
+  order     Int      @default(0)
+  sha256    String
+  createdAt DateTime @default(now())
+
+  listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+}
+
+// ─── ENUMS ────────────────────────────────────────────────────────────────────
+
+enum ListingTier {
+  SIMPLE
+  OPTIMIZED
+  PREMIUM
+}
+
+enum ListingStatus {
+  PENDING_AUTH    // 1. Vérification des droits de paiement
+  AUTHORIZED      // 2. Autorisation accordée (pré-réservation, pas de débit)
+  AI_PROCESSING   // 3. Vision + rédaction SEO en cours
+  AI_FAILED       // 4. Échec du traitement IA (rollback, pas de débit)
+  DRAFT_READY     // 5. Brouillon prêt, en attente de validation utilisateur
+  USER_VALIDATED  // 6. Utilisateur a validé → commit() déclenché ici
+  USER_CANCELLED  // 7. Utilisateur a annulé (rollback, pas de débit)
+  QUEUED          // 8. En file d'attente pour publication
+  PUBLISH_FAILED  // 9. Échec de publication sur marketplace (remboursement)
+  PUBLISHED       // 10. Publié avec succès
+  EXPIRED         // 11. Annonce expirée sans vente
+}
+
+enum PaymentSource {
+  FREE_CREDIT     // Listing gratuit (crédit d'inscription ou promotion)
+  WALLET          // Débit depuis le wallet interne
+  BLOCKED         // Fonds insuffisants, publication bloquée
+  STRIPE_RECHARGE // Rechargement Stripe (crédit wallet, jamais débit listing direct)
+  BONUS           // Bonus fidélité (ex: +1,00 € première recharge)
+}
+
+enum TransactionType {
+  CREDIT
+  DEBIT
+  BONUS
+  REFUND
+}
+
+enum ItemCondition {
+  neuf
+  tres_bon
+  bon
+  correct
+}

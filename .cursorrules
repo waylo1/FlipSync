@@ -1,0 +1,84 @@
+# FlipSync — Règles Cursor (NE JAMAIS DÉROGER)
+
+FlipSync : conciergerie de revente automatisée multi-plateformes (Leboncoin, Vinted).
+Stack et schéma validés. Ne propose pas de refonte d'architecture sans raison critique.
+Le contexte projet vit dans CLAUDE.md, context.md, db.md, rules.md, gotchas.md — lis-les, ne redemande pas.
+
+---
+
+## 1. Finance — centimes Int UNIQUEMENT
+
+- TOUJOURS stocker l'argent en centimes, type `Int`. JAMAIS de `Float` sur un champ monétaire.
+- Champs concernés : `balance`, `amount`, `cost`, `prix*` (prixPlancher, prixHaut, prixPublie),
+  `autoRechargeThreshold`, `autoRechargeAmount`, `lifetimeRecharged`.
+- Exemple : `1000` = 10,00 €. Stripe attend des centimes nativement → aucune conversion.
+- Conversion d'affichage UNIQUEMENT via `centsToEur(cents)`. Saisie utilisateur via `eurToCents(eur)`.
+  Ne JAMAIS réutiliser une valeur en euros pour un calcul ou un stockage.
+- Seule exception légitime à `Float` : `confidence` (score IA 0–1, n'est pas de l'argent).
+
+## 2. Transactions atomiques
+
+- TOUT débit ou crédit du wallet passe OBLIGATOIREMENT par `prisma.$transaction()`.
+- Jamais de mutation de `balance` hors transaction.
+- `commit()` (débit réel) s'exécute APRÈS `USER_VALIDATED` — JAMAIS à l'autorisation.
+- Remboursement wallet automatique sur `AI_FAILED` et `PUBLISH_FAILED`.
+
+## 3. Machine à états ListingStatus (11 états, stricte)
+
+```
+PENDING_AUTH → AUTHORIZED → AI_PROCESSING → DRAFT_READY → USER_VALIDATED → QUEUED → PUBLISHED
+                                  ↓                              ↓
+                              AI_FAILED                  USER_CANCELLED → PUBLISH_FAILED → EXPIRED
+```
+
+- `WalletService.authorize()` : 1) FREE_CREDIT si freeListingsRemaining>0, 2) WALLET si balance≥cost,
+  3) auto-recharge si activée → WALLET, 4) sinon BLOCKED.
+- `failureReason` toujours renseigné sur tout état `*_FAILED`.
+- Toute transition avant `USER_VALIDATED` est gratuite et réversible (0 débit).
+
+## 4. TypeScript
+
+- `strict: true` partout. ZÉRO `any`. Jamais.
+- Les enums TypeScript (`@flipsync/core`) sont le MIROIR EXACT des enums Prisma.
+  Toute modif d'un enum Prisma doit être répercutée dans core, et inversement.
+
+## 5. API (Fastify)
+
+- Toutes les routes sont protégées par JWT SAUF `/health`.
+  Exception documentée : le webhook Stripe (auth par signature `constructEvent`, pas JWT).
+- `req.userId` est injecté par `authPlugin` — ne pas re-parser le token ailleurs.
+- Erreurs au format `{ error: 'SNAKE_CASE_CODE' }`.
+- JWT payload : `{ sub: userId }` uniquement.
+- Ne JAMAIS logger de données financières en clair. Ne jamais exposer le solde wallet dans une liste publique.
+
+## 6. IA — on-device uniquement
+
+- Inférence vision TOUJOURS on-device (llama.rn + Moondream2 Q4 GGUF). JAMAIS d'appel cloud.
+- Timeout modèle : 15 s max, sinon bascule en `AI_FAILED`.
+
+## 7. Mobile
+
+- Images listées avec `sha256` (intégrité).
+- MMKV pour le storage local (pas AsyncStorage). Zustand pour le state global.
+- `expo prebuild` obligatoire avant `run:android` (modules natifs llama.rn).
+
+## 8. Publication marketplace — APIs partenaires officielles UNIQUEMENT
+
+- Publication via APIs partenaires sanctionnées : Vinted Integrations/Pro, Leboncoin
+  Partenaire (directement ou via agrégateur type Lengow). JAMAIS d'automatisation UI
+  ni de contournement de détection.
+- Toute la logique de publication est SERVEUR (`@flipsync/marketplace`), jamais sur le device.
+- Le brouillon Moondream2 (on-device) alimente le payload du connecteur via l'API.
+- Échec de publication → `PUBLISH_FAILED` + remboursement wallet automatique.
+
+## 9. Sécurité & secrets
+
+- `.env` ne doit JAMAIS être commité. Seul `.env.example` est versionné.
+- Webhook Stripe : vérifier la signature `constructEvent()` — ne jamais skip, même en dev.
+- Idempotency key sur chaque PaymentIntent.
+
+## 10. Monorepo
+
+- Turborepo + npm workspaces. Node ≥ 20. Packages : `@flipsync/core|db|ai|wallet`.
+- Source de vérité du schéma : `packages/db/prisma/schema.prisma` (centimes Int, 11 états).
+  Ignorer la version périmée embarquée dans `flipsync-monorepo.md` (Float, enums incomplets).

@@ -1,0 +1,23 @@
+# Dépendances et builds — réinstallés/régénérés dans l'image
+**/node_modules
+**/dist
+**/.turbo
+**/*.tsbuildinfo
+
+# Mobile : hors périmètre de l'image API (turbo prune l'exclut de toute façon)
+apps/mobile/android
+apps/mobile/ios
+apps/mobile/.expo
+
+# Secrets et données locales
+**/.env
+**/.env.*
+!**/.env.example
+apps/api/uploads
+*.gguf
+
+# Outils / VCS
+.git
+.github
+**/coverage
+out

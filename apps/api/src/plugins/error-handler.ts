@@ -37,6 +37,11 @@ const errorHandlerPlugin: FastifyPluginAsync = async app => {
       return reply.code(400).send({ error: 'INVALID_BODY' })
     }
 
+    // @fastify/rate-limit lève une erreur statusCode 429 — normalisée SNAKE_CASE.
+    if (err.statusCode === 429) {
+      return reply.code(429).send({ error: 'RATE_LIMITED' })
+    }
+
     req.log.error({ err }, 'unhandled error')
     return reply.code(500).send({ error: 'INTERNAL_ERROR' })
   })

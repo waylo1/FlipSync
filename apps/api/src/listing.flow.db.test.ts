@@ -38,6 +38,7 @@ describe.skipIf(!DB_URL)('Flux mobile /listing — e2e JWT', () => {
     process.env.JWT_SECRET = 'test-secret-at-least-32-characters-long!!'
     process.env.STRIPE_SECRET_KEY = 'sk_test_x'
     process.env.STRIPE_WEBHOOK_SECRET = 'whsec_test_x'
+    process.env.AUTH_RATE_LIMIT_MAX = '1000' // hors sujet ici — la limite a son test dédié
 
     const { prisma } = await import('@flipsync/db')
     prismaRef = prisma

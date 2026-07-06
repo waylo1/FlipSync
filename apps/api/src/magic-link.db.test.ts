@@ -24,6 +24,7 @@ describe.skipIf(!DB_URL)('Magic link — e2e', () => {
     process.env.STRIPE_SECRET_KEY = 'sk_test_x'
     process.env.STRIPE_WEBHOOK_SECRET = 'whsec_test_x'
     process.env.NODE_ENV = 'test' // pas 'production' → devLink exposé
+    process.env.AUTH_RATE_LIMIT_MAX = '1000' // la suite dépasse 5 req/min (limite anti-abus)
 
     const { prisma } = await import('@flipsync/db')
     prismaRef = prisma

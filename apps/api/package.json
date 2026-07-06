@@ -11,24 +11,25 @@
     "pipeline:mock": "ts-node --transpile-only tools/test-pipeline.ts"
   },
   "dependencies": {
+    "@fastify/cors": "^9.0.0",
+    "@fastify/jwt": "^8.0.0",
+    "@fastify/rate-limit": "^9.1.0",
+    "@fastify/static": "^7.0.0",
+    "@flipsync/ai": "*",
     "@flipsync/core": "*",
     "@flipsync/db": "*",
-    "@flipsync/wallet": "*",
-    "@flipsync/ai": "*",
     "@flipsync/marketplace": "*",
+    "@flipsync/wallet": "*",
     "dotenv": "^16.4.0",
     "fastify": "^4.27.0",
     "fastify-plugin": "^4.5.1",
-    "@fastify/cors": "^9.0.0",
-    "@fastify/static": "^7.0.0",
-    "@fastify/jwt": "^8.0.0",
     "stripe": "^15.0.0",
     "zod": "^3.23.0"
   },
   "devDependencies": {
-    "typescript": "^5.4.0",
-    "ts-node-dev": "^2.0.0",
     "@types/node": "^20.0.0",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.4.0",
     "vitest": "^1.6.0"
   }
 }

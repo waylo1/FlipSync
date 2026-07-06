@@ -17,9 +17,21 @@ export async function buildApp(): Promise<FastifyInstance> {
       // Ne jamais logger de données financières en clair (cf. rules.md).
       redact: ['req.headers.authorization'],
     },
+    // Derrière un reverse proxy (prod) : l'IP client vient de X-Forwarded-For —
+    // indispensable pour un rate limiting par IP réelle.
+    trustProxy: process.env.TRUST_PROXY === '1',
   })
 
-  await app.register(cors, { origin: true })
+  // CORS : whitelist via CORS_ORIGINS (séparées par des virgules). Sans liste :
+  // tout est accepté hors production (DX), tout est refusé en production —
+  // l'app mobile native n'envoie pas d'Origin et n'est donc jamais affectée.
+  const corsOrigins = (process.env.CORS_ORIGINS ?? '')
+    .split(',')
+    .map(o => o.trim())
+    .filter(Boolean)
+  await app.register(cors, {
+    origin: corsOrigins.length > 0 ? corsOrigins : process.env.NODE_ENV !== 'production',
+  })
   await app.register(authPlugin)
   await app.register(servicesPlugin)
   await app.register(errorHandlerPlugin)

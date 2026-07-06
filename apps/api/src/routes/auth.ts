@@ -1,4 +1,5 @@
 import { FastifyPluginAsync } from 'fastify'
+import rateLimit from '@fastify/rate-limit'
 import { z } from 'zod'
 import { prisma } from '@flipsync/db'
 import { ConsoleEmailService, EmailService, TransactionalEmailService } from '../services/email.service'
@@ -26,6 +27,18 @@ function buildEmailService(): EmailService {
  *  POST /auth/dev-token  { email } → DEV uniquement (absent en production).
  */
 const authRoutes: FastifyPluginAsync = async app => {
+  // Anti-abus : 5 req/min/IP sur tout /auth/* (spam email, brute force token).
+  // Scoped à ce plugin — le reste de l'API n'est pas limité. AUTH_RATE_LIMIT_MAX
+  // surchargeable (tests). Derrière un reverse proxy : TRUST_PROXY=1 (cf. app.ts),
+  // sinon toutes les requêtes partagent l'IP du proxy.
+  // Compteur PARTAGÉ sur tout le scope /auth (une IP qui sature magic-link ne
+  // peut pas basculer sur verify). Le 429 est normalisé { error: 'RATE_LIMITED' }
+  // par l'error-handler central.
+  await app.register(rateLimit, {
+    max: Number(process.env.AUTH_RATE_LIMIT_MAX ?? 5),
+    timeWindow: 60_000,
+  })
+
   const magicLink = new MagicLinkService(
     prisma,
     buildEmailService(),

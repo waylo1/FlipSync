@@ -14,8 +14,12 @@ import { useIsFocused } from '@react-navigation/native'
 import { Camera, useCameraDevice, useCameraPermission } from 'react-native-vision-camera'
 import { SaveFormat, manipulateAsync } from 'expo-image-manipulator'
 import * as Crypto from 'expo-crypto'
+import { CameraOff } from 'lucide-react-native'
 import { useVision } from '../../src/hooks/useVision'
 import { useListingSession } from '../../src/store/listing.store'
+import { font, radius, space, theme } from '../../src/theme'
+import { Button } from '../../src/ui/Button'
+import { EmptyState } from '../../src/ui/EmptyState'
 
 const MAX_PHOTOS = 5
 /**
@@ -95,13 +99,14 @@ export default function CaptureScreen() {
   if (!hasPermission) {
     return (
       <View style={styles.center}>
-        <Text style={styles.title}>Caméra requise</Text>
-        <Text style={styles.hint}>
-          FlipSync photographie vos objets pour générer l'annonce automatiquement.
-        </Text>
-        <Pressable style={styles.primaryBtn} onPress={() => void Linking.openSettings()}>
-          <Text style={styles.primaryBtnText}>Ouvrir les réglages</Text>
-        </Pressable>
+        <EmptyState
+          icon={<CameraOff size={space[6]} color={theme.goldDark} />}
+          title="On a besoin de l'appareil photo"
+          body="FlipSync photographie vos objets pour rédiger l'annonce à votre place."
+          action={
+            <Button label="Ouvrir les réglages" onPress={() => void Linking.openSettings()} />
+          }
+        />
       </View>
     )
   }
@@ -109,7 +114,11 @@ export default function CaptureScreen() {
   if (!device) {
     return (
       <View style={styles.center}>
-        <Text style={styles.title}>Aucune caméra détectée</Text>
+        <EmptyState
+          icon={<CameraOff size={space[6]} color={theme.goldDark} />}
+          title="Aucune caméra détectée"
+          body="Impossible de photographier sur cet appareil."
+        />
       </View>
     )
   }
@@ -126,20 +135,35 @@ export default function CaptureScreen() {
 
       {/* Bandeau état modèle — visible tant que l'inférence n'est pas prête. */}
       {modelStatus !== 'ready' && (
-        <View style={styles.banner}>
+        <View style={styles.banner} accessibilityLiveRegion="polite">
           {modelStatus === 'downloading' && (
-            <Text style={styles.bannerText}>
-              Téléchargement du modèle ({downloadingFile ?? '…'}) —{' '}
-              {Math.round(downloadProgress * 100)}%
-            </Text>
+            <View style={styles.bannerBody}>
+              <Text style={styles.bannerText}>
+                Préparation de l'assistant ({downloadingFile ?? '…'}) —{' '}
+                {Math.round(downloadProgress * 100)}%
+              </Text>
+              <View style={styles.progressTrack}>
+                <View
+                  style={[
+                    styles.progressFill,
+                    { width: `${Math.round(downloadProgress * 100)}%` },
+                  ]}
+                />
+              </View>
+            </View>
           )}
           {(modelStatus === 'checking' || modelStatus === 'loading') && (
-            <Text style={styles.bannerText}>Préparation du modèle…</Text>
+            <Text style={styles.bannerText}>Préparation de l'assistant…</Text>
           )}
           {modelStatus === 'error' && (
-            <Pressable onPress={retryModelSetup}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Réessayer la préparation de l'assistant"
+              onPress={retryModelSetup}
+              hitSlop={space[2]}
+            >
               <Text style={styles.bannerText}>
-                Modèle indisponible ({modelErrorCode ?? 'inconnu'}) — touchez pour réessayer
+                Assistant indisponible ({modelErrorCode ?? 'inconnu'}) — touchez pour réessayer
               </Text>
             </Pressable>
           )}
@@ -148,9 +172,18 @@ export default function CaptureScreen() {
 
       {/* Thumbnails de la session de capture. */}
       {photos.length > 0 && (
-        <ScrollView horizontal style={styles.thumbRow} contentContainerStyle={styles.thumbRowContent}>
-          {photos.map(p => (
-            <Image key={p.sha256} source={{ uri: p.uri }} style={styles.thumb} />
+        <ScrollView
+          horizontal
+          style={styles.thumbRow}
+          contentContainerStyle={styles.thumbRowContent}
+        >
+          {photos.map((p, i) => (
+            <Image
+              key={p.sha256}
+              source={{ uri: p.uri }}
+              style={styles.thumb}
+              accessibilityLabel={`Photo ${i + 1} sur ${photos.length}`}
+            />
           ))}
         </ScrollView>
       )}
@@ -158,92 +191,109 @@ export default function CaptureScreen() {
       {/* Commandes bas d'écran. */}
       <View style={styles.controls}>
         <Pressable
-          style={[styles.shutter, (capturing || photos.length >= MAX_PHOTOS) && styles.disabled]}
+          accessibilityRole="button"
+          accessibilityLabel="Prendre une photo"
+          accessibilityState={{ disabled: capturing || photos.length >= MAX_PHOTOS }}
+          style={({ pressed }) => [
+            styles.shutter,
+            pressed && styles.shutterPressed,
+            (capturing || photos.length >= MAX_PHOTOS) && styles.disabled,
+          ]}
           onPress={() => void takePhoto()}
           disabled={capturing || photos.length >= MAX_PHOTOS}
         >
-          {capturing ? <ActivityIndicator color="#000" /> : <View style={styles.shutterInner} />}
+          {capturing ? <ActivityIndicator color={theme.ink} /> : <View style={styles.shutterInner} />}
         </Pressable>
 
-        <Pressable
-          style={[styles.primaryBtn, (!ready || photos.length === 0 || analyzing) && styles.disabled]}
+        <Button
+          label={`Rédiger l'annonce (${photos.length}/${MAX_PHOTOS})`}
           onPress={() => void runAnalysis()}
-          disabled={!ready || photos.length === 0 || analyzing}
-        >
-          {analyzing ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.primaryBtnText}>
-              Analyser ({photos.length}/{MAX_PHOTOS})
-            </Text>
-          )}
-        </Pressable>
+          loading={analyzing}
+          disabled={!ready || photos.length === 0}
+        />
       </View>
 
       {/* Erreur d'inférence → l'appelant API marquera AI_FAILED avec ce code. */}
       {errorCode && (
-        <View style={[styles.banner, styles.bannerError]}>
-          <Text style={styles.bannerText}>Analyse échouée : {errorCode}</Text>
+        <View
+          style={[styles.banner, styles.bannerError]}
+          accessibilityRole="alert"
+          accessibilityLiveRegion="polite"
+        >
+          <Text style={styles.bannerText}>
+            Analyse échouée ({errorCode}) — rien n'est débité, réessayez.
+          </Text>
         </View>
       )}
-
     </View>
   )
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000' },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 },
-  title: { fontSize: 22, fontWeight: '700' },
-  hint: { fontSize: 14, opacity: 0.6, textAlign: 'center' },
+  container: { flex: 1, backgroundColor: theme.ink },
+  center: { flex: 1, justifyContent: 'center', backgroundColor: theme.paper },
 
   banner: {
     position: 'absolute',
-    top: 56,
-    left: 16,
-    right: 16,
-    backgroundColor: 'rgba(0,0,0,0.75)',
-    borderRadius: 10,
-    padding: 12,
+    top: space[8],
+    left: space[4],
+    right: space[4],
+    backgroundColor: theme.scrim,
+    borderRadius: radius.md,
+    padding: space[3],
   },
-  bannerError: { top: 110, backgroundColor: 'rgba(160,32,32,0.85)' },
-  bannerText: { color: '#fff', fontSize: 13, textAlign: 'center' },
+  bannerError: { top: space[8] + space[7], backgroundColor: theme.scrimBrique },
+  bannerBody: { gap: space[2] },
+  bannerText: { color: theme.onDark, fontSize: font.small, textAlign: 'center' },
+  progressTrack: {
+    height: space[1],
+    borderRadius: radius.xs,
+    backgroundColor: theme.krafInk,
+    overflow: 'hidden',
+  },
+  progressFill: { height: '100%', borderRadius: radius.xs, backgroundColor: theme.gold },
 
-  thumbRow: { position: 'absolute', bottom: 140, left: 0, right: 0, maxHeight: 72 },
-  thumbRowContent: { paddingHorizontal: 16, gap: 8 },
-  thumb: { width: 64, height: 64, borderRadius: 8, borderWidth: 1, borderColor: '#fff' },
+  thumbRow: {
+    position: 'absolute',
+    bottom: space[8] + space[8] + space[3],
+    left: 0,
+    right: 0,
+    maxHeight: space[8] + space[2],
+  },
+  thumbRowContent: { paddingHorizontal: space[4], gap: space[2] },
+  thumb: {
+    width: space[8],
+    height: space[8],
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: theme.onDark,
+  },
 
   controls: {
     position: 'absolute',
-    bottom: 32,
+    bottom: space[6],
     left: 0,
     right: 0,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 24,
+    gap: space[5],
   },
   shutter: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: '#fff',
+    width: space[8] + space[2],
+    height: space[8] + space[2],
+    borderRadius: radius.pill,
+    backgroundColor: theme.card,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  shutterPressed: { transform: [{ scale: 0.94 }] },
   shutterInner: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    borderWidth: 3,
-    borderColor: '#000',
+    width: space[8] - space[1],
+    height: space[8] - space[1],
+    borderRadius: radius.pill,
+    borderWidth: space[1] - 1,
+    borderColor: theme.ink,
   },
-  primaryBtn: {
-    backgroundColor: '#2563eb',
-    borderRadius: 10,
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-  },
-  primaryBtnText: { color: '#fff', fontWeight: '600' },
   disabled: { opacity: 0.4 },
 })

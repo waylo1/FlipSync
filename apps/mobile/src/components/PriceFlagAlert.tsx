@@ -1,5 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native'
-import { centsToEur } from '@flipsync/core'
+import { AlertTriangle } from 'lucide-react-native'
+import { font, radius, space, theme } from '../theme'
+import { formatEur } from '../theme'
 
 interface Props {
   prixPublie: number // centimes
@@ -14,12 +16,15 @@ interface Props {
 export function PriceFlagAlert({ prixPublie, prixHaut }: Props) {
   const ceiling = Math.round(prixHaut * 1.2)
   return (
-    <View style={styles.box}>
-      <Text style={styles.title}>Prix au-dessus du marché</Text>
+    <View accessibilityRole="alert" accessibilityLiveRegion="polite" style={styles.box}>
+      <View style={styles.titleRow}>
+        <AlertTriangle size={font.body} color={theme.moutarde} />
+        <Text style={styles.title}>Prix au-dessus du marché</Text>
+      </View>
       <Text style={styles.body}>
-        Votre prix ({centsToEur(prixPublie).toFixed(2)} €) dépasse de plus de 20 % l'estimation
-        haute ({centsToEur(prixHaut).toFixed(2)} €). Au-delà de{' '}
-        {centsToEur(ceiling).toFixed(2)} €, l'annonce risque de ne pas trouver preneur.
+        Votre prix ({formatEur(prixPublie)}) dépasse de plus de 20 % l'estimation haute (
+        {formatEur(prixHaut)}). Au-delà de {formatEur(ceiling)}, l'annonce risque de ne pas
+        trouver preneur.
       </Text>
     </View>
   )
@@ -27,13 +32,14 @@ export function PriceFlagAlert({ prixPublie, prixHaut }: Props) {
 
 const styles = StyleSheet.create({
   box: {
-    backgroundColor: '#fef3c7',
-    borderColor: '#f59e0b',
+    backgroundColor: theme.moutardeSoft,
+    borderColor: theme.moutardeBorder,
     borderWidth: 1,
-    borderRadius: 10,
-    padding: 12,
-    gap: 4,
+    borderRadius: radius.md,
+    padding: space[3],
+    gap: space[1],
   },
-  title: { fontWeight: '700', color: '#92400e' },
-  body: { fontSize: 13, color: '#92400e' },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
+  title: { fontWeight: '700', color: theme.moutarde, fontSize: font.body },
+  body: { fontSize: font.small, color: theme.moutarde, lineHeight: space[4] + space[1] },
 })

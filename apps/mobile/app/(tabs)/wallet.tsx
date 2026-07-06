@@ -1,7 +1,10 @@
 import { useState } from 'react'
 import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native'
 import { TransactionType } from '@flipsync/core'
-import { MONO, formatEur, theme } from '../../src/theme'
+import { MIN_TOUCH, font, formatEur, radius, shadow, space, theme } from '../../src/theme'
+import { ScreenHeader } from '../../src/ui/ScreenHeader'
+import { Card } from '../../src/ui/Card'
+import { AmountText } from '../../src/ui/AmountText'
 
 interface TransactionRow {
   id: string
@@ -26,19 +29,19 @@ const MOCK_WALLET = {
 }
 
 const MOCK_TRANSACTIONS: readonly TransactionRow[] = [
-  { id: 't1', type: TransactionType.DEBIT, amountCents: 250, description: 'Listing OPTIMIZED — Veste cuir', quand: 'il y a 2 h' },
+  { id: 't1', type: TransactionType.DEBIT, amountCents: 250, description: 'Annonce Optimisée — Veste cuir', quand: 'il y a 2 h' },
   { id: 't2', type: TransactionType.REFUND, amountCents: 250, description: 'Échec publication — Sac Longchamp', quand: 'il y a 3 h' },
-  { id: 't3', type: TransactionType.DEBIT, amountCents: 80, description: 'Listing SIMPLE — Cafetière', quand: 'hier' },
+  { id: 't3', type: TransactionType.DEBIT, amountCents: 80, description: 'Annonce Simple — Cafetière', quand: 'hier' },
   { id: 't4', type: TransactionType.BONUS, amountCents: 100, description: 'Bonus fidélité première recharge', quand: 'il y a 3 j' },
-  { id: 't5', type: TransactionType.CREDIT, amountCents: 1000, description: 'Recharge Stripe', quand: 'il y a 3 j' },
-  { id: 't6', type: TransactionType.CREDIT, amountCents: 2000, description: 'Recharge Stripe', quand: 'la semaine dernière' },
+  { id: 't5', type: TransactionType.CREDIT, amountCents: 1000, description: 'Recharge', quand: 'il y a 3 j' },
+  { id: 't6', type: TransactionType.CREDIT, amountCents: 2000, description: 'Recharge', quand: 'la semaine dernière' },
 ]
 
-/** Sémantique des mouvements : crédits en vert, débits en encre, signe explicite. */
+/** Sémantique des mouvements : crédits en bouteille, débits en encre, signe explicite. */
 const TX_META: Readonly<Record<TransactionType, { sign: '+' | '−'; color: string; label: string }>> = {
-  [TransactionType.CREDIT]: { sign: '+', color: '#15803D', label: 'Recharge' },
+  [TransactionType.CREDIT]: { sign: '+', color: theme.bouteille, label: 'Recharge' },
   [TransactionType.BONUS]: { sign: '+', color: theme.goldDark, label: 'Bonus' },
-  [TransactionType.REFUND]: { sign: '+', color: '#0F766E', label: 'Remboursement' },
+  [TransactionType.REFUND]: { sign: '+', color: theme.bouteille, label: 'Remboursement' },
   [TransactionType.DEBIT]: { sign: '−', color: theme.ink, label: 'Débit' },
 }
 
@@ -51,18 +54,15 @@ export default function WalletScreen() {
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <View style={styles.header}>
-        <Text style={styles.heading}>Wallet</Text>
-        <View style={styles.headerAccent} />
-      </View>
+      <ScreenHeader title="Ma cagnotte" />
 
       {/* Solde — toujours en centimes côté données, euros à l'affichage seulement. */}
-      <View style={styles.balanceCard}>
+      <View style={styles.balanceCard} accessibilityLabel={`Solde disponible : ${formatEur(MOCK_WALLET.balance)}`}>
         <Text style={styles.balanceLabel}>Solde disponible</Text>
-        <Text style={styles.balanceValue}>{formatEur(MOCK_WALLET.balance)}</Text>
+        <AmountText cents={MOCK_WALLET.balance} size={font.balance} color={theme.onDark} />
         <View style={styles.balanceFooter}>
           <Text style={styles.balanceChip}>
-            {MOCK_WALLET.freeListingsRemaining} listing gratuit restant
+            {MOCK_WALLET.freeListingsRemaining} annonce gratuite restante
           </Text>
           <Text style={styles.balanceMuted}>
             {formatEur(MOCK_WALLET.lifetimeRecharged)} rechargés au total
@@ -71,7 +71,7 @@ export default function WalletScreen() {
       </View>
 
       {/* Auto-recharge — déclenchée par WalletService.authorize() (étape 3). */}
-      <View style={styles.section}>
+      <Card style={styles.section}>
         <View style={styles.sectionHeader}>
           <View style={styles.sectionTitleBlock}>
             <Text style={styles.sectionTitle}>Recharge automatique</Text>
@@ -81,42 +81,54 @@ export default function WalletScreen() {
             </Text>
           </View>
           <Switch
+            accessibilityRole="switch"
+            accessibilityLabel="Recharge automatique"
+            accessibilityState={{ checked: autoRecharge }}
             value={autoRecharge}
             onValueChange={setAutoRecharge}
             trackColor={{ false: theme.border, true: theme.gold }}
-            thumbColor="#fff"
+            thumbColor={theme.card}
           />
         </View>
 
         {autoRecharge && (
-          <View style={styles.amountRow}>
-            {RECHARGE_AMOUNTS.map(amount => (
-              <Pressable
-                key={amount}
-                style={[styles.amountChip, rechargeAmount === amount && styles.amountChipActive]}
-                onPress={() => setRechargeAmount(amount)}
-              >
-                <Text
-                  style={[
-                    styles.amountChipText,
-                    rechargeAmount === amount && styles.amountChipTextActive,
+          <View style={styles.amountRow} accessibilityRole="radiogroup">
+            {RECHARGE_AMOUNTS.map(amount => {
+              const active = rechargeAmount === amount
+              return (
+                <Pressable
+                  key={amount}
+                  accessibilityRole="radio"
+                  accessibilityLabel={`Recharge de ${formatEur(amount)}`}
+                  accessibilityState={{ selected: active }}
+                  style={({ pressed }) => [
+                    styles.amountChip,
+                    active && styles.amountChipActive,
+                    pressed && styles.pressed,
                   ]}
+                  onPress={() => setRechargeAmount(amount)}
                 >
-                  {formatEur(amount)}
-                </Text>
-              </Pressable>
-            ))}
+                  <Text style={[styles.amountChipText, active && styles.amountChipTextActive]}>
+                    {formatEur(amount)}
+                  </Text>
+                </Pressable>
+              )
+            })}
           </View>
         )}
-      </View>
+      </Card>
 
       {/* Historique — montants signés, sémantique par type de transaction. */}
-      <View style={styles.section}>
+      <Card style={styles.section}>
         <Text style={styles.sectionTitle}>Historique</Text>
         {MOCK_TRANSACTIONS.map(tx => {
           const meta = TX_META[tx.type]
           return (
-            <View key={tx.id} style={styles.txRow}>
+            <View
+              key={tx.id}
+              style={styles.txRow}
+              accessibilityLabel={`${meta.label}, ${tx.description}, ${meta.sign === '+' ? 'plus' : 'moins'} ${formatEur(tx.amountCents)}, ${tx.quand}`}
+            >
               <View style={styles.txBody}>
                 <Text style={styles.txDescription} numberOfLines={1}>
                   {tx.description}
@@ -125,13 +137,16 @@ export default function WalletScreen() {
                   {meta.label} · {tx.quand}
                 </Text>
               </View>
-              <Text style={[styles.txAmount, { color: meta.color }]}>
-                {meta.sign} {formatEur(tx.amountCents)}
-              </Text>
+              <AmountText
+                cents={tx.amountCents}
+                sign={meta.sign}
+                size={font.body}
+                color={meta.color}
+              />
             </View>
           )
         })}
-      </View>
+      </Card>
 
       <Text style={styles.mockNote}>Données de démonstration — branchement API à venir.</Text>
     </ScrollView>
@@ -140,71 +155,65 @@ export default function WalletScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: theme.paper },
-  content: { paddingBottom: 40 },
-  header: { paddingTop: 64, paddingHorizontal: 20, paddingBottom: 12 },
-  heading: { fontSize: 26, fontWeight: '800', color: theme.ink },
-  headerAccent: { width: 44, height: 4, borderRadius: 2, backgroundColor: theme.gold, marginTop: 6 },
+  content: { paddingBottom: space[6] },
 
   balanceCard: {
-    marginHorizontal: 16,
+    marginHorizontal: space[4],
     backgroundColor: theme.ink,
-    borderRadius: 18,
-    padding: 22,
-    gap: 4,
+    borderRadius: radius.lg,
+    padding: space[5],
+    gap: space[1],
+    ...shadow.sheet,
   },
-  balanceLabel: { color: theme.gold, fontSize: 13, fontWeight: '600' },
-  balanceValue: {
-    color: '#fff',
-    fontFamily: MONO,
-    fontSize: 48,
-    fontWeight: '700',
-    fontVariant: ['tabular-nums'],
+  balanceLabel: { color: theme.gold, fontSize: font.small, fontWeight: '600' },
+  balanceFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space[3],
+    marginTop: space[2],
   },
-  balanceFooter: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8 },
   balanceChip: {
     color: theme.ink,
     backgroundColor: theme.gold,
-    fontSize: 11,
+    fontSize: font.caption,
     fontWeight: '700',
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 3,
+    borderRadius: radius.pill,
+    paddingHorizontal: space[3],
+    paddingVertical: space[1],
     overflow: 'hidden',
   },
-  balanceMuted: { color: '#A8A29E', fontSize: 11 },
+  balanceMuted: { color: theme.onDarkMuted, fontSize: font.caption },
 
-  section: {
-    marginHorizontal: 16,
-    marginTop: 16,
-    backgroundColor: theme.card,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: theme.border,
-    padding: 16,
-    gap: 12,
-  },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  sectionTitleBlock: { flex: 1, gap: 4 },
-  sectionTitle: { fontSize: 15, fontWeight: '700', color: theme.ink },
-  sectionHint: { fontSize: 12, color: theme.muted, lineHeight: 17 },
+  section: { marginHorizontal: space[4], marginTop: space[4], gap: space[3] },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: space[3] },
+  sectionTitleBlock: { flex: 1, gap: space[1] },
+  sectionTitle: { fontSize: font.body, fontWeight: '700', color: theme.ink },
+  sectionHint: { fontSize: font.caption, color: theme.muted, lineHeight: space[4] + space[1] },
 
-  amountRow: { flexDirection: 'row', gap: 8 },
+  amountRow: { flexDirection: 'row', gap: space[2] },
   amountChip: {
     borderWidth: 1,
     borderColor: theme.border,
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    borderRadius: radius.md,
+    paddingHorizontal: space[4],
+    paddingVertical: space[2],
+    minHeight: MIN_TOUCH,
+    justifyContent: 'center',
   },
   amountChipActive: { backgroundColor: theme.gold, borderColor: theme.gold },
-  amountChipText: { fontFamily: MONO, fontSize: 13, color: theme.ink },
+  amountChipText: { fontSize: font.small, color: theme.ink },
   amountChipTextActive: { fontWeight: '700' },
+  pressed: { opacity: 0.85 },
 
-  txRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  txBody: { flex: 1, gap: 2 },
-  txDescription: { fontSize: 13, fontWeight: '500', color: theme.ink },
-  txWhen: { fontSize: 11, color: theme.muted },
-  txAmount: { fontFamily: MONO, fontSize: 14, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  txRow: { flexDirection: 'row', alignItems: 'center', gap: space[3], minHeight: space[6] },
+  txBody: { flex: 1, gap: space[1] / 2 },
+  txDescription: { fontSize: font.small, fontWeight: '500', color: theme.ink },
+  txWhen: { fontSize: font.caption, color: theme.muted },
 
-  mockNote: { textAlign: 'center', fontSize: 11, color: theme.muted, marginTop: 20 },
+  mockNote: {
+    textAlign: 'center',
+    fontSize: font.caption,
+    color: theme.muted,
+    marginTop: space[5],
+  },
 })

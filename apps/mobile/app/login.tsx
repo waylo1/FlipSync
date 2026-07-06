@@ -1,15 +1,12 @@
 import { useCallback, useState } from 'react'
-import {
-  ActivityIndicator,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native'
+import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { useRouter } from 'expo-router'
 import { ApiError, requestMagicLink, verifyMagicLink } from '../src/services/api'
 import { useAuthStore } from '../src/store/auth.store'
+import { font, space, theme } from '../src/theme'
+import { Button } from '../src/ui/Button'
+import { Field } from '../src/ui/Field'
+import { ErrorBanner } from '../src/ui/ErrorBanner'
 
 /**
  * Connexion par magic link (sans mot de passe).
@@ -72,25 +69,28 @@ export default function LoginScreen() {
     return (
       <View style={styles.container}>
         <Text style={styles.logo}>FlipSync</Text>
-        <Text style={styles.title}>Vérifiez vos emails</Text>
+        <Text accessibilityRole="header" style={styles.title}>
+          Vérifiez vos emails
+        </Text>
         <Text style={styles.body}>
           Si un compte existe pour {email.trim().toLowerCase()}, un lien de connexion vient d'être
           envoyé. Il est valable 15 minutes.
         </Text>
 
-        {error && <Text style={styles.error}>{error}</Text>}
+        {error && <ErrorBanner message={error} />}
 
         {devToken && (
-          <Pressable style={styles.btn} onPress={() => void continueWithDevToken()} disabled={busy}>
-            {busy ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.btnText}>Continuer (dev)</Text>
-            )}
-          </Pressable>
+          <Button
+            label="Continuer (dev)"
+            onPress={() => void continueWithDevToken()}
+            loading={busy}
+          />
         )}
 
         <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Utiliser une autre adresse email"
+          hitSlop={space[2]}
           onPress={() => {
             setSent(false)
             setDevToken(null)
@@ -105,10 +105,10 @@ export default function LoginScreen() {
   return (
     <View style={styles.container}>
       <Text style={styles.logo}>FlipSync</Text>
-      <Text style={styles.subtitle}>Connexion par lien magique</Text>
+      <Text style={styles.subtitle}>Vos objets ont une seconde vie</Text>
 
-      <TextInput
-        style={styles.input}
+      <Field
+        label="Email"
         value={email}
         onChangeText={setEmail}
         placeholder="email@exemple.fr"
@@ -118,42 +118,48 @@ export default function LoginScreen() {
         inputMode="email"
       />
 
-      {error && <Text style={styles.error}>{error}</Text>}
+      {error && <ErrorBanner message={error} />}
 
-      <Pressable
-        style={[styles.btn, (!emailValid || busy) && styles.disabled]}
+      <Button
+        label="Recevoir un lien de connexion"
         onPress={() => void sendLink()}
-        disabled={!emailValid || busy}
-      >
-        {busy ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text style={styles.btnText}>Recevoir un lien</Text>
-        )}
-      </Pressable>
+        loading={busy}
+        disabled={!emailValid}
+      />
 
-      <Text style={styles.hint}>Pas de mot de passe — un lien suffit.</Text>
+      <Text style={styles.hint}>Pas de mot de passe — un lien par email suffit.</Text>
     </View>
   )
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', padding: 28, gap: 12, backgroundColor: '#fff' },
-  logo: { fontSize: 32, fontWeight: '800', textAlign: 'center' },
-  subtitle: { fontSize: 14, opacity: 0.6, textAlign: 'center', marginBottom: 16 },
-  title: { fontSize: 20, fontWeight: '700', textAlign: 'center' },
-  body: { fontSize: 14, opacity: 0.7, textAlign: 'center', lineHeight: 20 },
-  input: {
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 10,
-    padding: 14,
-    fontSize: 16,
+  container: {
+    flex: 1,
+    justifyContent: 'center',
+    padding: space[5],
+    gap: space[3],
+    backgroundColor: theme.paper,
   },
-  btn: { backgroundColor: '#2563eb', borderRadius: 10, padding: 16, alignItems: 'center' },
-  btnText: { color: '#fff', fontWeight: '700' },
-  disabled: { opacity: 0.4 },
-  error: { color: '#dc2626', fontSize: 13 },
-  hint: { fontSize: 12, opacity: 0.5, textAlign: 'center' },
-  link: { color: '#2563eb', fontWeight: '600', textAlign: 'center', marginTop: 8 },
+  logo: { fontSize: font.display, fontWeight: '800', textAlign: 'center', color: theme.ink },
+  subtitle: {
+    fontSize: font.body,
+    color: theme.muted,
+    textAlign: 'center',
+    marginBottom: space[4],
+  },
+  title: { fontSize: font.title, fontWeight: '700', textAlign: 'center', color: theme.ink },
+  body: {
+    fontSize: font.body,
+    color: theme.muted,
+    textAlign: 'center',
+    lineHeight: space[5] - space[1],
+  },
+  hint: { fontSize: font.caption, color: theme.muted, textAlign: 'center' },
+  link: {
+    color: theme.terracotta,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginTop: space[2],
+    fontSize: font.body,
+  },
 })

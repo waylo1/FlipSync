@@ -1,13 +1,5 @@
 import { useCallback, useMemo, useState } from 'react'
-import {
-  ActivityIndicator,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native'
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { Redirect, useRouter } from 'expo-router'
 import {
   ItemCondition,
@@ -21,6 +13,10 @@ import {
 import { api, ApiError } from '../src/services/api'
 import { useListingSession, SessionPhoto } from '../src/store/listing.store'
 import { PriceFlagAlert } from '../src/components/PriceFlagAlert'
+import { MIN_TOUCH, font, formatEur, radius, space, theme } from '../src/theme'
+import { Button } from '../src/ui/Button'
+import { Field } from '../src/ui/Field'
+import { ErrorBanner } from '../src/ui/ErrorBanner'
 
 const CONDITIONS: readonly { value: ItemCondition; label: string }[] = [
   { value: ItemCondition.neuf, label: 'Neuf' },
@@ -31,16 +27,16 @@ const CONDITIONS: readonly { value: ItemCondition; label: string }[] = [
 
 const TIERS: readonly { value: ListingTier; label: string }[] = [
   { value: ListingTier.SIMPLE, label: 'Simple' },
-  { value: ListingTier.OPTIMIZED, label: 'Optimisé' },
+  { value: ListingTier.OPTIMIZED, label: 'Optimisée' },
   { value: ListingTier.PREMIUM, label: 'Premium' },
 ]
 
 /** Messages utilisateur pour les codes d'erreur API les plus probables ici. */
 const ERROR_MESSAGES: Readonly<Record<string, string>> = {
   NO_AUTH_TOKEN: 'Session expirée — reconnectez-vous.',
-  INSUFFICIENT_FUNDS: 'Solde insuffisant — rechargez votre wallet.',
-  NO_FREE_CREDIT: 'Plus de listing gratuit ce mois-ci — rechargez votre wallet.',
-  INVALID_TRANSITION: 'Ce listing a déjà été traité.',
+  INSUFFICIENT_FUNDS: 'Solde insuffisant — rechargez votre cagnotte.',
+  NO_FREE_CREDIT: 'Plus d’annonce gratuite ce mois-ci — rechargez votre cagnotte.',
+  INVALID_TRANSITION: 'Cette annonce a déjà été traitée.',
 }
 
 export default function ValidateScreen() {
@@ -114,8 +110,8 @@ function ValidateForm({ draft, photos, clearSession, goHome }: FormProps) {
       if (!created.auth.authorized) {
         const deficit = created.auth.deficit ?? 0
         setErrorMessage(
-          `Solde insuffisant : il manque ${centsToEur(deficit).toFixed(2)} €. ` +
-            'Rechargez votre wallet — le listing sera automatiquement réautorisé.',
+          `Solde insuffisant : il manque ${formatEur(deficit)}. ` +
+            'Rechargez votre cagnotte — l’annonce repartira automatiquement.',
         )
         return
       }
@@ -143,95 +139,97 @@ function ValidateForm({ draft, photos, clearSession, goHome }: FormProps) {
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <Text style={styles.heading}>Vérifiez votre annonce</Text>
+      <Text accessibilityRole="header" style={styles.heading}>
+        Vérifiez votre annonce
+      </Text>
       <Text style={styles.subheading}>
-        Générée par l'IA locale — modifiez ce que vous voulez, rien n'est débité avant votre
+        Rédigée sur votre téléphone — modifiez ce que vous voulez, rien n'est débité avant votre
         validation.
       </Text>
 
-      <Text style={styles.label}>Titre</Text>
-      <TextInput style={styles.input} value={titre} onChangeText={setTitre} maxLength={120} />
+      <Field label="Titre" value={titre} onChangeText={setTitre} maxLength={120} />
 
-      <Text style={styles.label}>Description</Text>
-      <TextInput
-        style={[styles.input, styles.multiline]}
+      <Field
+        label="Description"
         value={description}
         onChangeText={setDescription}
         multiline
+        style={styles.multiline}
       />
 
-      <Text style={styles.label}>Marque</Text>
-      <TextInput
-        style={styles.input}
-        value={marque}
-        onChangeText={setMarque}
-        placeholder="Aucune"
-      />
+      <Field label="Marque" value={marque} onChangeText={setMarque} placeholder="Aucune" />
 
       <Text style={styles.label}>État</Text>
-      <View style={styles.chipRow}>
-        {CONDITIONS.map(c => (
-          <Pressable
-            key={c.value}
-            style={[styles.chip, etat === c.value && styles.chipActive]}
-            onPress={() => setEtat(c.value)}
-          >
-            <Text style={[styles.chipText, etat === c.value && styles.chipTextActive]}>
-              {c.label}
-            </Text>
-          </Pressable>
-        ))}
+      <View style={styles.chipRow} accessibilityRole="radiogroup">
+        {CONDITIONS.map(c => {
+          const active = etat === c.value
+          return (
+            <Pressable
+              key={c.value}
+              accessibilityRole="radio"
+              accessibilityLabel={`État : ${c.label}`}
+              accessibilityState={{ selected: active }}
+              style={({ pressed }) => [
+                styles.chip,
+                active && styles.chipActive,
+                pressed && styles.pressed,
+              ]}
+              onPress={() => setEtat(c.value)}
+            >
+              <Text style={[styles.chipText, active && styles.chipTextActive]}>{c.label}</Text>
+            </Pressable>
+          )
+        })}
       </View>
 
-      <Text style={styles.label}>Prix de vente (€)</Text>
-      <Text style={styles.hint}>
-        Estimation IA : {centsToEur(draft.prixPlancher).toFixed(2)} € —{' '}
-        {centsToEur(draft.prixHaut).toFixed(2)} €
-      </Text>
-      <TextInput
-        style={[styles.input, prixPublie === null && styles.inputError]}
+      <Field
+        label="Prix de vente (€)"
+        hint={`Estimation : ${formatEur(draft.prixPlancher)} — ${formatEur(draft.prixHaut)}`}
         value={prixInput}
         onChangeText={setPrixInput}
         keyboardType="decimal-pad"
         inputMode="decimal"
+        error={prixPublie === null ? 'Prix invalide' : null}
       />
       {flagged && prixPublie !== null && (
         <PriceFlagAlert prixPublie={prixPublie} prixHaut={draft.prixHaut} />
       )}
 
       <Text style={styles.label}>Formule</Text>
-      <View style={styles.chipRow}>
-        {TIERS.map(t => (
-          <Pressable
-            key={t.value}
-            style={[styles.tierCard, tier === t.value && styles.chipActive]}
-            onPress={() => setTier(t.value)}
-          >
-            <Text style={[styles.chipText, tier === t.value && styles.chipTextActive]}>
-              {t.label}
-            </Text>
-            <Text style={[styles.tierPrice, tier === t.value && styles.chipTextActive]}>
-              {centsToEur(TIER_PRICING[t.value]).toFixed(2)} €
-            </Text>
-          </Pressable>
-        ))}
+      <View style={styles.chipRow} accessibilityRole="radiogroup">
+        {TIERS.map(t => {
+          const active = tier === t.value
+          return (
+            <Pressable
+              key={t.value}
+              accessibilityRole="radio"
+              accessibilityLabel={`Formule ${t.label}, ${formatEur(TIER_PRICING[t.value])}`}
+              accessibilityState={{ selected: active }}
+              style={({ pressed }) => [
+                styles.tierCard,
+                active && styles.chipActive,
+                pressed && styles.pressed,
+              ]}
+              onPress={() => setTier(t.value)}
+            >
+              <Text style={[styles.chipText, active && styles.chipTextActive]}>{t.label}</Text>
+              <Text style={[styles.tierPrice, active && styles.chipTextActive]}>
+                {formatEur(TIER_PRICING[t.value])}
+              </Text>
+            </Pressable>
+          )
+        })}
       </View>
 
-      {errorMessage && <Text style={styles.error}>{errorMessage}</Text>}
+      {errorMessage && <ErrorBanner message={errorMessage} />}
 
-      <Pressable
-        style={[styles.publishBtn, (!formValid || publishing) && styles.disabled]}
+      <Button
+        label={`Valider et publier — ${formatEur(TIER_PRICING[tier])}`}
         onPress={() => void publish()}
-        disabled={!formValid || publishing}
-      >
-        {publishing ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text style={styles.publishText}>
-            Valider et publier — {centsToEur(TIER_PRICING[tier]).toFixed(2)} €
-          </Text>
-        )}
-      </Pressable>
+        loading={publishing}
+        disabled={!formValid}
+        style={styles.publishBtn}
+      />
       <Text style={styles.hint}>
         Le débit n'a lieu qu'à cette validation. Échec de publication = remboursement automatique.
       </Text>
@@ -240,50 +238,42 @@ function ValidateForm({ draft, photos, clearSession, goHome }: FormProps) {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#fff' },
-  content: { padding: 20, paddingTop: 64, gap: 8, paddingBottom: 48 },
-  heading: { fontSize: 24, fontWeight: '700' },
-  subheading: { fontSize: 13, opacity: 0.6, marginBottom: 8 },
-  label: { fontSize: 13, fontWeight: '600', marginTop: 12 },
-  hint: { fontSize: 12, opacity: 0.6 },
-  input: {
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 10,
-    padding: 12,
-    fontSize: 15,
-  },
-  inputError: { borderColor: '#dc2626' },
-  multiline: { minHeight: 110, textAlignVertical: 'top' },
-  chipRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  screen: { flex: 1, backgroundColor: theme.paper },
+  content: { padding: space[5], paddingTop: space[8], gap: space[2], paddingBottom: space[7] },
+  heading: { fontSize: font.heading - space[1] / 2, fontWeight: '700', color: theme.ink },
+  subheading: { fontSize: font.small, color: theme.muted, marginBottom: space[2] },
+  label: { fontSize: font.small, fontWeight: '600', marginTop: space[3], color: theme.ink },
+  hint: { fontSize: font.caption, color: theme.muted, textAlign: 'center' },
+  multiline: { minHeight: space[8] + space[7], textAlignVertical: 'top' },
+
+  chipRow: { flexDirection: 'row', gap: space[2], flexWrap: 'wrap' },
   chip: {
     borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    borderColor: theme.border,
+    borderRadius: radius.pill,
+    paddingHorizontal: space[4],
+    paddingVertical: space[2],
+    minHeight: MIN_TOUCH,
+    justifyContent: 'center',
+    backgroundColor: theme.card,
   },
-  chipActive: { backgroundColor: '#2563eb', borderColor: '#2563eb' },
-  chipText: { fontSize: 13, color: '#111' },
-  chipTextActive: { color: '#fff', fontWeight: '600' },
+  chipActive: { backgroundColor: theme.terracotta, borderColor: theme.terracotta },
+  chipText: { fontSize: font.small, color: theme.ink },
+  chipTextActive: { color: theme.onDark, fontWeight: '600' },
+  pressed: { opacity: 0.85 },
+
   tierCard: {
     borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    borderColor: theme.border,
+    borderRadius: radius.md,
+    paddingHorizontal: space[4],
+    paddingVertical: space[3],
     alignItems: 'center',
-    gap: 2,
+    gap: space[1] / 2,
+    minHeight: MIN_TOUCH,
+    backgroundColor: theme.card,
   },
-  tierPrice: { fontSize: 12, opacity: 0.7 },
-  error: { color: '#dc2626', marginTop: 8 },
-  publishBtn: {
-    backgroundColor: '#16a34a',
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-    marginTop: 16,
-  },
-  publishText: { color: '#fff', fontWeight: '700', fontSize: 16 },
-  disabled: { opacity: 0.4 },
+  tierPrice: { fontSize: font.caption, color: theme.muted },
+
+  publishBtn: { marginTop: space[4] },
 })

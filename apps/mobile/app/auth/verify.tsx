@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native'
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native'
 import { Redirect, useLocalSearchParams, useRouter } from 'expo-router'
 import { ApiError, verifyMagicLink } from '../../src/services/api'
 import { useAuthStore } from '../../src/store/auth.store'
+import { font, space, theme } from '../../src/theme'
+import { Button } from '../../src/ui/Button'
 
 /**
  * Cible du deep link magic link : flipsync://auth/verify?token=...
@@ -36,7 +38,9 @@ export default function VerifyScreen() {
   if (error) {
     return (
       <View style={styles.container}>
-        <Text style={styles.title}>Lien invalide</Text>
+        <Text accessibilityRole="header" style={styles.title}>
+          Lien invalide
+        </Text>
         <Text style={styles.body}>
           {error === 'TOKEN_EXPIRED'
             ? 'Ce lien a expiré. Demandez-en un nouveau.'
@@ -44,25 +48,28 @@ export default function VerifyScreen() {
               ? 'Ce lien a déjà été utilisé.'
               : `Connexion impossible (${error}).`}
         </Text>
-        <Pressable style={styles.btn} onPress={() => router.replace('/login')}>
-          <Text style={styles.btnText}>Retour à la connexion</Text>
-        </Pressable>
+        <Button label="Retour à la connexion" onPress={() => router.replace('/login')} />
       </View>
     )
   }
 
   return (
-    <View style={styles.container}>
-      <ActivityIndicator size="large" color="#2563eb" />
+    <View style={styles.container} accessibilityLiveRegion="polite">
+      <ActivityIndicator size="large" color={theme.goldDark} />
       <Text style={styles.body}>Connexion en cours…</Text>
     </View>
   )
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 28, gap: 14 },
-  title: { fontSize: 20, fontWeight: '700' },
-  body: { fontSize: 14, opacity: 0.7, textAlign: 'center' },
-  btn: { backgroundColor: '#2563eb', borderRadius: 10, paddingHorizontal: 20, paddingVertical: 14 },
-  btnText: { color: '#fff', fontWeight: '700' },
+  container: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: space[5],
+    gap: space[4],
+    backgroundColor: theme.paper,
+  },
+  title: { fontSize: font.title, fontWeight: '700', color: theme.ink },
+  body: { fontSize: font.body, color: theme.muted, textAlign: 'center' },
 })

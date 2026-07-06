@@ -36,6 +36,9 @@ apps/mobile/*.mobileprovision
 # Photos uploadées (dev local)
 apps/api/uploads/
 
+# Journal des publications mockées (tools/test-pipeline.ts)
+apps/api/debug/
+
 # Logs
 *.log
 npm-debug.log*
@@ -53,3 +56,6 @@ Thumbs.db
 
 # Tests
 coverage/
+
+# Enums générés depuis schema.prisma (regénérés au build de @flipsync/core)
+packages/core/src/generated/

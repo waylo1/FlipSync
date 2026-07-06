@@ -1,13 +1,15 @@
 import { RefreshControl, ScrollView, StyleSheet, Switch, Text, View } from 'react-native'
-import { Receipt } from 'lucide-react-native'
+import { LogOut, Receipt } from 'lucide-react-native'
 import { TransactionType } from '@flipsync/core'
 import { ApiTransaction, api } from '../../src/services/api'
+import { useAuthStore } from '../../src/store/auth.store'
 import { useApiResource } from '../../src/hooks/useApiResource'
 import { formatRelativeFr } from '../../src/lib/time'
 import { font, formatEur, radius, shadow, space, theme } from '../../src/theme'
 import { ScreenHeader } from '../../src/ui/ScreenHeader'
 import { Card } from '../../src/ui/Card'
 import { AmountText } from '../../src/ui/AmountText'
+import { Button } from '../../src/ui/Button'
 import { ErrorBanner } from '../../src/ui/ErrorBanner'
 import { EmptyState } from '../../src/ui/EmptyState'
 import { Skeleton } from '../../src/ui/Skeleton'
@@ -43,6 +45,7 @@ function TransactionLine({ tx }: { tx: ApiTransaction }) {
 }
 
 export default function WalletScreen() {
+  const setToken = useAuthStore(s => s.setToken)
   const wallet = useApiResource(api.getWallet)
   const transactions = useApiResource(api.getTransactions)
 
@@ -159,6 +162,15 @@ export default function WalletScreen() {
           transactions.data.transactions.map(tx => <TransactionLine key={tx.id} tx={tx} />)
         )}
       </Card>
+
+      {/* Déconnexion : purge du JWT (MMKV) → la garde (tabs) renvoie au login. */}
+      <Button
+        label="Se déconnecter"
+        variant="ghost"
+        icon={<LogOut size={font.lead} color={theme.ink} />}
+        onPress={() => setToken(null)}
+        style={styles.logout}
+      />
     </ScrollView>
   )
 }
@@ -201,6 +213,7 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: font.body, fontWeight: '700', color: theme.ink },
   sectionHint: { fontSize: font.caption, color: theme.muted, lineHeight: space[4] + space[1] },
 
+  logout: { marginHorizontal: space[4], marginTop: space[5] },
   txSkeletons: { gap: space[2] },
   txRow: { flexDirection: 'row', alignItems: 'center', gap: space[3], minHeight: space[6] },
   txBody: { flex: 1, gap: space[1] / 2 },

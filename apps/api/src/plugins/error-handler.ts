@@ -2,6 +2,7 @@ import fp from 'fastify-plugin'
 import { FastifyPluginAsync } from 'fastify'
 import { WalletError } from '@flipsync/wallet'
 import { EngineError } from '@flipsync/ai'
+import { PublicationError } from '../services/publication.service'
 
 /** Mapping code métier SNAKE_CASE → statut HTTP. Défaut domaine : 400. */
 const HTTP_BY_CODE: Readonly<Record<string, number>> = {
@@ -23,7 +24,11 @@ const HTTP_BY_CODE: Readonly<Record<string, number>> = {
  */
 const errorHandlerPlugin: FastifyPluginAsync = async app => {
   app.setErrorHandler((err, req, reply) => {
-    if (err instanceof WalletError || err instanceof EngineError) {
+    if (
+      err instanceof WalletError ||
+      err instanceof EngineError ||
+      err instanceof PublicationError
+    ) {
       return reply.code(HTTP_BY_CODE[err.code] ?? 400).send({ error: err.code })
     }
 

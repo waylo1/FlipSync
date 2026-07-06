@@ -15,6 +15,9 @@ import { useAuthStore } from '../store/auth.store'
 // 10.0.2.2 = localhost de la machine hôte vu depuis l'émulateur Android.
 export const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://10.0.2.2:3001'
 
+/** Délai maximal d'une requête — au-delà : ApiError('TIMEOUT'). */
+const REQUEST_TIMEOUT_MS = 10_000
+
 /** Erreur API — code SNAKE_CASE renvoyé par le backend ({ error: code }). */
 export class ApiError extends Error {
   constructor(
@@ -23,6 +26,23 @@ export class ApiError extends Error {
   ) {
     super(code)
     this.name = 'ApiError'
+  }
+}
+
+/**
+ * fetch borné dans le temps + erreurs réseau normalisées :
+ * délai dépassé → TIMEOUT ; serveur injoignable → NETWORK_ERROR (status 0).
+ * Aucun appel réseau de l'app ne passe ailleurs que par ici.
+ */
+async function fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+  try {
+    return await fetch(url, { ...init, signal: controller.signal })
+  } catch {
+    throw new ApiError(controller.signal.aborted ? 'TIMEOUT' : 'NETWORK_ERROR', 0)
+  } finally {
+    clearTimeout(timer)
   }
 }
 
@@ -92,7 +112,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const token = useAuthStore.getState().token
   if (!token) throw new ApiError('NO_AUTH_TOKEN', 401)
 
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await fetchWithTimeout(`${API_BASE}${path}`, {
     ...init,
     headers: {
       authorization: `Bearer ${token}`,
@@ -109,6 +129,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     } catch {
       // corps non-JSON — on garde INTERNAL_ERROR
     }
+    // Session invalide/expirée : purge du token → la garde (tabs) renvoie au
+    // login (magic link) automatiquement. Aucun écran ne reste bloqué en erreur.
+    if (res.status === 401) {
+      useAuthStore.getState().setToken(null)
+    }
     throw new ApiError(code, res.status)
   }
 
@@ -124,7 +149,7 @@ const post = <T>(path: string, body?: unknown): Promise<T> =>
  */
 /** Appel public (sans JWT) avec normalisation d'erreur ApiError. */
 async function publicPost<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await fetchWithTimeout(`${API_BASE}${path}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),

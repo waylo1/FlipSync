@@ -1,10 +1,15 @@
-import { FlatList, RefreshControl, StyleSheet, View } from 'react-native'
-import { Camera } from 'lucide-react-native'
-import { API_BASE, ApiListing, api } from '../../src/services/api'
+import { useState } from 'react'
+import { FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native'
+import { useRouter } from 'expo-router'
+import { Camera, CircleDashed } from 'lucide-react-native'
+import { API_BASE, ApiError, ApiListing, api } from '../../src/services/api'
 import { useApiResource } from '../../src/hooks/useApiResource'
+import { usePendingPublish } from '../../src/store/listing.store'
 import { formatRelativeFr } from '../../src/lib/time'
-import { space, theme } from '../../src/theme'
+import { font, space, theme } from '../../src/theme'
 import { ScreenHeader } from '../../src/ui/ScreenHeader'
+import { Button } from '../../src/ui/Button'
+import { Card } from '../../src/ui/Card'
 import { EmptyState } from '../../src/ui/EmptyState'
 import { ErrorBanner } from '../../src/ui/ErrorBanner'
 import { Skeleton } from '../../src/ui/Skeleton'
@@ -29,6 +34,60 @@ function toRow(listing: ApiListing): ListingRow {
 
 const SKELETON_KEYS = ['s1', 's2', 's3'] as const
 
+/**
+ * Bandeau « publication interrompue » : la séquence create→validate a été coupée
+ * (réseau, crash). Rien n'a été débité — Reprendre repart de l'étape suivante,
+ * Abandonner annule côté serveur (gratuit, pré-commit) puis oublie.
+ */
+function PendingPublishBanner({ onCancelled }: { onCancelled: () => void }) {
+  const router = useRouter()
+  const pending = usePendingPublish(s => s.pending)
+  const clearPending = usePendingPublish(s => s.clearPending)
+  const [cancelling, setCancelling] = useState(false)
+
+  if (pending === null) return null
+
+  const abandon = async () => {
+    setCancelling(true)
+    try {
+      await api.cancel(pending.listingId)
+      clearPending()
+      onCancelled()
+    } catch (err) {
+      // Déjà annulée/traitée côté serveur (ou disparue) → l'état serveur fait foi.
+      if (err instanceof ApiError && (err.code === 'INVALID_TRANSITION' || err.code === 'LISTING_NOT_FOUND')) {
+        clearPending()
+        onCancelled()
+      }
+      // Erreur réseau : on garde le bandeau — nouvel essai possible.
+    } finally {
+      setCancelling(false)
+    }
+  }
+
+  return (
+    <Card style={styles.pendingCard}>
+      <View style={styles.pendingHeader}>
+        <CircleDashed size={font.lead} color={theme.moutarde} />
+        <Text style={styles.pendingTitle}>Publication interrompue</Text>
+      </View>
+      <Text style={styles.pendingBody}>
+        « {pending.draft.titre} » n'a pas fini d'être publiée. Rien n'a été débité.
+      </Text>
+      <View style={styles.pendingActions}>
+        <Button label="Reprendre" onPress={() => router.push('/validate')} style={styles.pendingBtn} />
+        <Button
+          label="Abandonner"
+          variant="ghost"
+          loading={cancelling}
+          onPress={() => void abandon()}
+          style={styles.pendingBtn}
+        />
+      </View>
+    </Card>
+  )
+}
+
 export default function ListingsScreen() {
   const { data, loading, refreshing, error, retry, refresh } = useApiResource(api.getListings)
   const rows = data?.listings.map(toRow) ?? null
@@ -36,6 +95,8 @@ export default function ListingsScreen() {
   return (
     <View style={styles.screen}>
       <ScreenHeader title="Mes annonces" />
+
+      <PendingPublishBanner onCancelled={() => void refresh()} />
 
       {error !== null && rows === null ? (
         <View style={styles.bannerWrap}>
@@ -91,4 +152,17 @@ const styles = StyleSheet.create({
   list: { paddingHorizontal: space[4], paddingBottom: space[6], gap: space[3] },
   skeletons: { paddingHorizontal: space[4], gap: space[3] },
   bannerWrap: { paddingHorizontal: space[4] },
+
+  pendingCard: {
+    marginHorizontal: space[4],
+    marginBottom: space[3],
+    backgroundColor: theme.moutardeSoft,
+    borderColor: theme.moutardeBorder,
+    gap: space[2],
+  },
+  pendingHeader: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
+  pendingTitle: { fontSize: font.body, fontWeight: '700', color: theme.moutarde },
+  pendingBody: { fontSize: font.small, color: theme.moutarde, lineHeight: space[4] + space[1] },
+  pendingActions: { flexDirection: 'row', gap: space[2] },
+  pendingBtn: { flex: 1 },
 })

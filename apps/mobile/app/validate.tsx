@@ -11,7 +11,13 @@ import {
   isPriceFlagged,
 } from '@flipsync/core'
 import { api, ApiError } from '../src/services/api'
-import { useListingSession, SessionPhoto } from '../src/store/listing.store'
+import {
+  PUBLISH_STEP_RANK,
+  PendingPublish,
+  SessionPhoto,
+  useListingSession,
+  usePendingPublish,
+} from '../src/store/listing.store'
 import { PriceFlagAlert } from '../src/components/PriceFlagAlert'
 import { MIN_TOUCH, font, formatEur, radius, space, theme } from '../src/theme'
 import { Button } from '../src/ui/Button'
@@ -34,22 +40,30 @@ const TIERS: readonly { value: ListingTier; label: string }[] = [
 /** Messages utilisateur pour les codes d'erreur API les plus probables ici. */
 const ERROR_MESSAGES: Readonly<Record<string, string>> = {
   NO_AUTH_TOKEN: 'Session expirée — reconnectez-vous.',
+  UNAUTHORIZED: 'Session expirée — reconnectez-vous.',
   INSUFFICIENT_FUNDS: 'Solde insuffisant — rechargez votre cagnotte.',
   NO_FREE_CREDIT: 'Plus d’annonce gratuite ce mois-ci — rechargez votre cagnotte.',
   INVALID_TRANSITION: 'Cette annonce a déjà été traitée.',
+  TIMEOUT: 'Le serveur met trop de temps à répondre — rien n’est perdu, reprenez quand vous voulez.',
+  NETWORK_ERROR: 'Pas de connexion — rien n’est perdu, reprenez quand vous voulez.',
 }
 
 export default function ValidateScreen() {
   const router = useRouter()
   const { draft, photos, clearSession } = useListingSession()
+  const pending = usePendingPublish(s => s.pending)
 
-  // Session perdue (reload, accès direct) → retour capture.
-  if (!draft) return <Redirect href="/(tabs)" />
+  // Reprise : sans session (restart), le brouillon persisté du pending fait foi.
+  const effectiveDraft = draft ?? pending?.draft ?? null
+
+  // Ni session ni publication interrompue → retour capture.
+  if (!effectiveDraft) return <Redirect href="/(tabs)" />
 
   return (
     <ValidateForm
-      draft={draft}
+      draft={effectiveDraft}
       photos={photos}
+      resume={pending}
       clearSession={clearSession}
       goHome={() => router.replace('/(tabs)/listings')}
     />
@@ -59,19 +73,32 @@ export default function ValidateScreen() {
 interface FormProps {
   draft: ListingDraft
   photos: readonly SessionPhoto[]
+  /** Publication interrompue à reprendre — null pour une première tentative. */
+  resume: PendingPublish | null
   clearSession: () => void
   goHome: () => void
 }
 
-function ValidateForm({ draft, photos, clearSession, goHome }: FormProps) {
+/** INVALID_TRANSITION sur une étape intermédiaire = réponse perdue, étape déjà
+ *  franchie côté serveur (le statut est serveur-autoritaire) → on continue. */
+function ignoreAlreadyDone(err: unknown): void {
+  if (err instanceof ApiError && err.code === 'INVALID_TRANSITION') return
+  throw err
+}
+
+function ValidateForm({ draft, photos, resume, clearSession, goHome }: FormProps) {
   // Champs éditables — pré-remplis par l'IA, l'utilisateur a le dernier mot.
   const [titre, setTitre] = useState(draft.titre)
   const [description, setDescription] = useState(draft.description)
   const [marque, setMarque] = useState(draft.marque ?? '')
   const [etat, setEtat] = useState<ItemCondition>(draft.etat)
   // Prix saisi en euros (affichage) — converti en centimes Int pour tout calcul.
-  const [prixInput, setPrixInput] = useState(centsToEur(draft.prixHaut).toFixed(2))
-  const [tier, setTier] = useState<ListingTier>(ListingTier.OPTIMIZED)
+  // En reprise : re-seed du prix saisi lors de l'essai interrompu.
+  const [prixInput, setPrixInput] = useState(
+    centsToEur(resume?.prixPublie ?? draft.prixHaut).toFixed(2),
+  )
+  // Formule verrouillée en reprise : le coût du listing est figé à la création.
+  const [tier, setTier] = useState<ListingTier>(resume?.tier ?? ListingTier.OPTIMIZED)
 
   const [publishing, setPublishing] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -91,11 +118,18 @@ function ValidateForm({ draft, photos, clearSession, goHome }: FormProps) {
    * Publication = séquence machine à états, AUCUN débit avant validate :
    * POST /listing (authorize) → photos (sha256 vérifié) → ai-start →
    * draft (édité) → validate (commit).
+   *
+   * RÉSILIENCE : chaque étape franchie est persistée (usePendingPublish, MMKV).
+   * Coupure au milieu → rien n'est perdu ni débité ; le bouton devient
+   * « Reprendre » et la séquence repart de l'étape suivante (jamais de doublon :
+   * createListing n'est PAS rejoué si un listingId existe).
    */
   const publish = useCallback(async () => {
     if (!formValid || prixPublie === null || publishing) return
     setPublishing(true)
     setErrorMessage(null)
+
+    const { setPending, clearPending } = usePendingPublish.getState()
 
     try {
       const editedDraft: ListingDraft = {
@@ -106,27 +140,57 @@ function ValidateForm({ draft, photos, clearSession, goHome }: FormProps) {
         etat,
       }
 
-      const created = await api.createListing(tier)
-      if (!created.auth.authorized) {
-        const deficit = created.auth.deficit ?? 0
-        setErrorMessage(
-          `Solde insuffisant : il manque ${formatEur(deficit)}. ` +
-            'Rechargez votre cagnotte — l’annonce repartira automatiquement.',
-        )
-        return
+      // Étape 0 — création (authorize, 0 débit). Jamais rejouée en reprise.
+      let listingId: string
+      let doneRank: number
+      if (resume !== null) {
+        listingId = resume.listingId
+        doneRank = PUBLISH_STEP_RANK[resume.done]
+      } else {
+        const created = await api.createListing(tier)
+        if (!created.auth.authorized) {
+          const deficit = created.auth.deficit ?? 0
+          setErrorMessage(
+            `Solde insuffisant : il manque ${formatEur(deficit)}. ` +
+              'Rechargez votre cagnotte — l’annonce repartira automatiquement.',
+          )
+          return
+        }
+        listingId = created.listing.id
+        doneRank = PUBLISH_STEP_RANK.created
+        setPending({ listingId, tier, draft: editedDraft, prixPublie, done: 'created' })
       }
 
-      const id = created.listing.id
-      if (photos.length > 0) {
+      const checkpoint = (done: PendingPublish['done']) =>
+        setPending({ listingId, tier, draft: editedDraft, prixPublie, done })
+
+      // Étape 1 — photos (idempotent par sha256 ; absentes en reprise post-restart).
+      if (doneRank < PUBLISH_STEP_RANK.photos && photos.length > 0) {
         await api.uploadPhotos(
-          id,
+          listingId,
           photos.map((p, order) => ({ base64: p.base64, sha256: p.sha256, order })),
         )
+        checkpoint('photos')
       }
-      await api.startAi(id)
-      await api.pushDraft(id, editedDraft)
-      await api.validate(id, prixPublie)
 
+      // Étapes 2 & 3 — transitions serveur ; INVALID_TRANSITION = déjà franchie.
+      if (doneRank < PUBLISH_STEP_RANK.ai) {
+        await api.startAi(listingId).catch(ignoreAlreadyDone)
+        checkpoint('ai')
+      }
+      if (doneRank < PUBLISH_STEP_RANK.draft) {
+        await api.pushDraft(listingId, editedDraft).catch(ignoreAlreadyDone)
+        checkpoint('draft')
+      }
+
+      // Étape finale — LE débit. Déjà traitée côté serveur → l'état fait foi.
+      try {
+        await api.validate(listingId, prixPublie)
+      } catch (err) {
+        if (!(err instanceof ApiError) || err.code !== 'INVALID_TRANSITION') throw err
+      }
+
+      clearPending()
       clearSession()
       goHome()
     } catch (err) {
@@ -135,7 +199,7 @@ function ValidateForm({ draft, photos, clearSession, goHome }: FormProps) {
     } finally {
       setPublishing(false)
     }
-  }, [formValid, prixPublie, publishing, draft, photos, titre, description, marque, etat, tier, clearSession, goHome])
+  }, [formValid, prixPublie, publishing, resume, draft, photos, titre, description, marque, etat, tier, clearSession, goHome])
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
@@ -196,18 +260,26 @@ function ValidateForm({ draft, photos, clearSession, goHome }: FormProps) {
       )}
 
       <Text style={styles.label}>Formule</Text>
+      {resume !== null && (
+        <Text style={styles.hint}>
+          Formule verrouillée : l’annonce est déjà réservée avec cette formule.
+        </Text>
+      )}
       <View style={styles.chipRow} accessibilityRole="radiogroup">
         {TIERS.map(t => {
           const active = tier === t.value
+          const locked = resume !== null
           return (
             <Pressable
               key={t.value}
               accessibilityRole="radio"
               accessibilityLabel={`Formule ${t.label}, ${formatEur(TIER_PRICING[t.value])}`}
-              accessibilityState={{ selected: active }}
+              accessibilityState={{ selected: active, disabled: locked }}
+              disabled={locked}
               style={({ pressed }) => [
                 styles.tierCard,
                 active && styles.chipActive,
+                locked && !active && styles.tierLocked,
                 pressed && styles.pressed,
               ]}
               onPress={() => setTier(t.value)}
@@ -224,7 +296,11 @@ function ValidateForm({ draft, photos, clearSession, goHome }: FormProps) {
       {errorMessage && <ErrorBanner message={errorMessage} />}
 
       <Button
-        label={`Valider et publier — ${formatEur(TIER_PRICING[tier])}`}
+        label={
+          resume !== null
+            ? `Reprendre la publication — ${formatEur(TIER_PRICING[tier])}`
+            : `Valider et publier — ${formatEur(TIER_PRICING[tier])}`
+        }
         onPress={() => void publish()}
         loading={publishing}
         disabled={!formValid}
@@ -274,6 +350,7 @@ const styles = StyleSheet.create({
     backgroundColor: theme.card,
   },
   tierPrice: { fontSize: font.caption, color: theme.muted },
+  tierLocked: { opacity: 0.4 },
 
   publishBtn: { marginTop: space[4] },
 })

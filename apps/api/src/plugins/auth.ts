@@ -36,7 +36,9 @@ const authPlugin: FastifyPluginAsync = async app => {
     throw new Error('JWT_SECRET_MISSING_OR_TOO_SHORT')
   }
 
-  await app.register(jwt, { secret })
+  // Expiration 30 j : un token volé n'est plus éternel. Côté mobile, un 401
+  // purge le JWT (MMKV) et renvoie au login magic link — re-login sans friction.
+  await app.register(jwt, { secret, sign: { expiresIn: '30d' } })
 
   app.decorateRequest('userId', '')
 

@@ -21,6 +21,17 @@ export interface PublicationOutcome {
   failureReason?: string
 }
 
+/**
+ * Erreur de publication — code SNAKE_CASE mappé en HTTP par l'error-handler
+ * (LISTING_NOT_FOUND → 404, INVALID_LISTING_STATE → 409). Jamais un 500 opaque.
+ */
+export class PublicationError extends Error {
+  constructor(readonly code: string) {
+    super(code)
+    this.name = 'PublicationError'
+  }
+}
+
 /** Champs spécifiques à chaque plateforme sur le modèle Listing. */
 const PLATFORM_FIELDS = {
   [Marketplace.LEBONCOIN]: { categorie: 'categorieLbc', urlKey: 'lbcUrl' },
@@ -50,8 +61,8 @@ export class PublicationService {
       where: { id: listingId },
       include: { photos: { orderBy: { order: 'asc' } } },
     })
-    if (!listing) throw new Error('LISTING_NOT_FOUND')
-    if (listing.status !== ListingStatus.QUEUED) throw new Error('INVALID_LISTING_STATE')
+    if (!listing) throw new PublicationError('LISTING_NOT_FOUND')
+    if (listing.status !== ListingStatus.QUEUED) throw new PublicationError('INVALID_LISTING_STATE')
 
     const fields = PLATFORM_FIELDS[marketplace]
     const categorie = listing[fields.categorie]

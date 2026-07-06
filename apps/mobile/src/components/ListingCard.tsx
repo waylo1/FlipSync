@@ -1,10 +1,11 @@
-import { Image, StyleSheet, Text, View } from 'react-native'
+import { StyleSheet, Text, View } from 'react-native'
 import { AlertTriangle, RotateCcw } from 'lucide-react-native'
 import { ListingStatus } from '@flipsync/core'
 import { STATUS_META, font, radius, space, theme } from '../theme'
 import { Card } from '../ui/Card'
 import { Badge } from '../ui/Badge'
 import { AmountText } from '../ui/AmountText'
+import { AuthImage } from './AuthImage'
 import { StatusBadge } from './StatusBadge'
 import { PipelineRail } from './PipelineRail'
 
@@ -35,10 +36,10 @@ export function ListingCard({ item }: { item: ListingRow }) {
 
   return (
     <Card style={styles.card}>
-      {/* Vignette : première photo du listing, lettre kraft sinon. */}
+      {/* Vignette : première photo du listing (JWT joint — /uploads protégé), lettre kraft sinon. */}
       {item.thumbUri !== null ? (
-        <Image
-          source={{ uri: item.thumbUri }}
+        <AuthImage
+          uri={item.thumbUri}
           style={styles.thumb}
           accessibilityLabel={`Photo de ${item.titre}`}
         />

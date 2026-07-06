@@ -51,8 +51,8 @@ Thumbs.db
 .vscode/*
 !.vscode/extensions.json
 
-# Claude Code — réglages locaux par machine (settings.json reste versionné)
-.claude/settings.local.json
+# Claude Code — réglages locaux + skills par machine (chacun installe les siens)
+.claude/
 
 # Tests
 coverage/

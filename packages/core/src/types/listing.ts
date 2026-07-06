@@ -1,38 +1,11 @@
 import { PaymentSource } from './wallet'
+import { ItemCondition, ListingStatus, ListingTier } from '../generated/enums'
 
-// ─── Enums (miroir exact des enums Prisma) ─────────────────────────────────────
+// ─── Enums (GÉNÉRÉS depuis schema.prisma — cf. src/generated/enums.ts) ────────
+// Machine à états stricte — 11 états. commit() ne s'exécute QU'À la transition
+// USER_VALIDATED ; toute transition antérieure est gratuite et réversible.
 
-export enum ListingTier {
-  SIMPLE    = 'SIMPLE',
-  OPTIMIZED = 'OPTIMIZED',
-  PREMIUM   = 'PREMIUM',
-}
-
-/**
- * Machine à états stricte — 11 états.
- * commit() ne s'exécute QU'À la transition USER_VALIDATED.
- * Toute transition avant USER_VALIDATED est gratuite et réversible.
- */
-export enum ListingStatus {
-  PENDING_AUTH    = 'PENDING_AUTH',    // Vérification droits paiement
-  AUTHORIZED      = 'AUTHORIZED',      // Pré-autorisation OK (0 débit)
-  AI_PROCESSING   = 'AI_PROCESSING',   // Vision + rédaction SEO
-  AI_FAILED       = 'AI_FAILED',       // Échec IA → rollback, 0 débit
-  DRAFT_READY     = 'DRAFT_READY',     // Brouillon soumis à l'utilisateur
-  USER_VALIDATED  = 'USER_VALIDATED',  // ← DÉCLENCHEUR de commit()
-  USER_CANCELLED  = 'USER_CANCELLED',  // Annulation → rollback, 0 débit
-  QUEUED          = 'QUEUED',          // En file publication marketplace
-  PUBLISH_FAILED  = 'PUBLISH_FAILED',  // Échec marketplace → remboursement
-  PUBLISHED       = 'PUBLISHED',       // Annonce live
-  EXPIRED         = 'EXPIRED',         // Annonce expirée sans vente
-}
-
-export enum ItemCondition {
-  neuf     = 'neuf',
-  tres_bon = 'tres_bon',
-  bon      = 'bon',
-  correct  = 'correct',
-}
+export { ItemCondition, ListingStatus, ListingTier }
 
 // ─── Tarification ─────────────────────────────────────────────────────────────
 

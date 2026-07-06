@@ -5,7 +5,7 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
-    "db:generate": "prisma generate",
+    "db:generate": "prisma generate && node ../core/scripts/generate-enums.mjs",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",

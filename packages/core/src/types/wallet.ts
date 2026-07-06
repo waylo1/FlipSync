@@ -1,19 +1,8 @@
-// ─── Enums (miroir exact des enums Prisma) ─────────────────────────────────────
+import { PaymentSource, TransactionType } from '../generated/enums'
 
-export enum TransactionType {
-  CREDIT = 'CREDIT',
-  DEBIT  = 'DEBIT',
-  BONUS  = 'BONUS',
-  REFUND = 'REFUND',
-}
+// ─── Enums (GÉNÉRÉS depuis schema.prisma — cf. src/generated/enums.ts) ────────
 
-export enum PaymentSource {
-  FREE_CREDIT     = 'FREE_CREDIT',
-  WALLET          = 'WALLET',
-  BLOCKED         = 'BLOCKED',
-  STRIPE_RECHARGE = 'STRIPE_RECHARGE',
-  BONUS           = 'BONUS',
-}
+export { PaymentSource, TransactionType }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

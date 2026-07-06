@@ -1,6 +1,6 @@
 {
   "$schema": "https://turbo.build/schema.json",
-  "globalDependencies": [".env"],
+  "globalDependencies": [".env", "packages/db/prisma/schema.prisma"],
   "globalEnv": [
     "NODE_ENV",
     "DATABASE_URL",

@@ -22,6 +22,8 @@ interface FakeWallet {
   userId: string
   balance: number // centimes
   freeListingsRemaining: number
+  /** Échéance du reset mensuel — future par défaut (pas de reset dans les tests nominaux). */
+  freeListingsResetAt: Date
   autoRechargeEnabled: boolean
   autoRechargeAmount: number // centimes
 }
@@ -70,10 +72,12 @@ const makeFakePrisma = (state: FakeState): PrismaClient => {
           id: string
           balance?: { gte: number }
           freeListingsRemaining?: { gt: number }
+          freeListingsResetAt?: Date
         }
         data: {
           balance?: { decrement: number }
-          freeListingsRemaining?: { decrement: number }
+          freeListingsRemaining?: { decrement: number } | number
+          freeListingsResetAt?: Date
         }
       }) => {
         const w = state.wallet
@@ -84,9 +88,19 @@ const makeFakePrisma = (state: FakeState): PrismaClient => {
           !(w.freeListingsRemaining > where.freeListingsRemaining.gt)
         )
           return { count: 0 }
+        // Guard du reset paresseux : conditionné sur l'échéance exacte lue.
+        if (
+          where.freeListingsResetAt &&
+          w.freeListingsResetAt.getTime() !== where.freeListingsResetAt.getTime()
+        )
+          return { count: 0 }
         if (data.balance) w.balance -= data.balance.decrement
-        if (data.freeListingsRemaining)
+        if (typeof data.freeListingsRemaining === 'number') {
+          w.freeListingsRemaining = data.freeListingsRemaining
+        } else if (data.freeListingsRemaining) {
           w.freeListingsRemaining -= data.freeListingsRemaining.decrement
+        }
+        if (data.freeListingsResetAt) w.freeListingsResetAt = data.freeListingsResetAt
         return { count: 1 }
       },
       update: async ({
@@ -147,11 +161,14 @@ const makeFakePrisma = (state: FakeState): PrismaClient => {
   return client as unknown as PrismaClient
 }
 
+const IN_ONE_MONTH = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+
 const baseWallet = (over: Partial<FakeWallet> = {}): FakeWallet => ({
   id: 'w1',
   userId: 'u1',
   balance: 0,
   freeListingsRemaining: 0,
+  freeListingsResetAt: IN_ONE_MONTH,
   autoRechargeEnabled: false,
   autoRechargeAmount: 1000,
   ...over,
@@ -244,6 +261,23 @@ describe('WalletService.authorize', () => {
     expect(res.source).toBe(PaymentSource.BLOCKED)
     expect(res.deficit).toBe(150)
     expect(res.walletBalanceAfter).toBe(100)
+  })
+
+  it('reset paresseux — échéance passée : quota restauré à 3 et FREE_CREDIT prime', async () => {
+    const past = new Date(Date.now() - 1000)
+    const state: FakeState = {
+      wallet: baseWallet({ balance: 500, freeListingsRemaining: 0, freeListingsResetAt: past }),
+      listing: null,
+      transactions: [],
+    }
+    const svc = new WalletService(makeFakePrisma(state))
+
+    const res = await svc.authorize('u1', 250)
+
+    expect(res.source).toBe(PaymentSource.FREE_CREDIT)
+    expect(res.freeCreditsRemaining).toBe(3)
+    expect(state.wallet?.freeListingsRemaining).toBe(3)
+    expect(state.wallet && state.wallet.freeListingsResetAt.getTime()).toBeGreaterThan(Date.now())
   })
 
   it('rejette un montant non entier (jamais de Float monétaire)', async () => {

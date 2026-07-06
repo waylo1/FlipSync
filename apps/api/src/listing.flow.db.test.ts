@@ -120,6 +120,17 @@ describe.skipIf(!DB_URL)('Flux mobile /listing — e2e JWT', () => {
     expect((replay.json() as { photos: unknown[] }).photos).toHaveLength(1)
   })
 
+  it('photo servie sur /uploads : 401 sans JWT, 200 avec', async () => {
+    const photo = await prismaRef.listingPhoto.findFirstOrThrow({ where: { listingId } })
+
+    const anonymous = await app.inject({ method: 'GET', url: photo.url })
+    expect(anonymous.statusCode).toBe(401)
+    expect(anonymous.json()).toEqual({ error: 'UNAUTHORIZED' })
+
+    const authenticated = await app.inject({ method: 'GET', url: photo.url, headers: authed(token) })
+    expect(authenticated.statusCode).toBe(200)
+  })
+
   it('hash falsifié → 400 HASH_MISMATCH, rien n’est écrit', async () => {
     const base64 = Buffer.from('fake-jpeg-bytes-2').toString('base64')
     const res = await app.inject({

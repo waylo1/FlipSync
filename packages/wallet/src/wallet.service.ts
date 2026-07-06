@@ -4,6 +4,7 @@ import {
   TransactionType as DbTransactionType,
   Prisma,
   PrismaClient,
+  UserWallet,
 } from '@flipsync/db'
 import {
   FIRST_RECHARGE_BONUS_CENTS,
@@ -29,6 +30,9 @@ const assertCents = (amount: number): void => {
     throw new InvalidAmountError(amount)
   }
 }
+
+/** Quota mensuel du free tier (cf. CLAUDE.md — 3 listings/mois). */
+const FREE_LISTINGS_MONTHLY = 3
 
 /**
  * WalletService — toutes les valeurs en centimes (Int). Jamais de Float.
@@ -66,8 +70,9 @@ export class WalletService {
   async authorize(userId: string, cost: number): Promise<ListingAuthResult> {
     assertCents(cost)
 
-    const wallet = await this.db.userWallet.findUnique({ where: { userId } })
+    let wallet = await this.db.userWallet.findUnique({ where: { userId } })
     if (!wallet) throw new WalletNotFoundError()
+    wallet = await this.resetFreeTierIfDue(wallet)
 
     if (wallet.freeListingsRemaining > 0) {
       return {
@@ -116,6 +121,31 @@ export class WalletService {
       requiresAutoRecharge: false,
       deficit: cost - wallet.balance,
     }
+  }
+
+  /**
+   * Reset paresseux du free tier : à la première autorisation après l'échéance,
+   * le quota mensuel est restauré et l'échéance repoussée d'un mois (calendaire,
+   * depuis maintenant — pas de rattrapage cumulé après une longue absence).
+   * Concurrence : update conditionné sur l'ancienne échéance — deux authorize()
+   * simultanés ne produisent qu'UN reset, le perdant relit l'état du gagnant.
+   */
+  private async resetFreeTierIfDue(wallet: UserWallet): Promise<UserWallet> {
+    const now = new Date()
+    if (wallet.freeListingsResetAt > now) return wallet
+
+    const nextResetAt = new Date(now)
+    nextResetAt.setMonth(nextResetAt.getMonth() + 1)
+
+    const updated = await this.db.userWallet.updateMany({
+      where: { id: wallet.id, freeListingsResetAt: wallet.freeListingsResetAt },
+      data: { freeListingsRemaining: FREE_LISTINGS_MONTHLY, freeListingsResetAt: nextResetAt },
+    })
+    if (updated.count === 0) {
+      // Course perdue : un authorize() concurrent a déjà fait le reset.
+      return this.db.userWallet.findUniqueOrThrow({ where: { id: wallet.id } })
+    }
+    return { ...wallet, freeListingsRemaining: FREE_LISTINGS_MONTHLY, freeListingsResetAt: nextResetAt }
   }
 
   /**

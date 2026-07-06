@@ -40,8 +40,14 @@ export async function buildApp(): Promise<FastifyInstance> {
   app.get('/health', async () => ({ status: 'ok', ts: new Date().toISOString() }))
 
   // Photos uploadées — servies statiquement (URLs stockées dans ListingPhoto.url).
+  // Accès réservé aux utilisateurs authentifiés : le mobile doit envoyer le JWT
+  // (Image source={{ uri, headers }}), les connecteurs marketplace reçoivent des
+  // URLs qu'eux seuls consomment côté serveur.
   await mkdir(UPLOAD_DIR, { recursive: true })
-  await app.register(fastifyStatic, { root: UPLOAD_DIR, prefix: '/uploads/' })
+  await app.register(async uploads => {
+    uploads.addHook('onRequest', app.authenticate)
+    await uploads.register(fastifyStatic, { root: UPLOAD_DIR, prefix: '/uploads/' })
+  })
 
   // Routes protégées JWT. Exceptions : /stripe/webhook (signature Stripe)
   // et /auth/dev-token (dev uniquement, absent en production).

@@ -133,4 +133,33 @@ describe.skipIf(!DB_URL)('WalletService — intégration Postgres', async () => 
     expect(refunds).toHaveLength(1)
     expect(refunds[0]?.amount).toBe(250)
   })
+
+  it('reset paresseux du free tier : échéance passée → quota restauré à 3, échéance +1 mois', async () => {
+    const past = new Date(Date.now() - 24 * 60 * 60 * 1000) // hier
+    await prisma.userWallet.update({
+      where: { userId },
+      data: { freeListingsRemaining: 0, freeListingsResetAt: past },
+    })
+
+    // Sans reset ce serait WALLET (balance 1000 >= 250) — le free tier restauré prime.
+    const res = await svc.authorize(userId, 250)
+    expect(res.source).toBe('FREE_CREDIT')
+    expect(res.cost).toBe(0)
+    expect(res.freeCreditsRemaining).toBe(3)
+
+    const wallet = await prisma.userWallet.findUniqueOrThrow({ where: { userId } })
+    expect(wallet.freeListingsRemaining).toBe(3)
+    expect(wallet.freeListingsResetAt.getTime()).toBeGreaterThan(Date.now())
+  })
+
+  it('échéance future → aucun reset (idempotence du chemin nominal)', async () => {
+    // État posé par le test précédent : 3 restants, échéance dans ~1 mois.
+    const before = await prisma.userWallet.findUniqueOrThrow({ where: { userId } })
+    const res = await svc.authorize(userId, 250)
+    expect(res.source).toBe('FREE_CREDIT')
+
+    const after = await prisma.userWallet.findUniqueOrThrow({ where: { userId } })
+    expect(after.freeListingsRemaining).toBe(3) // authorize ne consomme jamais (commit le fait)
+    expect(after.freeListingsResetAt.getTime()).toBe(before.freeListingsResetAt.getTime())
+  })
 })

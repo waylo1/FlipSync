@@ -196,3 +196,14 @@ eas.json submit (Apple/Play).
 - [x] Auth production (magic link : POST /auth/magic-link + /auth/verify,
       token hashé sha256 usage unique + TTL, anti-énumération, EmailService
       injectable ; mobile login + écran deep link /auth/verify). dev-token gardé hors prod.
+- [x] Mock pipeline serveur : MockMarketplacePublisher (MARKETPLACE_MOCK=1, jamais prod)
+      + apps/api/tools/test-pipeline.ts (flux mobile complet → debug/publish_log.json)
+- [x] Enums générés depuis schema.prisma (packages/core/scripts/generate-enums.mjs)
+      — duplication manuelle supprimée, SSOT Prisma
+- [x] UI mobile « Vide-Grenier » : tokens theme.ts (palette/space/radius/shadow/motion),
+      primitives src/ui/, composés src/components/, icônes lucide-react-native,
+      a11y complète — plan FRONTEND.md, contrat flipsync-fe-contract.md, gates G1–G5
+- [x] Branchement API mobile : listings + wallet + transactions (useApiResource :
+      focus refetch, pull-to-refresh, skeletons, ErrorBanner ; auto-recharge en
+      lecture seule — pas d'endpoint de mutation). Validé contre l'API locale (curl).
+      Reste : validation visuelle sur device (npx expo run:android — machine avec SDK)

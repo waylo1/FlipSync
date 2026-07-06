@@ -3,7 +3,13 @@
  * Toutes les valeurs monétaires transitent en CENTIMES (Int) — la conversion €
  * est strictement réservée à l'affichage (centsToEur).
  */
-import type { ListingAuthResult, ListingDraft, ListingTier } from '@flipsync/core'
+import type {
+  ListingAuthResult,
+  ListingDraft,
+  ListingStatus,
+  ListingTier,
+  TransactionType,
+} from '@flipsync/core'
 import { useAuthStore } from '../store/auth.store'
 
 // 10.0.2.2 = localhost de la machine hôte vu depuis l'émulateur Android.
@@ -20,17 +26,41 @@ export class ApiError extends Error {
   }
 }
 
-/** Sous-ensemble du modèle Listing utilisé par le mobile. */
+/** Photo telle que renvoyée par GET /listing (sans sha256). */
+export interface ApiListingPhoto {
+  id: string
+  url: string // chemin relatif /uploads/... — préfixer par API_BASE pour l'affichage
+  order: number
+}
+
+/** Sous-ensemble du modèle Listing utilisé par le mobile (réponse GET /listing). */
 export interface ApiListing {
   id: string
-  status: string
+  status: ListingStatus
   tier: ListingTier
   paymentSource: string
   cost: number // centimes
   titre: string | null
+  prixPlancher: number | null // centimes
+  prixHaut: number | null // centimes
   prixPublie: number | null // centimes
   isPriceFlagged: boolean
   failureReason: string | null
+  publishedLbc: boolean
+  publishedVinted: boolean
+  photos: ApiListingPhoto[]
+  createdAt: string
+  updatedAt: string
+}
+
+/** Mouvement wallet (réponse GET /wallet/transactions, 50 derniers). */
+export interface ApiTransaction {
+  id: string
+  type: TransactionType
+  amount: number // centimes
+  source: string
+  listingId: string | null
+  description: string | null
   createdAt: string
 }
 
@@ -128,6 +158,7 @@ export function devLogin(email: string): Promise<{ token: string; userId: string
 export const api = {
   // ─── Wallet ────────────────────────────────────────────────────────────────
   getWallet: () => request<ApiWallet>('/wallet'),
+  getTransactions: () => request<{ transactions: ApiTransaction[] }>('/wallet/transactions'),
 
   // ─── Listing — cycle complet piloté par le mobile ──────────────────────────
   createListing: (tier: ListingTier) =>

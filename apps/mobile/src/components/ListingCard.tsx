@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View } from 'react-native'
+import { Image, StyleSheet, Text, View } from 'react-native'
 import { AlertTriangle, RotateCcw } from 'lucide-react-native'
 import { ListingStatus } from '@flipsync/core'
 import { STATUS_META, font, radius, space, theme } from '../theme'
@@ -11,12 +11,15 @@ import { PipelineRail } from './PipelineRail'
 export interface ListingRow {
   id: string
   titre: string
-  prixCents: number // centimes Int
+  /** Centimes Int — null tant qu'aucun prix n'existe (avant brouillon IA). */
+  prixCents: number | null
   status: ListingStatus
   failureReason: string | null
   publishedLbc: boolean
   publishedVinted: boolean
   quand: string
+  /** URL absolue de la première photo — vignette lettre si absente. */
+  thumbUri: string | null
 }
 
 /** Échecs couverts par le remboursement automatique (CLAUDE.md). */
@@ -32,17 +35,27 @@ export function ListingCard({ item }: { item: ListingRow }) {
 
   return (
     <Card style={styles.card}>
-      {/* Vignette placeholder en attendant les photos servies par /uploads. */}
-      <View style={styles.thumb}>
-        <Text style={styles.thumbLetter}>{item.titre.charAt(0)}</Text>
-      </View>
+      {/* Vignette : première photo du listing, lettre kraft sinon. */}
+      {item.thumbUri !== null ? (
+        <Image
+          source={{ uri: item.thumbUri }}
+          style={styles.thumb}
+          accessibilityLabel={`Photo de ${item.titre}`}
+        />
+      ) : (
+        <View style={styles.thumb}>
+          <Text style={styles.thumbLetter}>{item.titre.charAt(0)}</Text>
+        </View>
+      )}
 
       <View style={styles.body}>
         <View style={styles.header}>
           <Text style={styles.title} numberOfLines={1}>
             {item.titre}
           </Text>
-          <AmountText cents={item.prixCents} size={font.body} color={theme.ink} />
+          {item.prixCents !== null && (
+            <AmountText cents={item.prixCents} size={font.body} color={theme.ink} />
+          )}
         </View>
 
         <View style={styles.metaRow}>

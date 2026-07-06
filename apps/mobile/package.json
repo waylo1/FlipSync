@@ -9,7 +9,8 @@
     "ios": "expo run:ios",
     "prebuild": "expo prebuild",
     "build:eas": "eas build",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@flipsync/ai": "*",
@@ -39,6 +40,9 @@
   "devDependencies": {
     "@babel/core": "^7.24.0",
     "@types/react": "^18.3.0",
-    "typescript": "^5.4.0"
+    "@types/react-test-renderer": "^18.3.1",
+    "react-test-renderer": "^18.2.0",
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.1"
   }
 }

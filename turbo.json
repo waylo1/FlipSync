@@ -1,6 +1,9 @@
 {
   "$schema": "https://turbo.build/schema.json",
-  "globalDependencies": [".env", "packages/db/prisma/schema.prisma"],
+  "globalDependencies": [
+    ".env",
+    "packages/db/prisma/schema.prisma"
+  ],
   "globalEnv": [
     "NODE_ENV",
     "DATABASE_URL",
@@ -15,19 +18,28 @@
   ],
   "tasks": {
     "build": {
-      "dependsOn": ["^build"],
-      "outputs": ["dist/**", ".expo/**"]
+      "dependsOn": [
+        "^build"
+      ],
+      "outputs": [
+        "dist/**",
+        ".expo/**"
+      ]
     },
     "dev": {
       "persistent": true,
       "cache": false
     },
     "test": {
-      "dependsOn": ["build"]
+      "dependsOn": [
+        "build"
+      ]
     },
     "lint": {},
     "typecheck": {
-      "dependsOn": ["^build"]
+      "dependsOn": [
+        "^build"
+      ]
     },
     "db:generate": {
       "cache": false
@@ -40,6 +52,12 @@
     },
     "db:studio": {
       "persistent": true,
+      "cache": false
+    },
+    "test:db": {
+      "dependsOn": [
+        "build"
+      ],
       "cache": false
     }
   }

@@ -8,6 +8,7 @@
     "start": "node dist/index.js",
     "typecheck": "tsc -b",
     "test": "vitest run",
+    "test:db": "node ../../scripts/require-db-env.mjs && vitest run",
     "pipeline:mock": "ts-node --transpile-only tools/test-pipeline.ts"
   },
   "dependencies": {

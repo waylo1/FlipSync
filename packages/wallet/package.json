@@ -7,13 +7,15 @@
   "scripts": {
     "build": "tsc -b",
     "typecheck": "tsc -b",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:db": "node ../../scripts/require-db-env.mjs && vitest run"
   },
   "dependencies": {
     "@flipsync/core": "*",
     "@flipsync/db": "*"
   },
   "devDependencies": {
+    "dotenv": "^16.4.7",
     "typescript": "^5.4.0",
     "vitest": "^1.6.0"
   }

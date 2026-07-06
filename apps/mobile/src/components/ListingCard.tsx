@@ -1,7 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native'
 import { AlertTriangle, RotateCcw } from 'lucide-react-native'
 import { ListingStatus } from '@flipsync/core'
-import { STATUS_META, font, radius, space, theme } from '../theme'
+import { STATUS_META, font, line, radius, space, theme } from '../theme'
 import { Card } from '../ui/Card'
 import { Badge } from '../ui/Badge'
 import { AmountText } from '../ui/AmountText'
@@ -54,8 +54,9 @@ export function ListingCard({ item }: { item: ListingRow }) {
           <Text style={styles.title} numberOfLines={1}>
             {item.titre}
           </Text>
+          {/* Le prix domine la ligne : un cran au-dessus du titre. */}
           {item.prixCents !== null && (
-            <AmountText cents={item.prixCents} size={font.body} color={theme.ink} />
+            <AmountText cents={item.prixCents} size={font.lead} color={theme.ink} />
           )}
         </View>
 
@@ -107,16 +108,16 @@ const styles = StyleSheet.create({
   thumbLetter: { fontSize: font.title, fontWeight: '700', color: theme.goldDark },
 
   body: { flex: 1, gap: space[2] },
-  header: { flexDirection: 'row', justifyContent: 'space-between', gap: space[2] },
-  title: { flex: 1, fontSize: font.body, fontWeight: '600', color: theme.ink },
+  header: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: space[2] },
+  title: { flex: 1, fontSize: font.body, lineHeight: line.body, fontWeight: '600', color: theme.ink },
 
   metaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   when: { fontSize: font.caption, color: theme.muted },
 
   failureRow: { flexDirection: 'row', alignItems: 'center', gap: space[1] },
-  failureText: { fontSize: font.caption, fontWeight: '500' },
+  failureText: { flex: 1, fontSize: font.caption, lineHeight: line.caption, fontWeight: '600' },
   refundRow: { flexDirection: 'row', alignItems: 'center', gap: space[1] },
-  refundText: { fontSize: font.caption, color: theme.bouteille, fontWeight: '600' },
+  refundText: { flex: 1, fontSize: font.caption, lineHeight: line.caption, color: theme.bouteille, fontWeight: '600' },
 
   platformRow: { flexDirection: 'row', gap: space[2] },
 })

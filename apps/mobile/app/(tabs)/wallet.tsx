@@ -5,7 +5,7 @@ import { ApiTransaction, api } from '../../src/services/api'
 import { useAuthStore } from '../../src/store/auth.store'
 import { useApiResource } from '../../src/hooks/useApiResource'
 import { formatRelativeFr } from '../../src/lib/time'
-import { font, formatEur, radius, shadow, space, theme } from '../../src/theme'
+import { font, formatEur, line, radius, shadow, space, theme } from '../../src/theme'
 import { ScreenHeader } from '../../src/ui/ScreenHeader'
 import { Card } from '../../src/ui/Card'
 import { AmountText } from '../../src/ui/AmountText'
@@ -185,7 +185,7 @@ const styles = StyleSheet.create({
     backgroundColor: theme.ink,
     borderRadius: radius.lg,
     padding: space[5],
-    gap: space[1],
+    gap: space[2],
     ...shadow.sheet,
   },
   balanceLabel: { color: theme.gold, fontSize: font.small, fontWeight: '600' },
@@ -193,7 +193,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: space[3],
-    marginTop: space[2],
+    marginTop: space[3],
   },
   balanceChip: {
     color: theme.ink,
@@ -210,13 +210,19 @@ const styles = StyleSheet.create({
   section: { marginHorizontal: space[4], marginTop: space[4], gap: space[3] },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: space[3] },
   sectionTitleBlock: { flex: 1, gap: space[1] },
-  sectionTitle: { fontSize: font.body, fontWeight: '700', color: theme.ink },
-  sectionHint: { fontSize: font.caption, color: theme.muted, lineHeight: space[4] + space[1] },
+  // Titre de section un cran au-dessus du contenu (hiérarchie taille + poids).
+  sectionTitle: { fontSize: font.lead, fontWeight: '700', color: theme.ink },
+  sectionHint: { fontSize: font.caption, lineHeight: line.caption, color: theme.muted },
 
   logout: { marginHorizontal: space[4], marginTop: space[5] },
   txSkeletons: { gap: space[2] },
-  txRow: { flexDirection: 'row', alignItems: 'center', gap: space[3], minHeight: space[6] },
+  txRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space[3],
+    minHeight: space[6] + space[2],
+  },
   txBody: { flex: 1, gap: space[1] / 2 },
-  txDescription: { fontSize: font.small, fontWeight: '500', color: theme.ink },
+  txDescription: { fontSize: font.small, lineHeight: line.small, fontWeight: '500', color: theme.ink },
   txWhen: { fontSize: font.caption, color: theme.muted },
 })

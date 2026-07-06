@@ -17,7 +17,7 @@ import * as Crypto from 'expo-crypto'
 import { CameraOff } from 'lucide-react-native'
 import { useVision } from '../../src/hooks/useVision'
 import { useListingSession } from '../../src/store/listing.store'
-import { font, radius, space, theme } from '../../src/theme'
+import { font, line, radius, space, theme } from '../../src/theme'
 import { Button } from '../../src/ui/Button'
 import { EmptyState } from '../../src/ui/EmptyState'
 
@@ -244,7 +244,7 @@ const styles = StyleSheet.create({
   },
   bannerError: { top: space[8] + space[7], backgroundColor: theme.scrimBrique },
   bannerBody: { gap: space[2] },
-  bannerText: { color: theme.onDark, fontSize: font.small, textAlign: 'center' },
+  bannerText: { color: theme.onDark, fontSize: font.small, lineHeight: line.small, textAlign: 'center' },
   progressTrack: {
     height: space[1],
     borderRadius: radius.xs,
@@ -255,7 +255,7 @@ const styles = StyleSheet.create({
 
   thumbRow: {
     position: 'absolute',
-    bottom: space[8] + space[8] + space[3],
+    bottom: space[8] + space[8] + space[5],
     left: 0,
     right: 0,
     maxHeight: space[8] + space[2],
@@ -270,8 +270,9 @@ const styles = StyleSheet.create({
   },
 
   controls: {
+    // 48 en bas : dégage la barre de gestes système (safe-area, cible primaire).
     position: 'absolute',
-    bottom: space[6],
+    bottom: space[7],
     left: 0,
     right: 0,
     flexDirection: 'row',
@@ -287,7 +288,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  shutterPressed: { transform: [{ scale: 0.94 }] },
+  shutterPressed: { transform: [{ scale: 0.95 }] },
   shutterInner: {
     width: space[8] - space[1],
     height: space[8] - space[1],

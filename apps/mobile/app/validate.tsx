@@ -19,7 +19,7 @@ import {
   usePendingPublish,
 } from '../src/store/listing.store'
 import { PriceFlagAlert } from '../src/components/PriceFlagAlert'
-import { MIN_TOUCH, font, formatEur, radius, space, theme } from '../src/theme'
+import { MIN_TOUCH, font, formatEur, line, radius, space, theme } from '../src/theme'
 import { Button } from '../src/ui/Button'
 import { Field } from '../src/ui/Field'
 import { ErrorBanner } from '../src/ui/ErrorBanner'
@@ -315,11 +315,18 @@ function ValidateForm({ draft, photos, resume, clearSession, goHome }: FormProps
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: theme.paper },
-  content: { padding: space[5], paddingTop: space[8], gap: space[2], paddingBottom: space[7] },
-  heading: { fontSize: font.heading - space[1] / 2, fontWeight: '700', color: theme.ink },
-  subheading: { fontSize: font.small, color: theme.muted, marginBottom: space[2] },
-  label: { fontSize: font.small, fontWeight: '600', marginTop: space[3], color: theme.ink },
-  hint: { fontSize: font.caption, color: theme.muted, textAlign: 'center' },
+  // Rythme vertical hiérarchisé : 12 entre éléments, 16 avant chaque section (labels).
+  content: { padding: space[5], paddingTop: space[7], gap: space[3], paddingBottom: space[7] },
+  // Un seul H1 par écran — cran heading de l'échelle, jamais de taille dérivée.
+  heading: { fontSize: font.heading, lineHeight: line.heading, fontWeight: '700', color: theme.ink },
+  subheading: {
+    fontSize: font.small,
+    lineHeight: line.small,
+    color: theme.muted,
+    marginBottom: space[3],
+  },
+  label: { fontSize: font.small, fontWeight: '600', marginTop: space[4], color: theme.ink },
+  hint: { fontSize: font.caption, lineHeight: line.caption, color: theme.muted, textAlign: 'center' },
   multiline: { minHeight: space[8] + space[7], textAlignVertical: 'top' },
 
   chipRow: { flexDirection: 'row', gap: space[2], flexWrap: 'wrap' },
@@ -336,7 +343,8 @@ const styles = StyleSheet.create({
   chipActive: { backgroundColor: theme.terracotta, borderColor: theme.terracotta },
   chipText: { fontSize: font.small, color: theme.ink },
   chipTextActive: { color: theme.onDark, fontWeight: '600' },
-  pressed: { opacity: 0.85 },
+  // Feedback pressé net (80–150 ms perçu), sans déplacement de layout.
+  pressed: { opacity: 0.7 },
 
   tierCard: {
     borderWidth: 1,
@@ -352,5 +360,5 @@ const styles = StyleSheet.create({
   tierPrice: { fontSize: font.caption, color: theme.muted },
   tierLocked: { opacity: 0.4 },
 
-  publishBtn: { marginTop: space[4] },
+  publishBtn: { marginTop: space[5] },
 })

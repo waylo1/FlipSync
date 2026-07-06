@@ -6,7 +6,7 @@ import { API_BASE, ApiError, ApiListing, api } from '../../src/services/api'
 import { useApiResource } from '../../src/hooks/useApiResource'
 import { usePendingPublish } from '../../src/store/listing.store'
 import { formatRelativeFr } from '../../src/lib/time'
-import { font, space, theme } from '../../src/theme'
+import { font, line, space, theme } from '../../src/theme'
 import { ScreenHeader } from '../../src/ui/ScreenHeader'
 import { Button } from '../../src/ui/Button'
 import { Card } from '../../src/ui/Card'
@@ -149,7 +149,8 @@ export default function ListingsScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: theme.paper },
-  list: { paddingHorizontal: space[4], paddingBottom: space[6], gap: space[3] },
+  // Marge basse généreuse : la dernière carte ne colle jamais la tab bar.
+  list: { paddingHorizontal: space[4], paddingBottom: space[7], gap: space[3] },
   skeletons: { paddingHorizontal: space[4], gap: space[3] },
   bannerWrap: { paddingHorizontal: space[4] },
 
@@ -162,7 +163,7 @@ const styles = StyleSheet.create({
   },
   pendingHeader: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
   pendingTitle: { fontSize: font.body, fontWeight: '700', color: theme.moutarde },
-  pendingBody: { fontSize: font.small, color: theme.moutarde, lineHeight: space[4] + space[1] },
-  pendingActions: { flexDirection: 'row', gap: space[2] },
+  pendingBody: { fontSize: font.small, lineHeight: line.small, color: theme.moutarde },
+  pendingActions: { flexDirection: 'row', gap: space[2], marginTop: space[1] },
   pendingBtn: { flex: 1 },
 })

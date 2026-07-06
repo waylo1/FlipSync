@@ -8,13 +8,13 @@ import { ListingStatus, centsToEur } from '@flipsync/core'
  */
 export const theme = {
   // Neutres papier (existant conservé)
-  gold: '#C8A96E', // laiton chiné — accent premium (cagnotte, jalons)
-  goldDark: '#A8854B',
+  gold: '#C8A96E', // laiton chiné — accent DÉCORATIF (fonds, jauges, texte sur ink uniquement)
+  goldDark: '#8A6A38', // laiton lisible — seul laiton autorisé en TEXTE sur fond clair (≥4.5:1)
   goldSoft: '#F5EDDE',
   ink: '#1C1917',
   paper: '#FAF9F7',
   card: '#FFFFFF',
-  muted: '#78716C',
+  muted: '#6A635D', // texte secondaire — ≥5:1 sur paper ET card (AA même en 12 px)
   border: '#E7E5E4',
 
   // Palette vide-grenier
@@ -41,7 +41,11 @@ export const theme = {
 /** Grille d'espacement stricte {4,8,12,16,24,32,48,64} — gate G2. */
 export const space = { 1: 4, 2: 8, 3: 12, 4: 16, 5: 24, 6: 32, 7: 48, 8: 64 } as const
 
-/** Rayons — angles doux, jamais coupants. */
+/**
+ * Rayons — angles doux, jamais coupants. Usage sémantique par niveau :
+ * xs = jauges/segments, sm = vignettes, md = cartes internes/bandeaux,
+ * lg = surfaces d'écran (solde, sheets), pill = chips + contrôles circulaires.
+ */
 export const radius = { xs: 4, sm: 8, md: 12, lg: 16, pill: 999 } as const
 
 /** Ombres « papier posé sur l'étal » — diffuses, jamais de glow coloré. */
@@ -89,6 +93,20 @@ export const font = {
   heading: 26,
   display: 32,
   balance: 48,
+} as const
+
+/**
+ * Interlignages appariés à l'échelle typo (≈1.5 sur le corps, WCAG lisibilité).
+ * Tout Text multi-lignes DOIT porter le line du cran utilisé — jamais de
+ * lineHeight dérivé (space[x] + space[y]).
+ */
+export const line = {
+  caption: 18,
+  small: 20,
+  body: 22,
+  lead: 24,
+  title: 28,
+  heading: 34,
 } as const
 
 /** Cible tactile minimale 44 pt (a11y) — appliquer aux petits contrôles. */

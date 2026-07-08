@@ -175,7 +175,7 @@ export default function HomeScreen() {
           keyExtractor={item => item.id}
           numColumns={2}
           columnWrapperStyle={styles.gridRow}
-          renderItem={({ item }) => <ListingTile item={item} />}
+          renderItem={({ item, index }) => <ListingTile item={item} index={index} />}
           contentContainerStyle={styles.grid}
           refreshing={refreshing}
           onRefresh={() => void refresh()}

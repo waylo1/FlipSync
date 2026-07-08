@@ -19,7 +19,7 @@ import {
   usePendingPublish,
 } from '../src/store/listing.store'
 import { PriceFlagAlert } from '../src/components/PriceFlagAlert'
-import { MIN_TOUCH, font, formatEur, line, radius, space, theme } from '../src/theme'
+import { MIN_TOUCH, font, formatEur, line, radius, space, theme, tracking } from '../src/theme'
 import { Button } from '../src/ui/Button'
 import { Field } from '../src/ui/Field'
 import { ErrorBanner } from '../src/ui/ErrorBanner'
@@ -335,7 +335,13 @@ const styles = StyleSheet.create({
   // Rythme vertical hiérarchisé : 12 entre éléments, 16 avant chaque section (labels).
   content: { padding: space[5], paddingTop: space[7], gap: space[3], paddingBottom: space[7] },
   // Un seul H1 par écran — cran heading de l'échelle, jamais de taille dérivée.
-  heading: { fontSize: font.heading, lineHeight: line.heading, fontWeight: '700', color: theme.ink },
+  heading: {
+    fontSize: font.heading,
+    lineHeight: line.heading,
+    fontWeight: '700',
+    color: theme.ink,
+    letterSpacing: tracking.heading,
+  },
   subheading: {
     fontSize: font.small,
     lineHeight: line.small,

@@ -14,7 +14,7 @@ export const theme = {
   ink: '#1C1917',
   paper: '#FAF9F7',
   card: '#FFFFFF',
-  muted: '#6A635D', // texte secondaire — ≥5:1 sur paper ET card (AA même en 12 px)
+  muted: '#5D564F', // texte secondaire — ≥5:1 sur paper ET card (AA même en 12 px)
   border: '#E7E5E4',
 
   // Palette vide-grenier
@@ -34,6 +34,8 @@ export const theme = {
   krafInk: '#6B5F4F',
   onDark: '#FFFFFF', // texte sur fonds sombres (ink, terracotta, scrim)
   onDarkMuted: '#A8A29E',
+  onDarkTrack: 'rgba(255, 255, 255, 0.25)', // rails/jauges vides sur scrim
+  goldGhost: 'rgba(200, 169, 110, 0.45)', // laiton fantôme (seuil à atteindre)
   scrim: 'rgba(28, 25, 23, 0.78)', // voile sur caméra
   scrimBrique: 'rgba(122, 38, 25, 0.88)',
 } as const
@@ -48,28 +50,32 @@ export const space = { 1: 4, 2: 8, 3: 12, 4: 16, 5: 24, 6: 32, 7: 48, 8: 64 } as
  */
 export const radius = { xs: 4, sm: 8, md: 12, lg: 16, pill: 999 } as const
 
-/** Ombres « papier posé sur l'étal » — diffuses, jamais de glow coloré. */
+/**
+ * Ombres « papier posé sur l'étal » — très douces (référence Apple/Airbnb) :
+ * grande diffusion, opacité faible. La séparation vient d'abord des espaces
+ * et des bordures ; l'ombre ne fait que suggérer la profondeur.
+ */
 export const shadow: Readonly<Record<'surface' | 'card' | 'sheet', ViewStyle>> = {
   surface: {
     shadowColor: theme.ink,
-    shadowOpacity: 0.04,
-    shadowRadius: 2,
+    shadowOpacity: 0.03,
+    shadowRadius: 3,
     shadowOffset: { width: 0, height: 1 },
     elevation: 1,
   },
   card: {
     shadowColor: theme.ink,
-    shadowOpacity: 0.07,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
     elevation: 2,
   },
   sheet: {
     shadowColor: theme.ink,
-    shadowOpacity: 0.14,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 8,
+    shadowOpacity: 0.09,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 6,
   },
 }
 
@@ -83,17 +89,27 @@ export const motion = {
   },
 } as const
 
-/** Échelle typo — corps ≥ 15 (l'app parle à tout le monde). */
+/**
+ * Échelle typo — corps ≥ 15 (l'app parle à tout le monde).
+ * Hiérarchie resserrée : les titres dominent par le poids et l'espace autour,
+ * pas par une taille écrasante (heading 24, pas 26+).
+ */
 export const font = {
   caption: 12,
   small: 13,
   body: 15,
   lead: 16,
   title: 20,
-  heading: 26,
-  display: 32,
-  balance: 48,
+  heading: 24,
+  display: 30,
+  balance: 44,
 } as const
+
+/**
+ * Interlettrage des grands crans — les titres serrés (tracking négatif léger)
+ * paraissent dessinés, pas simplement agrandis (référence SF Pro / Inter).
+ */
+export const tracking = { title: -0.3, heading: -0.4, display: -0.5 } as const
 
 /**
  * Interlignages appariés à l'échelle typo (≈1.5 sur le corps, WCAG lisibilité).
@@ -106,7 +122,7 @@ export const line = {
   body: 22,
   lead: 24,
   title: 28,
-  heading: 34,
+  heading: 32,
 } as const
 
 /** Cible tactile minimale 44 pt (a11y) — appliquer aux petits contrôles. */

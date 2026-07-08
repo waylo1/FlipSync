@@ -3,6 +3,7 @@ import { useRouter } from 'expo-router'
 import { ChevronRight, Loader, Sparkles } from 'lucide-react-native'
 import { useAnalysisQueue } from '../store/listing.store'
 import { font, line, radius, space, theme } from '../theme'
+import { FadeInUp } from '../ui/FadeInUp'
 
 /**
  * Rappel discret sur l'accueil : des rédactions tournent en fond (ou des
@@ -25,7 +26,8 @@ export function AnalysisQueueBanner() {
 
   const hasReady = ready > 0
   return (
-    <Pressable
+    <FadeInUp>
+      <Pressable
       accessibilityRole="button"
       accessibilityLabel={`Rédactions en cours — ${parts.join(', ')}`}
       onPress={() => router.push('/processing')}
@@ -47,7 +49,8 @@ export function AnalysisQueueBanner() {
         </Text>
       </View>
       <ChevronRight size={space[5]} color={theme.muted} />
-    </Pressable>
+      </Pressable>
+    </FadeInUp>
   )
 }
 

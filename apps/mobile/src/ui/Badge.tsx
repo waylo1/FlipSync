@@ -1,6 +1,7 @@
-import { ReactNode } from 'react'
-import { StyleSheet, Text, View } from 'react-native'
-import { font, radius, space } from '../theme'
+import { ReactNode, useEffect, useRef } from 'react'
+import { Animated, StyleSheet, Text } from 'react-native'
+import { font, motion, radius, space } from '../theme'
+import { useReducedMotion } from './useReducedMotion'
 
 interface Props {
   label: string
@@ -10,13 +11,36 @@ interface Props {
   icon?: ReactNode
 }
 
-/** Étiquette pilule — sémantique portée par fg/bg (STATUS_META, TX_META…). */
+/**
+ * Étiquette pilule — sémantique portée par fg/bg (STATUS_META, TX_META…).
+ * Apparition en fondu + micro-zoom (0.9 → 1) : le statut « se pose » sur la
+ * carte au lieu de clignoter. Reduced-motion : rendu direct.
+ */
 export function Badge({ label, fg, bg, icon }: Props) {
+  const reduced = useReducedMotion()
+  const progress = useRef(new Animated.Value(reduced ? 1 : 0)).current
+
+  useEffect(() => {
+    if (reduced) return
+    const anim = Animated.timing(progress, {
+      toValue: 1,
+      duration: motion.dur.base,
+      easing: motion.ease.decelerate,
+      useNativeDriver: true,
+    })
+    anim.start()
+    return () => anim.stop()
+  }, [progress, reduced])
+
+  const scale = progress.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1] })
+
   return (
-    <View style={[styles.pill, { backgroundColor: bg }]}>
+    <Animated.View
+      style={[styles.pill, { backgroundColor: bg, opacity: progress, transform: [{ scale }] }]}
+    >
       {icon}
       <Text style={[styles.text, { color: fg }]}>{label}</Text>
-    </View>
+    </Animated.View>
   )
 }
 

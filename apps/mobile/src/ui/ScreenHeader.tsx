@@ -1,6 +1,6 @@
 import { ReactNode } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
-import { font, radius, space, theme } from '../theme'
+import { font, radius, space, theme, tracking } from '../theme'
 
 /** En-tête d'écran : titre + trait laiton — identique partout (cohérence P6).
  *  `right` : emplacement optionnel aligné à droite (ex. pastille profil). */
@@ -21,7 +21,12 @@ export function ScreenHeader({ title, right }: { title: string; right?: ReactNod
 const styles = StyleSheet.create({
   header: { paddingTop: space[8], paddingHorizontal: space[5], paddingBottom: space[3] },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  heading: { fontSize: font.heading, fontWeight: '800', color: theme.ink },
+  heading: {
+    fontSize: font.heading,
+    fontWeight: '800',
+    color: theme.ink,
+    letterSpacing: tracking.heading,
+  },
   accent: {
     width: space[7] - space[1],
     height: space[1],

@@ -1,25 +1,30 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { StyleSheet, Text, View } from 'react-native'
 import { useRouter } from 'expo-router'
 import { AlertTriangle } from 'lucide-react-native'
-import { STATUS_META, font, line, radius, space, theme } from '../theme'
+import { STATUS_META, font, line, radius, shadow, space, theme } from '../theme'
 import { AmountText } from '../ui/AmountText'
 import { Badge } from '../ui/Badge'
+import { FadeInUp } from '../ui/FadeInUp'
+import { Tappable } from '../ui/Tappable'
 import { AuthImage } from './AuthImage'
 import { ListingRow } from './ListingCard'
 
-/** Tuile de grille (accueil) — vignette + prix + statut. Tap → fiche détail. */
-export function ListingTile({ item }: { item: ListingRow }) {
+/**
+ * Tuile de grille (accueil) — vignette + prix + statut. Tap → fiche détail.
+ * Entrée staggerée (index * 40 ms, plafonné) + enfoncement ressort au toucher.
+ */
+export function ListingTile({ item, index = 0 }: { item: ListingRow; index?: number }) {
   const router = useRouter()
   const meta = STATUS_META[item.status]
   const failed = item.failureReason !== null
 
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`${item.titre}, ${meta.label}`}
-      onPress={() => router.push({ pathname: '/listing-view', params: { id: item.id } })}
-      style={({ pressed }) => [styles.tile, pressed && styles.pressed]}
-    >
+    <FadeInUp delay={Math.min(index * 40, 240)} style={styles.wrap}>
+      <Tappable
+        accessibilityLabel={`${item.titre}, ${meta.label}`}
+        onPress={() => router.push({ pathname: '/listing-view', params: { id: item.id } })}
+        style={styles.tile}
+      >
       <View style={styles.thumbWrap}>
         {item.thumbUri !== null ? (
           <AuthImage uri={item.thumbUri} style={styles.thumb} accessibilityLabel={`Photo de ${item.titre}`} />
@@ -44,25 +49,26 @@ export function ListingTile({ item }: { item: ListingRow }) {
         )}
       </View>
 
-      <View style={styles.body}>
-        <Text style={styles.title} numberOfLines={1}>
-          {item.titre}
-        </Text>
-      </View>
-    </Pressable>
+        <View style={styles.body}>
+          <Text style={styles.title} numberOfLines={1}>
+            {item.titre}
+          </Text>
+        </View>
+      </Tappable>
+    </FadeInUp>
   )
 }
 
 const styles = StyleSheet.create({
+  wrap: { flex: 1 },
   tile: {
-    flex: 1,
     backgroundColor: theme.card,
     borderRadius: radius.md,
     borderWidth: 1,
     borderColor: theme.border,
     overflow: 'hidden',
+    ...shadow.surface,
   },
-  pressed: { opacity: 0.85 },
 
   thumbWrap: { aspectRatio: 1, backgroundColor: theme.kraft },
   thumb: { width: '100%', height: '100%' },

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   ActivityIndicator,
+  Animated,
   Linking,
   Pressable,
   StyleSheet,
@@ -12,9 +13,9 @@ import { useIsFocused } from '@react-navigation/native'
 import { Camera, useCameraDevice, useCameraPermission } from 'react-native-vision-camera'
 import { SaveFormat, manipulateAsync } from 'expo-image-manipulator'
 import * as Crypto from 'expo-crypto'
-import { CameraOff } from 'lucide-react-native'
+import { CameraOff, Sparkles } from 'lucide-react-native'
 import { useAnalysisQueue } from '../../src/store/listing.store'
-import { font, line, radius, space, theme } from '../../src/theme'
+import { font, line, motion, radius, space, theme } from '../../src/theme'
 import { Button } from '../../src/ui/Button'
 import { EmptyState } from '../../src/ui/EmptyState'
 import { PhotoTray } from '../../src/components/PhotoTray'
@@ -42,6 +43,18 @@ export default function VendreScreen() {
   const [capturing, setCapturing] = useState(false)
   const [cameraError, setCameraError] = useState<string | null>(null)
 
+  // Flash de capture : voile blanc bref (feedback immédiat, à la Instagram).
+  const flash = useRef(new Animated.Value(0)).current
+  const blink = useCallback(() => {
+    flash.setValue(0.9)
+    Animated.timing(flash, {
+      toValue: 0,
+      duration: motion.dur.base,
+      easing: motion.ease.accelerate,
+      useNativeDriver: true,
+    }).start()
+  }, [flash])
+
   useEffect(() => {
     if (!hasPermission) void requestPermission()
   }, [hasPermission, requestPermission])
@@ -59,6 +72,7 @@ export default function VendreScreen() {
     setCameraError(null)
     try {
       const raw = await camera.current.takePhoto({ flash: 'off' })
+      blink() // retour visuel immédiat, avant même le resize
       const resized = await manipulateAsync(
         `file://${raw.path}`,
         [{ resize: { width: CAPTURE_WIDTH } }],
@@ -78,7 +92,7 @@ export default function VendreScreen() {
     } finally {
       setCapturing(false)
     }
-  }, [capturing, photos.length])
+  }, [capturing, photos.length, blink])
 
   /** Retire une photo ratée de la session de capture (avant rédaction). */
   const removePhoto = useCallback((sha256: string) => {
@@ -144,6 +158,35 @@ export default function VendreScreen() {
         photo={true}
       />
 
+      {/* Flash de capture — voile blanc bref au-dessus du viseur. */}
+      <Animated.View pointerEvents="none" style={[styles.flash, { opacity: flash }]} />
+
+      {/* Jauge signature : l'IA "se nourrit" des photos — segments dorés remplis. */}
+      <View style={styles.progressWrap} accessibilityLiveRegion="polite">
+        <View style={styles.progressRow}>
+          <Sparkles size={font.small} color={photos.length >= MIN_PHOTOS ? theme.gold : theme.onDarkMuted} />
+          <Text style={styles.progressText}>
+            {photos.length === 0
+              ? 'Photographiez votre objet sous tous les angles'
+              : photos.length < MIN_PHOTOS
+                ? `${photos.length}/${MIN_PHOTOS} photos pour lancer la rédaction`
+                : 'FlipSync a de quoi rédiger — continuez ou lancez'}
+          </Text>
+        </View>
+        <View style={styles.segments}>
+          {Array.from({ length: MAX_PHOTOS }, (_, i) => (
+            <View
+              key={i}
+              style={[
+                styles.segment,
+                i < photos.length && styles.segmentFilled,
+                i === MIN_PHOTOS - 1 && i >= photos.length && styles.segmentThreshold,
+              ]}
+            />
+          ))}
+        </View>
+      </View>
+
       {/* Bandeau de photos réordonnable (glisser) + suppression (croix). */}
       {photos.length > 0 && (
         <View style={styles.thumbRow}>
@@ -204,6 +247,36 @@ export default function VendreScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.ink },
   center: { flex: 1, justifyContent: 'center', backgroundColor: theme.paper },
+
+  flash: { ...StyleSheet.absoluteFillObject, backgroundColor: theme.onDark },
+
+  progressWrap: {
+    position: 'absolute',
+    top: space[7],
+    left: space[4],
+    right: space[4],
+    gap: space[2],
+    backgroundColor: theme.scrim,
+    borderRadius: radius.md,
+    padding: space[3],
+  },
+  progressRow: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
+  progressText: {
+    flex: 1,
+    color: theme.onDark,
+    fontSize: font.small,
+    lineHeight: line.small,
+    fontWeight: '600',
+  },
+  segments: { flexDirection: 'row', gap: space[1] },
+  segment: {
+    flex: 1,
+    height: space[1],
+    borderRadius: radius.xs,
+    backgroundColor: theme.onDarkTrack,
+  },
+  segmentFilled: { backgroundColor: theme.gold },
+  segmentThreshold: { backgroundColor: theme.goldGhost },
 
   banner: {
     position: 'absolute',

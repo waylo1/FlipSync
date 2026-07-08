@@ -20,6 +20,7 @@ import {
 } from '../src/store/listing.store'
 import { MIN_TOUCH, font, line, motion, radius, shadow, space, theme } from '../src/theme'
 import { Button } from '../src/ui/Button'
+import { FadeInUp } from '../src/ui/FadeInUp'
 
 /** Messages humains pour les échecs de rédaction (jamais de code brut à l'écran). */
 const ERROR_MESSAGES: Readonly<Record<string, string>> = {
@@ -153,19 +154,21 @@ function ReadyCard({ job }: { job: AnalysisJob }) {
   }, [job, router])
 
   return (
-    <View style={[styles.card, styles.cardReady]}>
-      <Image source={{ uri: job.coverUri }} style={styles.cover} accessibilityIgnoresInvertColors />
-      <View style={styles.cardBody}>
-        <View style={styles.readyBadge}>
-          <Check size={font.small} color={theme.onDark} />
-          <Text style={styles.readyBadgeText}>Prête</Text>
+    <FadeInUp>
+      <View style={[styles.card, styles.cardReady]}>
+        <Image source={{ uri: job.coverUri }} style={styles.cover} accessibilityIgnoresInvertColors />
+        <View style={styles.cardBody}>
+          <View style={styles.readyBadge}>
+            <Check size={font.small} color={theme.onDark} />
+            <Text style={styles.readyBadgeText}>Prête</Text>
+          </View>
+          <Text style={styles.cardTitle} numberOfLines={2}>
+            {job.draft?.titre ?? 'Annonce rédigée'}
+          </Text>
+          <Button label="Vérifier & publier" onPress={open} style={styles.cardBtn} />
         </View>
-        <Text style={styles.cardTitle} numberOfLines={2}>
-          {job.draft?.titre ?? 'Annonce rédigée'}
-        </Text>
-        <Button label="Vérifier & publier" onPress={open} style={styles.cardBtn} />
       </View>
-    </View>
+    </FadeInUp>
   )
 }
 
@@ -175,26 +178,28 @@ function FailedCard({ job }: { job: AnalysisJob }) {
   const remove = useAnalysisQueue(s => s.remove)
 
   return (
-    <View style={[styles.card, styles.cardFailed]}>
-      <Image source={{ uri: job.coverUri }} style={styles.cover} accessibilityIgnoresInvertColors />
-      <View style={styles.cardBody}>
-        <View style={styles.failedRow}>
-          <AlertTriangle size={font.small} color={theme.brique} />
-          <Text style={styles.failedText}>
-            {ERROR_MESSAGES[job.errorCode ?? ''] ?? ERROR_FALLBACK}
-          </Text>
-        </View>
-        <View style={styles.failedActions}>
-          <Button label="Réessayer" onPress={() => retry(job.id)} style={styles.cardBtn} />
-          <Button
-            label="Retirer"
-            variant="ghost"
-            onPress={() => remove(job.id)}
-            style={styles.cardBtn}
-          />
+    <FadeInUp>
+      <View style={[styles.card, styles.cardFailed]}>
+        <Image source={{ uri: job.coverUri }} style={styles.cover} accessibilityIgnoresInvertColors />
+        <View style={styles.cardBody}>
+          <View style={styles.failedRow}>
+            <AlertTriangle size={font.small} color={theme.brique} />
+            <Text style={styles.failedText}>
+              {ERROR_MESSAGES[job.errorCode ?? ''] ?? ERROR_FALLBACK}
+            </Text>
+          </View>
+          <View style={styles.failedActions}>
+            <Button label="Réessayer" onPress={() => retry(job.id)} style={styles.cardBtn} />
+            <Button
+              label="Retirer"
+              variant="ghost"
+              onPress={() => remove(job.id)}
+              style={styles.cardBtn}
+            />
+          </View>
         </View>
       </View>
-    </View>
+    </FadeInUp>
   )
 }
 

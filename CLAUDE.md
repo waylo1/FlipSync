@@ -237,3 +237,25 @@ eas.json submit (Apple/Play).
       (reco : Claude Haiku 4.5, ~0,5 c€/annonce, backend à ajouter dans packages/ai)
       et GPU loué avec Ollama (~30-80 €/mois). Qualité dev actuelle : objets parfois
       mal identifiés, prix sous-estimés — connu, assumé jusqu'à la décision.
+- [x] Pipeline IA asynchrone détaché (commit 6e42c95) : POST /ai/draft synchrone
+      remplacé par POST /ai/draft/start (JWT, 202, { jobId }) + GET /ai/draft/:jobId
+      (poll). Le serveur continue l'inférence même si le mobile est tué en arrière-
+      plan (OEM agressifs type MIUI) — la requête HTTP synchrone ne bloque plus
+      jamais au-delà de quelques secondes. Store en mémoire (Map, TTL 15 min,
+      apps/api/src/routes/ai.ts) — pas de persistance DB, un redémarrage serveur
+      perd les jobs en cours (acceptable, le mobile relance). Aucun listing/débit
+      dans ce cycle : pure génération de texte, découplée de /listing/*.
+      Côté mobile : useAnalysisQueue (apps/mobile/src/store/listing.store.ts),
+      file persistée MMKV — un job « running » survit à un kill de l'app, poll
+      toutes les 3-5 s tant que status === 'running'.
+- [x] Différenciation réelle des formules par nombre de photos analysées
+      (commit 4d080bb) : TIER_PHOTO_COUNT (SIMPLE=1, OPTIMIZED=2, PREMIUM=3) et
+      TIER_FEATURES — SSOT packages/core/src/types/listing.ts. C'est le seul
+      levier de différenciation produit actuel entre paliers (plus de photos =
+      identification/prix plus fiables). Sans lien avec le seuil global d'upload
+      1-6 (569842a, apps/api/src/routes/listing.ts MAX_PHOTOS_PER_LISTING) : ce
+      seuil borne le nombre total de photos listées, TIER_PHOTO_COUNT borne
+      combien d'entre elles sont envoyées à /ai/draft/start pour l'analyse.
+      Sélection du palier à l'écran de capture (vendre.tsx) — non modifiable
+      après coup sans relancer l'analyse ; verrouillé à l'écran de validation
+      (validate.tsx).

@@ -48,12 +48,12 @@ describe('LISTING_TRANSITIONS', () => {
     expect(canTransition('USER_VALIDATED', 'PUBLISHED')).toBe(false) // QUEUED obligatoire
   })
 
-  it('annulation possible uniquement AVANT le débit (pré-USER_VALIDATED)', () => {
+  it('annulation possible pré-débit ET depuis QUEUED (remboursement intégral) — jamais depuis PUBLISHED', () => {
     expect([...CANCELLABLE_STATUSES].sort()).toEqual(
-      ['AI_PROCESSING', 'AUTHORIZED', 'DRAFT_READY', 'PENDING_AUTH'].sort(),
+      ['AI_PROCESSING', 'AUTHORIZED', 'DRAFT_READY', 'PENDING_AUTH', 'QUEUED'].sort(),
     )
     expect(canTransition('USER_VALIDATED', 'USER_CANCELLED')).toBe(false)
-    expect(canTransition('QUEUED', 'USER_CANCELLED')).toBe(false)
+    expect(canTransition('QUEUED', 'USER_CANCELLED')).toBe(true)
     expect(canTransition('PUBLISHED', 'USER_CANCELLED')).toBe(false)
   })
 })

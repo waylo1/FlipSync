@@ -4,6 +4,7 @@
  * est strictement réservée à l'affichage (centsToEur).
  */
 import type {
+  ItemCondition,
   ListingAuthResult,
   ListingDraft,
   ListingStatus,
@@ -17,6 +18,13 @@ export const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://10.0.2.2:3001
 
 /** Délai maximal d'une requête — au-delà : ApiError('TIMEOUT'). */
 const REQUEST_TIMEOUT_MS = 10_000
+
+/**
+ * Rédaction IA serveur : le modèle vision peut prendre 30-90 s (CPU en dev).
+ * Doit rester > SERVER_VISION_TIMEOUT_MS côté API (120 s) pour que le serveur
+ * réponde toujours avant que le mobile ne coupe.
+ */
+const AI_DRAFT_TIMEOUT_MS = 150_000
 
 /** Erreur API — code SNAKE_CASE renvoyé par le backend ({ error: code }). */
 export class ApiError extends Error {
@@ -34,9 +42,13 @@ export class ApiError extends Error {
  * délai dépassé → TIMEOUT ; serveur injoignable → NETWORK_ERROR (status 0).
  * Aucun appel réseau de l'app ne passe ailleurs que par ici.
  */
-async function fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit,
+  timeoutMs: number = REQUEST_TIMEOUT_MS,
+): Promise<Response> {
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
   try {
     return await fetch(url, { ...init, signal: controller.signal })
   } catch {
@@ -61,6 +73,9 @@ export interface ApiListing {
   paymentSource: string
   cost: number // centimes
   titre: string | null
+  description: string | null
+  marque: string | null
+  etat: ItemCondition | null
   prixPlancher: number | null // centimes
   prixHaut: number | null // centimes
   prixPublie: number | null // centimes
@@ -91,6 +106,15 @@ export interface ApiPhoto {
   sha256: string
 }
 
+/** Champs éditables après validation — jamais photos, tier, ou statut. */
+export interface EditListingPatch {
+  titre?: string
+  description?: string
+  marque?: string | null
+  etat?: ItemCondition
+  prixPublie?: number // centimes
+}
+
 export interface UploadPhoto {
   base64: string
   /** sha256 de la CHAÎNE base64 — convention partagée avec l'API (HASH_MISMATCH sinon). */
@@ -108,18 +132,22 @@ export interface ApiWallet {
   lifetimeRecharged: number // centimes
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+async function request<T>(path: string, init?: RequestInit, timeoutMs?: number): Promise<T> {
   const token = useAuthStore.getState().token
   if (!token) throw new ApiError('NO_AUTH_TOKEN', 401)
 
-  const res = await fetchWithTimeout(`${API_BASE}${path}`, {
-    ...init,
-    headers: {
-      authorization: `Bearer ${token}`,
-      'content-type': 'application/json',
-      ...init?.headers,
+  const res = await fetchWithTimeout(
+    `${API_BASE}${path}`,
+    {
+      ...init,
+      headers: {
+        authorization: `Bearer ${token}`,
+        'content-type': 'application/json',
+        ...init?.headers,
+      },
     },
-  })
+    timeoutMs,
+  )
 
   if (!res.ok) {
     let code = 'INTERNAL_ERROR'
@@ -140,8 +168,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (await res.json()) as T
 }
 
-const post = <T>(path: string, body?: unknown): Promise<T> =>
-  request<T>(path, { method: 'POST', body: body === undefined ? undefined : JSON.stringify(body) })
+const post = <T>(path: string, body?: unknown, timeoutMs?: number): Promise<T> =>
+  request<T>(
+    path,
+    // '{}' et non undefined : on envoie toujours content-type application/json,
+    // et Fastify rejette (400) un corps vide sous ce content-type.
+    { method: 'POST', body: JSON.stringify(body ?? {}) },
+    timeoutMs,
+  )
 
 /**
  * Login dev — route non authentifiée, absente en production.
@@ -181,6 +215,10 @@ export function devLogin(email: string): Promise<{ token: string; userId: string
 }
 
 export const api = {
+  // ─── IA serveur — photos → brouillon d'annonce (aucun listing, aucun débit) ─
+  analyzeDraft: (photosBase64: readonly string[]) =>
+    post<{ draft: ListingDraft }>('/ai/draft', { photos: photosBase64 }, AI_DRAFT_TIMEOUT_MS),
+
   // ─── Wallet ────────────────────────────────────────────────────────────────
   getWallet: () => request<ApiWallet>('/wallet'),
   getTransactions: () => request<{ transactions: ApiTransaction[] }>('/wallet/transactions'),
@@ -208,7 +246,17 @@ export const api = {
   validate: (listingId: string, prixPublie: number) =>
     post<{ listing: ApiListing }>(`/listing/${listingId}/validate`, { prixPublie }),
 
+  /** Annulation — remboursement automatique si l'annonce était déjà validée. */
   cancel: (listingId: string) => post<{ listing: ApiListing }>(`/listing/${listingId}/cancel`),
 
-  getListings: () => request<{ listings: ApiListing[] }>('/listing'),
+  /** Correction post-validation (titre/description/marque/état/prix) — jamais les photos. */
+  editListing: (listingId: string, patch: EditListingPatch) =>
+    post<{ listing: ApiListing }>(`/listing/${listingId}/edit`, patch),
+
+  /** includeCancelled : réaffiche aussi les annonces annulées masquées après 24h. */
+  getListings: (opts?: { includeCancelled?: boolean }) =>
+    request<{ listings: ApiListing[] }>(
+      opts?.includeCancelled === true ? '/listing?includeCancelled=true' : '/listing',
+    ),
+  getListing: (listingId: string) => request<{ listing: ApiListing }>(`/listing/${listingId}`),
 }

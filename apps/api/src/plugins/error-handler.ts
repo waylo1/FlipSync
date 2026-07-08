@@ -12,10 +12,15 @@ const HTTP_BY_CODE: Readonly<Record<string, number>> = {
   NO_FREE_CREDIT: 402,
   INVALID_TRANSITION: 409,
   INVALID_LISTING_STATE: 409,
+  LISTING_NOT_EDITABLE: 409,
   ALREADY_COMMITTED: 409,
   INVALID_AMOUNT: 400,
   INVALID_PAYMENT_SOURCE: 400,
   MISSING_FAILURE_REASON: 400,
+  // Vision serveur : le modèle amont a échoué — pas la requête du client.
+  AI_TIMEOUT: 504,
+  AI_INVALID_OUTPUT: 502,
+  AI_BACKEND_ERROR: 502,
 }
 
 /**

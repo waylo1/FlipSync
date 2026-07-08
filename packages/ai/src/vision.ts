@@ -49,15 +49,18 @@ const stripCodeFences = (raw: string): string =>
 const buildPrompt = (): string =>
   [
     'Tu es un expert de la revente sur Leboncoin et Vinted.',
-    "Analyse les photos de l'objet et réponds UNIQUEMENT avec un objet JSON :",
+    "Analyse les photos de l'objet à vendre (plusieurs angles du MÊME objet).",
+    'Réponds UNIQUEMENT avec un objet JSON, sans texte autour.',
+    'Toutes les valeurs texte sont en FRANÇAIS.',
     '{',
-    '  "titre": string (max 120 caractères, optimisé SEO),',
-    '  "description": string (vendeuse, honnête),',
+    '  "titre": string (max 120 caractères, optimisé recherche),',
+    '  "description": string (vendeuse, honnête, 2-4 phrases en français),',
     '  "categorieLbc": string, "categorieVinted": string,',
     '  "etat": "neuf" | "tres_bon" | "bon" | "correct",',
-    '  "prixPlancher": int (CENTIMES, ex: 1500 = 15,00 €),',
+    '  "prixPlancher": int — prix bas RÉALISTE du marché de l\'occasion en France,',
+    '    en CENTIMES d\'euro (euros × 100 : un objet à 15 € → 1500),',
     '  "prixHaut": int (CENTIMES, >= prixPlancher),',
-    '  "marque": string | null,',
+    '  "marque": string | null (null si aucune marque identifiable),',
     '  "confidence": float entre 0 et 1',
     '}',
   ].join('\n')
@@ -132,6 +135,15 @@ export class OllamaVisionBackend implements VisionBackend {
         images: imagesBase64,
         stream: false,
         format: 'json',
+        options: {
+          // 8 photos × ~700-1300 tokens d'encodage vision + prompt + réponse :
+          // le num_ctx par défaut (4096) déborde dès 3-4 photos.
+          num_ctx: 16384,
+          // Sortie JSON : stabilité avant créativité ; plafond large (le JSON
+          // complet fait ~200-300 tokens, on coupe les délires du modèle).
+          temperature: 0.2,
+          num_predict: 700,
+        },
       }),
     })
     if (!res.ok) throw new VisionBackendError(`OLLAMA_HTTP_${res.status}`)

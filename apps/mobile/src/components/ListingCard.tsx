@@ -1,6 +1,8 @@
-import { StyleSheet, Text, View } from 'react-native'
-import { AlertTriangle, RotateCcw } from 'lucide-react-native'
+import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { useRouter } from 'expo-router'
+import { AlertTriangle, ChevronRight, RotateCcw } from 'lucide-react-native'
 import { ListingStatus } from '@flipsync/core'
+import { LISTING_EDITABLE_STATUSES } from '../store/listing.store'
 import { STATUS_META, font, line, radius, space, theme } from '../theme'
 import { Card } from '../ui/Card'
 import { Badge } from '../ui/Badge'
@@ -31,10 +33,12 @@ const REFUNDED_STATUSES: readonly ListingStatus[] = [
 
 /** Carte annonce — le PRIX est roi, l'état toujours dit, l'échec toujours remboursé. */
 export function ListingCard({ item }: { item: ListingRow }) {
+  const router = useRouter()
   const meta = STATUS_META[item.status]
   const refunded = REFUNDED_STATUSES.includes(item.status)
+  const editable = LISTING_EDITABLE_STATUSES.includes(item.status)
 
-  return (
+  const card = (
     <Card style={styles.card}>
       {/* Vignette : première photo du listing (JWT joint — /uploads protégé), lettre kraft sinon. */}
       {item.thumbUri !== null ? (
@@ -62,7 +66,10 @@ export function ListingCard({ item }: { item: ListingRow }) {
 
         <View style={styles.metaRow}>
           <StatusBadge status={item.status} />
-          <Text style={styles.when}>{item.quand}</Text>
+          <View style={styles.metaRight}>
+            <Text style={styles.when}>{item.quand}</Text>
+            {editable && <ChevronRight size={font.small} color={theme.muted} />}
+          </View>
         </View>
 
         <PipelineRail status={item.status} />
@@ -93,6 +100,19 @@ export function ListingCard({ item }: { item: ListingRow }) {
       </View>
     </Card>
   )
+
+  if (!editable) return card
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`Modifier ou annuler « ${item.titre} »`}
+      onPress={() => router.push({ pathname: '/listing-edit', params: { id: item.id } })}
+      style={({ pressed }) => pressed && styles.pressed}
+    >
+      {card}
+    </Pressable>
+  )
 }
 
 const styles = StyleSheet.create({
@@ -112,7 +132,9 @@ const styles = StyleSheet.create({
   title: { flex: 1, fontSize: font.body, lineHeight: line.body, fontWeight: '600', color: theme.ink },
 
   metaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  metaRight: { flexDirection: 'row', alignItems: 'center', gap: space[1] },
   when: { fontSize: font.caption, color: theme.muted },
+  pressed: { opacity: 0.85 },
 
   failureRow: { flexDirection: 'row', alignItems: 'center', gap: space[1] },
   failureText: { flex: 1, fontSize: font.caption, lineHeight: line.caption, fontWeight: '600' },

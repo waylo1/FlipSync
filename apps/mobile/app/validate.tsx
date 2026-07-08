@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react'
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { Redirect, useRouter } from 'expo-router'
 import {
   ItemCondition,
@@ -65,7 +65,7 @@ export default function ValidateScreen() {
       photos={photos}
       resume={pending}
       clearSession={clearSession}
-      goHome={() => router.replace('/(tabs)/listings')}
+      goHome={() => router.replace('/(tabs)')}
     />
   )
 }
@@ -201,14 +201,31 @@ function ValidateForm({ draft, photos, resume, clearSession, goHome }: FormProps
     }
   }, [formValid, prixPublie, publishing, resume, draft, photos, titre, description, marque, etat, tier, clearSession, goHome])
 
+  /**
+   * Dernière vérification avant débit — l'utilisateur doit voir explicitement
+   * ce qui se passe (règle produit) : la cagnotte est débitée maintenant, les
+   * photos seront figées, mais titre/description/prix/état restent modifiables
+   * et une annulation ultérieure rembourse intégralement (cf. écran « Mes annonces »).
+   */
+  const confirmPublish = useCallback(() => {
+    Alert.alert(
+      'Confirmer la publication ?',
+      `${formatEur(TIER_PRICING[tier])} seront débités de votre cagnotte maintenant. Les photos ne pourront plus être changées, mais vous pourrez encore corriger le texte, le prix et l'état, ou annuler (remboursement intégral) depuis « Mes annonces ».`,
+      [
+        { text: 'Revoir', style: 'cancel' },
+        { text: 'Confirmer', onPress: () => void publish() },
+      ],
+    )
+  }, [tier, publish])
+
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <Text accessibilityRole="header" style={styles.heading}>
         Vérifiez votre annonce
       </Text>
       <Text style={styles.subheading}>
-        Rédigée sur votre téléphone — modifiez ce que vous voulez, rien n'est débité avant votre
-        validation.
+        Rédigée à partir de vos photos — modifiez ce que vous voulez, rien n'est débité avant
+        votre validation.
       </Text>
 
       <Field label="Titre" value={titre} onChangeText={setTitre} maxLength={120} />
@@ -301,7 +318,7 @@ function ValidateForm({ draft, photos, resume, clearSession, goHome }: FormProps
             ? `Reprendre la publication — ${formatEur(TIER_PRICING[tier])}`
             : `Valider et publier — ${formatEur(TIER_PRICING[tier])}`
         }
-        onPress={() => void publish()}
+        onPress={() => confirmPublish()}
         loading={publishing}
         disabled={!formValid}
         style={styles.publishBtn}

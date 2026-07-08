@@ -10,7 +10,14 @@ import { Marketplace } from '@flipsync/marketplace'
 /** Répertoire de stockage des photos (dev : disque local ; prod : volume monté). */
 export const UPLOAD_DIR = resolve(process.env.UPLOAD_DIR ?? join(process.cwd(), 'uploads'))
 
-const MAX_PHOTOS_PER_LISTING = 5
+const MAX_PHOTOS_PER_LISTING = 8
+
+/**
+ * Une annonce annulée reste en base indéfiniment (traçabilité des
+ * remboursements) mais disparaît de la liste par défaut 24h après
+ * l'annulation — jamais supprimée, juste masquée.
+ */
+const HIDE_CANCELLED_AFTER_MS = 24 * 60 * 60 * 1000
 
 /** Upload possible uniquement AVANT validation (le contenu est figé au commit). */
 const PHOTO_UPLOAD_STATUSES: readonly ListingStatus[] = [
@@ -30,6 +37,11 @@ const validateBody = z.object({
 
 const idParams = z.object({
   id: z.string().min(1),
+})
+
+const listQuery = z.object({
+  // 'true' textuel (query string) — inclut aussi les annulées masquées (>24h).
+  includeCancelled: z.literal('true').optional(),
 })
 
 /**
@@ -53,6 +65,20 @@ const draftBody = z
 const failBody = z.object({
   reason: z.string().min(1),
 })
+
+/**
+ * Édition post-validation — titre/description/marque/état/prix uniquement.
+ * Jamais les photos (déjà figées côté marketplace), jamais le tier.
+ */
+const editBody = z
+  .object({
+    titre: z.string().min(1).max(120).optional(),
+    description: z.string().min(1).optional(),
+    marque: z.string().min(1).nullable().optional(),
+    etat: z.nativeEnum(ItemCondition).optional(),
+    prixPublie: z.number().int().nonnegative().optional(), // centimes
+  })
+  .refine(b => Object.keys(b).length > 0, { message: 'Au moins un champ requis' })
 
 const publishBody = z.object({
   marketplace: z.nativeEnum(Marketplace),
@@ -100,10 +126,23 @@ const listingRoutes: FastifyPluginAsync = async app => {
     return reply.code(201).send(result)
   })
 
-  /** Listings de l'utilisateur courant (plus récents d'abord). */
-  app.get('/', async req => {
+  /**
+   * Listings de l'utilisateur courant (plus récents d'abord). Les annonces
+   * annulées depuis plus de 24h sont masquées (jamais supprimées — cf.
+   * HIDE_CANCELLED_AFTER_MS) : accessibles via GET /:id, absentes de la liste.
+   */
+  app.get('/', async (req, reply) => {
+    const query = listQuery.safeParse(req.query)
+    if (!query.success) return reply.code(400).send({ error: 'INVALID_BODY' })
+
+    const cutoff = new Date(Date.now() - HIDE_CANCELLED_AFTER_MS)
     const listings = await prisma.listing.findMany({
-      where: { userId: req.userId },
+      where: {
+        userId: req.userId,
+        ...(query.data.includeCancelled !== 'true' && {
+          NOT: { status: ListingStatus.USER_CANCELLED, updatedAt: { lt: cutoff } },
+        }),
+      },
       orderBy: { createdAt: 'desc' },
       include: { photos: { orderBy: { order: 'asc' }, select: { id: true, url: true, order: true } } },
     })
@@ -267,7 +306,10 @@ const listingRoutes: FastifyPluginAsync = async app => {
     return outcome
   })
 
-  /** Annulation utilisateur — uniquement pré-commit (0 débit). */
+  /**
+   * Annulation utilisateur — gratuite pré-commit, remboursée intégralement
+   * depuis QUEUED (aucune annonce n'est encore réellement en ligne).
+   */
   app.post('/:id/cancel', async (req, reply) => {
     const params = idParams.safeParse(req.params)
     if (!params.success) return reply.code(400).send({ error: 'INVALID_BODY' })
@@ -276,6 +318,22 @@ const listingRoutes: FastifyPluginAsync = async app => {
     if (!owned) return reply.code(404).send({ error: 'LISTING_NOT_FOUND' })
 
     const listing = await app.listingEngine.cancel(params.data.id)
+    return { listing }
+  })
+
+  /**
+   * Édition post-validation (corrige une erreur de rédaction) — jamais les
+   * photos ni le tier. Aucun impact wallet : simple mise à jour de contenu.
+   */
+  app.post('/:id/edit', async (req, reply) => {
+    const params = idParams.safeParse(req.params)
+    const body = editBody.safeParse(req.body)
+    if (!params.success || !body.success) return reply.code(400).send({ error: 'INVALID_BODY' })
+
+    const owned = await ownedListing(params.data.id, req.userId)
+    if (!owned) return reply.code(404).send({ error: 'LISTING_NOT_FOUND' })
+
+    const listing = await app.listingEngine.editContent(params.data.id, body.data)
     return { listing }
   })
 }

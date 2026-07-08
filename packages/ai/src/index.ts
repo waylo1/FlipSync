@@ -1,4 +1,4 @@
-export { ListingEngine, CreateListingResult } from './listing-engine'
+export { ListingEngine, CreateListingResult, ListingEditPatch } from './listing-engine'
 export { LISTING_TRANSITIONS, CANCELLABLE_STATUSES, canTransition } from './transitions'
 export {
   AI_INFERENCE_TIMEOUT_MS,
@@ -12,6 +12,7 @@ export {
   InvalidTransitionError,
   InvalidPriceError,
   MissingFailureReasonError,
+  ListingNotEditableError,
   VisionTimeoutError,
   VisionParseError,
   VisionBackendError,

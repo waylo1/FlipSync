@@ -33,6 +33,12 @@ export class MissingFailureReasonError extends EngineError {
   }
 }
 
+export class ListingNotEditableError extends EngineError {
+  constructor(status: string) {
+    super('LISTING_NOT_EDITABLE', `Édition impossible depuis l'état ${status}`)
+  }
+}
+
 // ─── Vision ───────────────────────────────────────────────────────────────────
 
 export class VisionTimeoutError extends EngineError {

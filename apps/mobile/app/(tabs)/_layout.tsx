@@ -1,5 +1,5 @@
 import { Redirect, Tabs } from 'expo-router'
-import { Camera, Tag, PiggyBank } from 'lucide-react-native'
+import { Camera, Home, PiggyBank } from 'lucide-react-native'
 import { useAuthStore } from '../../src/store/auth.store'
 import { font, theme } from '../../src/theme'
 
@@ -18,18 +18,20 @@ export default function TabsLayout() {
         tabBarLabelStyle: { fontSize: font.caption, fontWeight: '600' },
       }}
     >
+      {/* Accueil : grille des annonces + recherche + filtres. */}
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Photographier',
-          tabBarIcon: ({ color, size }) => <Camera color={color} size={size} />,
+          title: 'Accueil',
+          tabBarIcon: ({ color, size }) => <Home color={color} size={size} />,
         }}
       />
+      {/* Vendre au centre (geste principal, à la Instagram). */}
       <Tabs.Screen
-        name="listings"
+        name="vendre"
         options={{
-          title: 'Mes annonces',
-          tabBarIcon: ({ color, size }) => <Tag color={color} size={size} />,
+          title: 'Vendre',
+          tabBarIcon: ({ color, size }) => <Camera color={color} size={size} />,
         }}
       />
       <Tabs.Screen

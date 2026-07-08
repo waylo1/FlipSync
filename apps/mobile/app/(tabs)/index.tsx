@@ -1,300 +1,257 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import {
-  ActivityIndicator,
-  Image,
-  Linking,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
 import { useRouter } from 'expo-router'
-import { useIsFocused } from '@react-navigation/native'
-import { Camera, useCameraDevice, useCameraPermission } from 'react-native-vision-camera'
-import { SaveFormat, manipulateAsync } from 'expo-image-manipulator'
-import * as Crypto from 'expo-crypto'
-import { CameraOff } from 'lucide-react-native'
-import { useVision } from '../../src/hooks/useVision'
-import { useListingSession } from '../../src/store/listing.store'
-import { font, line, radius, space, theme } from '../../src/theme'
-import { Button } from '../../src/ui/Button'
+import { Camera, Search } from 'lucide-react-native'
+import { ListingStatus } from '@flipsync/core'
+import { API_BASE, ApiListing, api } from '../../src/services/api'
+import { useApiResource } from '../../src/hooks/useApiResource'
+import { useAuthStore } from '../../src/store/auth.store'
+import { formatRelativeFr } from '../../src/lib/time'
+import { font, radius, space, theme } from '../../src/theme'
+import { ScreenHeader } from '../../src/ui/ScreenHeader'
+import { Avatar } from '../../src/ui/Avatar'
 import { EmptyState } from '../../src/ui/EmptyState'
+import { ErrorBanner } from '../../src/ui/ErrorBanner'
+import { Skeleton } from '../../src/ui/Skeleton'
+import { ListingRow } from '../../src/components/ListingCard'
+import { ListingTile } from '../../src/components/ListingTile'
+import { PendingPublishBanner } from '../../src/components/PendingPublishBanner'
 
-const MAX_PHOTOS = 5
-/**
- * Largeur d'analyse : l'encodeur vision de Moondream2 travaille en ~378 px —
- * 768 px garde une marge de recadrage sans exploser la RAM de l'inférence.
- */
-const ANALYZE_WIDTH = 768
-
-interface CapturedPhoto {
-  uri: string // jpeg redimensionné (thumbnail + upload futur)
-  base64: string // payload envoyé au modèle
-  sha256: string // intégrité (rules.md) — réutilisé à la création du listing
+/** Réponse serveur → ligne d'affichage. Le statut vient du serveur, jamais déduit. */
+function toRow(listing: ApiListing): ListingRow {
+  const first = listing.photos[0]
+  return {
+    id: listing.id,
+    titre: listing.titre ?? 'Annonce en préparation',
+    prixCents: listing.prixPublie ?? listing.prixHaut,
+    status: listing.status,
+    failureReason: listing.failureReason,
+    publishedLbc: listing.publishedLbc,
+    publishedVinted: listing.publishedVinted,
+    quand: formatRelativeFr(listing.updatedAt),
+    thumbUri: first !== undefined ? `${API_BASE}${first.url}` : null,
+  }
 }
 
-export default function CaptureScreen() {
+type Filter = 'TOUT' | 'EN_LIGNE' | 'A_VALIDER' | 'EN_COURS' | 'ANNULEES'
+
+const FILTERS: Readonly<Record<Filter, { label: string; statuses: readonly ListingStatus[] | null }>> = {
+  TOUT: { label: 'Tout', statuses: null },
+  EN_LIGNE: { label: 'En ligne', statuses: [ListingStatus.PUBLISHED] },
+  A_VALIDER: { label: 'À valider', statuses: [ListingStatus.DRAFT_READY] },
+  EN_COURS: {
+    label: 'En cours',
+    statuses: [
+      ListingStatus.AUTHORIZED,
+      ListingStatus.AI_PROCESSING,
+      ListingStatus.USER_VALIDATED,
+      ListingStatus.QUEUED,
+    ],
+  },
+  ANNULEES: { label: 'Annulées', statuses: [ListingStatus.USER_CANCELLED] },
+}
+const FILTER_ORDER: readonly Filter[] = ['TOUT', 'EN_LIGNE', 'A_VALIDER', 'EN_COURS', 'ANNULEES']
+
+const SKELETON_KEYS = ['s1', 's2', 's3', 's4'] as const
+
+export default function HomeScreen() {
   const router = useRouter()
-  const camera = useRef<Camera>(null)
-  const isFocused = useIsFocused()
-  const device = useCameraDevice('back')
-  const { hasPermission, requestPermission } = useCameraPermission()
+  const email = useAuthStore(s => s.email)
+  const [filter, setFilter] = useState<Filter>('TOUT')
+  const [query, setQuery] = useState('')
 
-  const [photos, setPhotos] = useState<CapturedPhoto[]>([])
-  const [capturing, setCapturing] = useState(false)
+  // L'API exclut les annonces annulées par défaut ; le filtre « Annulées » les redemande explicitement.
+  const fetchListings = useCallback(
+    () => api.getListings({ includeCancelled: filter === 'ANNULEES' }),
+    [filter],
+  )
+  const { data, loading, refreshing, error, retry, refresh } = useApiResource(fetchListings)
 
-  const {
-    ready,
-    modelStatus,
-    downloadProgress,
-    downloadingFile,
-    modelErrorCode,
-    retryModelSetup,
-    analyzing,
-    errorCode,
-    analyze,
-  } = useVision()
-
+  const mounted = useRef(false)
   useEffect(() => {
-    if (!hasPermission) void requestPermission()
-  }, [hasPermission, requestPermission])
+    if (mounted.current) retry()
+    else mounted.current = true
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filter])
 
-  /** Capture → resize 768px JPEG → base64 + sha256. */
-  const takePhoto = useCallback(async () => {
-    if (!camera.current || capturing || photos.length >= MAX_PHOTOS) return
-    setCapturing(true)
-    try {
-      const raw = await camera.current.takePhoto({ flash: 'off' })
-      const resized = await manipulateAsync(
-        `file://${raw.path}`,
-        [{ resize: { width: ANALYZE_WIDTH } }],
-        { compress: 0.7, format: SaveFormat.JPEG, base64: true },
-      )
-      if (!resized.base64) throw new Error('BASE64_MISSING')
-
-      const sha256 = await Crypto.digestStringAsync(
-        Crypto.CryptoDigestAlgorithm.SHA256,
-        resized.base64,
-      )
-      setPhotos(prev => [...prev, { uri: resized.uri, base64: resized.base64 ?? '', sha256 }])
-    } finally {
-      setCapturing(false)
-    }
-  }, [capturing, photos.length])
-
-  /** Inférence on-device puis passage à l'écran de validation (draft + photos). */
-  const runAnalysis = useCallback(async () => {
-    if (photos.length === 0 || !ready || analyzing) return
-    const result = await analyze(photos.map(p => p.base64))
-    if (result) {
-      useListingSession.getState().setSession(result, photos)
-      setPhotos([])
-      router.push('/validate')
-    }
-  }, [photos, ready, analyzing, analyze, router])
-
-  // ─── Branches d'état ──────────────────────────────────────────────────────
-
-  if (!hasPermission) {
-    return (
-      <View style={styles.center}>
-        <EmptyState
-          icon={<CameraOff size={space[6]} color={theme.goldDark} />}
-          title="On a besoin de l'appareil photo"
-          body="FlipSync photographie vos objets pour rédiger l'annonce à votre place."
-          action={
-            <Button label="Ouvrir les réglages" onPress={() => void Linking.openSettings()} />
-          }
-        />
-      </View>
-    )
-  }
-
-  if (!device) {
-    return (
-      <View style={styles.center}>
-        <EmptyState
-          icon={<CameraOff size={space[6]} color={theme.goldDark} />}
-          title="Aucune caméra détectée"
-          body="Impossible de photographier sur cet appareil."
-        />
-      </View>
-    )
-  }
+  const rows = useMemo(() => {
+    if (data === null) return null
+    const statuses = FILTERS[filter].statuses
+    const q = query.trim().toLowerCase()
+    return data.listings
+      .map(toRow)
+      .filter(r => statuses === null || statuses.includes(r.status))
+      .filter(r => q === '' || r.titre.toLowerCase().includes(q))
+  }, [data, filter, query])
 
   return (
-    <View style={styles.container}>
-      <Camera
-        ref={camera}
-        style={StyleSheet.absoluteFill}
-        device={device}
-        isActive={isFocused}
-        photo={true}
+    <View style={styles.screen}>
+      <ScreenHeader
+        title="FlipSync"
+        right={
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Mon profil"
+            onPress={() => router.push('/profile')}
+            hitSlop={space[2]}
+            style={({ pressed }) => pressed && styles.avatarPressed}
+          >
+            <Avatar email={email} />
+          </Pressable>
+        }
       />
 
-      {/* Bandeau état modèle — visible tant que l'inférence n'est pas prête. */}
-      {modelStatus !== 'ready' && (
-        <View style={styles.banner} accessibilityLiveRegion="polite">
-          {modelStatus === 'downloading' && (
-            <View style={styles.bannerBody}>
-              <Text style={styles.bannerText}>
-                Préparation de l'assistant ({downloadingFile ?? '…'}) —{' '}
-                {Math.round(downloadProgress * 100)}%
-              </Text>
-              <View style={styles.progressTrack}>
-                <View
-                  style={[
-                    styles.progressFill,
-                    { width: `${Math.round(downloadProgress * 100)}%` },
-                  ]}
-                />
-              </View>
-            </View>
-          )}
-          {(modelStatus === 'checking' || modelStatus === 'loading') && (
-            <Text style={styles.bannerText}>Préparation de l'assistant…</Text>
-          )}
-          {modelStatus === 'error' && (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Réessayer la préparation de l'assistant"
-              onPress={retryModelSetup}
-              hitSlop={space[2]}
-            >
-              <Text style={styles.bannerText}>
-                Assistant indisponible ({modelErrorCode ?? 'inconnu'}) — touchez pour réessayer
-              </Text>
-            </Pressable>
-          )}
-        </View>
-      )}
-
-      {/* Thumbnails de la session de capture. */}
-      {photos.length > 0 && (
-        <ScrollView
-          horizontal
-          style={styles.thumbRow}
-          contentContainerStyle={styles.thumbRowContent}
-        >
-          {photos.map((p, i) => (
-            <Image
-              key={p.sha256}
-              source={{ uri: p.uri }}
-              style={styles.thumb}
-              accessibilityLabel={`Photo ${i + 1} sur ${photos.length}`}
-            />
-          ))}
-        </ScrollView>
-      )}
-
-      {/* Commandes bas d'écran. */}
-      <View style={styles.controls}>
+      <View style={styles.searchWrap}>
+        <Search size={space[4]} color={theme.goldDark} />
+        <TextInput
+          value={query}
+          onChangeText={setQuery}
+          placeholder="Rechercher dans mes annonces"
+          placeholderTextColor={theme.muted}
+          style={styles.searchInput}
+          accessibilityLabel="Rechercher dans mes annonces"
+          returnKeyType="search"
+        />
+        {/* Raccourci capture (pattern Vinted/eBay : caméra dans la barre de recherche). */}
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Prendre une photo"
-          accessibilityState={{ disabled: capturing || photos.length >= MAX_PHOTOS }}
-          style={({ pressed }) => [
-            styles.shutter,
-            pressed && styles.shutterPressed,
-            (capturing || photos.length >= MAX_PHOTOS) && styles.disabled,
-          ]}
-          onPress={() => void takePhoto()}
-          disabled={capturing || photos.length >= MAX_PHOTOS}
+          accessibilityLabel="Photographier un objet à vendre"
+          onPress={() => router.push('/(tabs)/vendre')}
+          hitSlop={space[2]}
+          style={({ pressed }) => pressed && styles.cameraPressed}
         >
-          {capturing ? <ActivityIndicator color={theme.ink} /> : <View style={styles.shutterInner} />}
+          <Camera size={space[4] + space[1]} color={theme.goldDark} />
         </Pressable>
-
-        <Button
-          label={`Rédiger l'annonce (${photos.length}/${MAX_PHOTOS})`}
-          onPress={() => void runAnalysis()}
-          loading={analyzing}
-          disabled={!ready || photos.length === 0}
-        />
       </View>
 
-      {/* Erreur d'inférence → l'appelant API marquera AI_FAILED avec ce code. */}
-      {errorCode && (
-        <View
-          style={[styles.banner, styles.bannerError]}
-          accessibilityRole="alert"
-          accessibilityLiveRegion="polite"
-        >
-          <Text style={styles.bannerText}>
-            Analyse échouée ({errorCode}) — rien n'est débité, réessayez.
-          </Text>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.chipsRow}
+        style={styles.chipsScroll}
+      >
+        {FILTER_ORDER.map(key => {
+          const active = key === filter
+          return (
+            <Pressable
+              key={key}
+              accessibilityRole="button"
+              accessibilityState={{ selected: active }}
+              onPress={() => setFilter(key)}
+              style={[styles.chip, active && styles.chipActive]}
+            >
+              <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                {FILTERS[key].label}
+              </Text>
+            </Pressable>
+          )
+        })}
+      </ScrollView>
+
+      <PendingPublishBanner onCancelled={() => void refresh()} />
+
+      {error !== null && rows === null ? (
+        <View style={styles.bannerWrap}>
+          <ErrorBanner
+            message={
+              error === 'NETWORK_ERROR'
+                ? 'Impossible de joindre le serveur — vérifiez votre connexion.'
+                : `Chargement impossible (${error}).`
+            }
+            onRetry={retry}
+          />
         </View>
+      ) : loading && rows === null ? (
+        <View style={styles.skeletonGrid}>
+          {SKELETON_KEYS.map(k => (
+            <Skeleton key={k} height={space[8] + space[6]} round="lg" style={styles.skeletonTile} />
+          ))}
+        </View>
+      ) : (
+        <FlatList
+          data={rows ?? []}
+          keyExtractor={item => item.id}
+          numColumns={2}
+          columnWrapperStyle={styles.gridRow}
+          renderItem={({ item }) => <ListingTile item={item} />}
+          contentContainerStyle={styles.grid}
+          refreshing={refreshing}
+          onRefresh={() => void refresh()}
+          ListHeaderComponent={
+            error !== null ? (
+              <ErrorBanner message={`Actualisation impossible (${error}).`} onRetry={retry} />
+            ) : null
+          }
+          ListEmptyComponent={
+            query !== '' ? (
+              <EmptyState
+                icon={<Search size={space[6]} color={theme.goldDark} />}
+                title="Aucun résultat"
+                body="Aucune annonce ne correspond à cette recherche."
+              />
+            ) : filter === 'ANNULEES' ? (
+              <EmptyState
+                icon={<Camera size={space[6]} color={theme.goldDark} />}
+                title="Aucune annonce annulée"
+                body="Les annonces annulées apparaîtront ici."
+              />
+            ) : (
+              <EmptyState
+                icon={<Camera size={space[6]} color={theme.goldDark} />}
+                title="Votre étal est vide"
+                body="Prenez une photo de votre objet — on s'occupe de rédiger l'annonce."
+              />
+            )
+          }
+        />
       )}
     </View>
   )
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: theme.ink },
-  center: { flex: 1, justifyContent: 'center', backgroundColor: theme.paper },
+  screen: { flex: 1, backgroundColor: theme.paper },
+  avatarPressed: { opacity: 0.85 },
+  cameraPressed: { opacity: 0.6 },
 
-  banner: {
-    position: 'absolute',
-    top: space[8],
-    left: space[4],
-    right: space[4],
-    backgroundColor: theme.scrim,
-    borderRadius: radius.md,
-    padding: space[3],
-  },
-  bannerError: { top: space[8] + space[7], backgroundColor: theme.scrimBrique },
-  bannerBody: { gap: space[2] },
-  bannerText: { color: theme.onDark, fontSize: font.small, lineHeight: line.small, textAlign: 'center' },
-  progressTrack: {
-    height: space[1],
-    borderRadius: radius.xs,
-    backgroundColor: theme.krafInk,
-    overflow: 'hidden',
-  },
-  progressFill: { height: '100%', borderRadius: radius.xs, backgroundColor: theme.gold },
-
-  thumbRow: {
-    position: 'absolute',
-    bottom: space[8] + space[8] + space[5],
-    left: 0,
-    right: 0,
-    maxHeight: space[8] + space[2],
-  },
-  thumbRowContent: { paddingHorizontal: space[4], gap: space[2] },
-  thumb: {
-    width: space[8],
-    height: space[8],
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    borderColor: theme.onDark,
-  },
-
-  controls: {
-    // 48 en bas : dégage la barre de gestes système (safe-area, cible primaire).
-    position: 'absolute',
-    bottom: space[7],
-    left: 0,
-    right: 0,
+  searchWrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: space[5],
+    gap: space[2],
+    marginHorizontal: space[4],
+    marginBottom: space[3],
+    paddingHorizontal: space[4],
+    height: space[7],
+    borderRadius: radius.pill,
+    backgroundColor: theme.goldSoft,
+    borderWidth: 1,
+    borderColor: theme.border,
   },
-  shutter: {
-    width: space[8] + space[2],
-    height: space[8] + space[2],
+  searchInput: { flex: 1, fontSize: font.body, color: theme.ink },
+
+  chipsScroll: { flexGrow: 0, marginBottom: space[3] },
+  chipsRow: { paddingHorizontal: space[4], gap: space[2] },
+  chip: {
+    paddingHorizontal: space[4],
+    paddingVertical: space[2],
     borderRadius: radius.pill,
     backgroundColor: theme.card,
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: theme.border,
   },
-  shutterPressed: { transform: [{ scale: 0.95 }] },
-  shutterInner: {
-    width: space[8] - space[1],
-    height: space[8] - space[1],
-    borderRadius: radius.pill,
-    borderWidth: space[1] - 1,
-    borderColor: theme.ink,
+  chipActive: { backgroundColor: theme.terracotta, borderColor: theme.terracotta },
+  chipText: { fontSize: font.caption, fontWeight: '600', color: theme.muted },
+  chipTextActive: { color: theme.onDark },
+
+  bannerWrap: { paddingHorizontal: space[4] },
+
+  grid: { paddingHorizontal: space[4], paddingBottom: space[6], gap: space[3] },
+  gridRow: { gap: space[3] },
+  skeletonGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: space[4],
+    gap: space[3],
   },
-  disabled: { opacity: 0.4 },
+  skeletonTile: { width: '47%' },
 })

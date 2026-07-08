@@ -5,6 +5,7 @@ import {
   PrismaClient,
 } from '@flipsync/db'
 import {
+  ItemCondition,
   ListingAuthResult,
   ListingDraft,
   ListingTier,
@@ -15,6 +16,7 @@ import { NothingToRefundError, WalletService } from '@flipsync/wallet'
 import {
   InvalidPriceError,
   InvalidTransitionError,
+  ListingNotEditableError,
   ListingNotFoundError,
   MissingFailureReasonError,
 } from './errors'
@@ -30,6 +32,22 @@ export interface CreateListingResult {
   listing: ListingModel
   auth: ListingAuthResult
 }
+
+/** Champs éditables après validation — jamais photos, tier, ou statut. */
+export interface ListingEditPatch {
+  titre?: string
+  description?: string
+  marque?: string | null
+  etat?: ItemCondition
+  prixPublie?: number
+}
+
+/** États "vivants" post-commit où le contenu reste modifiable par l'utilisateur. */
+const EDITABLE_STATUSES: readonly DbListingStatus[] = [
+  DbListingStatus.USER_VALIDATED,
+  DbListingStatus.QUEUED,
+  DbListingStatus.PUBLISHED,
+]
 
 /**
  * ListingEngine — orchestre la machine à états ListingStatus (11 états).
@@ -158,11 +176,49 @@ export class ListingEngine {
     })
   }
 
-  /** Annulation utilisateur — uniquement pré-commit (0 débit, terminal). */
+  /**
+   * Annulation utilisateur — pré-commit (0 débit) ou depuis QUEUED (post-commit,
+   * remboursement intégral). Remboursement TOLÉRANT comme failAi : pré-commit,
+   * NothingToRefundError est normal et ignoré.
+   */
   async cancel(listingId: string): Promise<ListingModel> {
-    return this.db.$transaction(async tx =>
-      this.move(tx, listingId, DbListingStatus.USER_CANCELLED),
-    )
+    return this.db.$transaction(async tx => {
+      const listing = await this.move(tx, listingId, DbListingStatus.USER_CANCELLED)
+      try {
+        await this.wallet.refund(listingId, 'Annulation utilisateur', tx)
+      } catch (err) {
+        if (!(err instanceof NothingToRefundError)) throw err
+      }
+      return listing
+    })
+  }
+
+  /**
+   * Édition post-validation (titre/description/marque/état/prix) — jamais les
+   * photos, ni le tier, ni le statut. Recalcule isPriceFlagged si le prix change.
+   * Autorisé sur les états "vivants" post-commit uniquement (EDITABLE_STATUSES).
+   */
+  async editContent(listingId: string, patch: ListingEditPatch): Promise<ListingModel> {
+    if (patch.prixPublie !== undefined) assertCents(patch.prixPublie)
+
+    return this.db.$transaction(async tx => {
+      const listing = await tx.listing.findUnique({ where: { id: listingId } })
+      if (!listing) throw new ListingNotFoundError()
+      if (!EDITABLE_STATUSES.includes(listing.status)) {
+        throw new ListingNotEditableError(listing.status)
+      }
+
+      const prixPublie = patch.prixPublie ?? listing.prixPublie
+      const flagged =
+        listing.prixHaut !== null && prixPublie !== null
+          ? isPriceFlagged(prixPublie, listing.prixHaut)
+          : listing.isPriceFlagged
+
+      return tx.listing.update({
+        where: { id: listingId },
+        data: { ...patch, isPriceFlagged: flagged },
+      })
+    })
   }
 
   /** USER_VALIDATED → QUEUED (file de publication marketplace). */

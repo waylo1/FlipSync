@@ -1,14 +1,15 @@
 import { useEffect } from 'react'
 import { Stack } from 'expo-router'
-import { bootstrapVision } from '../src/services/vision-bootstrap'
+import * as FileSystem from 'expo-file-system'
 
 export default function RootLayout() {
   useEffect(() => {
-    // Provisioning GGUF + chargement modèle au démarrage, JAMAIS à la demande
-    // (cf. gotchas.md). Non bloquant : l'UI suit la progression via useModelStore.
-    bootstrapVision().catch(() => {
-      // Déjà reflété dans useModelStore (status 'error' + code) — l'écran de
-      // capture proposera un retry ; wallet et suivi restent utilisables.
+    // Pivot IA serveur : plus aucun modèle embarqué. On efface les GGUF
+    // téléchargés par les anciennes versions (~1,8 Go) pour rendre l'espace.
+    void FileSystem.deleteAsync(`${FileSystem.documentDirectory}models/`, {
+      idempotent: true,
+    }).catch(() => {
+      // Rien à faire : dossier verrouillé ou déjà absent — aucun impact app.
     })
   }, [])
 

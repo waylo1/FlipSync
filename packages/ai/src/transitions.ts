@@ -11,7 +11,10 @@ import { ListingStatus } from '@flipsync/db'
  *   - Toute transition avant USER_VALIDATED est gratuite et réversible (0 débit).
  *   - commit() s'exécute À la transition DRAFT_READY → USER_VALIDATED (atomique).
  *   - AI_FAILED, USER_CANCELLED, PUBLISH_FAILED, EXPIRED sont terminaux.
- *   - L'annulation utilisateur n'est possible QU'AVANT le débit (pré-USER_VALIDATED).
+ *   - Annulation utilisateur : possible pré-commit (0 débit) ET depuis QUEUED
+ *     (post-commit, remboursement intégral — cf. ListingEngine.cancel). Pas
+ *     depuis PUBLISHED : la retirer d'une marketplace où elle est déjà en ligne
+ *     est un cas distinct, non couvert ici.
  */
 export const LISTING_TRANSITIONS: Readonly<Record<ListingStatus, readonly ListingStatus[]>> = {
   [ListingStatus.PENDING_AUTH]: [ListingStatus.AUTHORIZED, ListingStatus.USER_CANCELLED],
@@ -23,7 +26,11 @@ export const LISTING_TRANSITIONS: Readonly<Record<ListingStatus, readonly Listin
   ],
   [ListingStatus.DRAFT_READY]: [ListingStatus.USER_VALIDATED, ListingStatus.USER_CANCELLED],
   [ListingStatus.USER_VALIDATED]: [ListingStatus.QUEUED],
-  [ListingStatus.QUEUED]: [ListingStatus.PUBLISHED, ListingStatus.PUBLISH_FAILED],
+  [ListingStatus.QUEUED]: [
+    ListingStatus.PUBLISHED,
+    ListingStatus.PUBLISH_FAILED,
+    ListingStatus.USER_CANCELLED,
+  ],
   [ListingStatus.PUBLISHED]: [ListingStatus.EXPIRED],
   // États terminaux
   [ListingStatus.AI_FAILED]: [],

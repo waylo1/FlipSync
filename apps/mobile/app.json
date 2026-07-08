@@ -5,22 +5,36 @@
     "scheme": "flipsync",
     "version": "0.1.0",
     "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "cover",
+      "backgroundColor": "#FAF9F7"
+    },
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
-    "owner": "TODO_expo_account",
-    "runtimeVersion": {
-      "policy": "fingerprint"
-    },
+    "owner": "maximepro",
+    "runtimeVersion": "0.1.0-dev.1",
     "updates": {
-      "url": "https://u.expo.dev/TODO_eas_project_id",
+      "url": "https://u.expo.dev/6ccf8b96-12e7-4dcc-83d3-5b7282a372c5",
       "fallbackToCacheTimeout": 0
     },
     "android": {
-      "package": "fr.flipsync.app"
+      "package": "fr.flipsync.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#B8542F"
+      },
+      "permissions": [
+        "android.permission.CAMERA"
+      ]
     },
     "ios": {
       "bundleIdentifier": "fr.flipsync.app",
-      "supportsTablet": false
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSCameraUsageDescription": "FlipSync utilise la caméra pour photographier vos objets à vendre."
+      }
     },
     "plugins": [
       "expo-router",
@@ -37,8 +51,11 @@
       "typedRoutes": true
     },
     "extra": {
+      "router": {
+        "origin": false
+      },
       "eas": {
-        "projectId": "TODO_eas_project_id"
+        "projectId": "6ccf8b96-12e7-4dcc-83d3-5b7282a372c5"
       }
     }
   }

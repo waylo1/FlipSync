@@ -2,7 +2,7 @@ import fp from 'fastify-plugin'
 import { FastifyPluginAsync } from 'fastify'
 import { prisma } from '@flipsync/db'
 import { WalletService } from '@flipsync/wallet'
-import { ListingEngine } from '@flipsync/ai'
+import { ListingEngine, OllamaVisionBackend, VisionService } from '@flipsync/ai'
 import { join } from 'node:path'
 import {
   MarketplaceClient,
@@ -17,8 +17,16 @@ declare module 'fastify' {
     walletService: WalletService
     listingEngine: ListingEngine
     publicationService: PublicationService
+    visionService: VisionService
   }
 }
+
+/**
+ * Pivot IA serveur : la rédaction du brouillon tourne côté API (Ollama en dev,
+ * instance dédiée en prod) — le mobile envoie les photos et reçoit le brouillon.
+ * Timeout large : modèle vision 3B sur CPU, 30-90 s réalistes en dev.
+ */
+const SERVER_VISION_TIMEOUT_MS = 120_000
 
 /**
  * Résout les identifiants partenaire du vendeur.
@@ -75,6 +83,7 @@ const servicesPlugin: FastifyPluginAsync = async app => {
 
   app.decorate('walletService', walletService)
   app.decorate('listingEngine', listingEngine)
+  app.decorate('visionService', new VisionService(new OllamaVisionBackend(), SERVER_VISION_TIMEOUT_MS))
   app.decorate(
     'publicationService',
     new PublicationService(

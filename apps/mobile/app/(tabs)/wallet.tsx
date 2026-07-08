@@ -1,5 +1,6 @@
-import { RefreshControl, ScrollView, StyleSheet, Switch, Text, View } from 'react-native'
-import { LogOut, Receipt } from 'lucide-react-native'
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, View } from 'react-native'
+import { useRouter } from 'expo-router'
+import { Receipt } from 'lucide-react-native'
 import { TransactionType } from '@flipsync/core'
 import { ApiTransaction, api } from '../../src/services/api'
 import { useAuthStore } from '../../src/store/auth.store'
@@ -7,9 +8,9 @@ import { useApiResource } from '../../src/hooks/useApiResource'
 import { formatRelativeFr } from '../../src/lib/time'
 import { font, formatEur, line, radius, shadow, space, theme } from '../../src/theme'
 import { ScreenHeader } from '../../src/ui/ScreenHeader'
+import { Avatar } from '../../src/ui/Avatar'
 import { Card } from '../../src/ui/Card'
 import { AmountText } from '../../src/ui/AmountText'
-import { Button } from '../../src/ui/Button'
 import { ErrorBanner } from '../../src/ui/ErrorBanner'
 import { EmptyState } from '../../src/ui/EmptyState'
 import { Skeleton } from '../../src/ui/Skeleton'
@@ -45,7 +46,8 @@ function TransactionLine({ tx }: { tx: ApiTransaction }) {
 }
 
 export default function WalletScreen() {
-  const setToken = useAuthStore(s => s.setToken)
+  const router = useRouter()
+  const email = useAuthStore(s => s.email)
   const wallet = useApiResource(api.getWallet)
   const transactions = useApiResource(api.getTransactions)
 
@@ -75,7 +77,20 @@ export default function WalletScreen() {
         />
       }
     >
-      <ScreenHeader title="Ma cagnotte" />
+      <ScreenHeader
+        title="Ma cagnotte"
+        right={
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Mon profil"
+            onPress={() => router.push('/profile')}
+            hitSlop={space[2]}
+            style={({ pressed }) => pressed && styles.avatarPressed}
+          >
+            <Avatar email={email} />
+          </Pressable>
+        }
+      />
 
       {error !== null && (
         <View style={styles.bannerWrap}>
@@ -105,10 +120,6 @@ export default function WalletScreen() {
           <Text style={styles.balanceLabel}>Solde disponible</Text>
           <AmountText cents={w.balance} size={font.balance} color={theme.onDark} />
           <View style={styles.balanceFooter}>
-            <Text style={styles.balanceChip}>
-              {w.freeListingsRemaining} annonce{w.freeListingsRemaining > 1 ? 's' : ''} gratuite
-              {w.freeListingsRemaining > 1 ? 's' : ''} restante{w.freeListingsRemaining > 1 ? 's' : ''}
-            </Text>
             <Text style={styles.balanceMuted}>
               {formatEur(w.lifetimeRecharged)} rechargés au total
             </Text>
@@ -163,14 +174,6 @@ export default function WalletScreen() {
         )}
       </Card>
 
-      {/* Déconnexion : purge du JWT (MMKV) → la garde (tabs) renvoie au login. */}
-      <Button
-        label="Se déconnecter"
-        variant="ghost"
-        icon={<LogOut size={font.lead} color={theme.ink} />}
-        onPress={() => setToken(null)}
-        style={styles.logout}
-      />
     </ScrollView>
   )
 }
@@ -182,30 +185,21 @@ const styles = StyleSheet.create({
 
   balanceCard: {
     marginHorizontal: space[4],
-    backgroundColor: theme.ink,
+    backgroundColor: theme.bouteille,
     borderRadius: radius.lg,
     padding: space[5],
     gap: space[2],
     ...shadow.sheet,
   },
-  balanceLabel: { color: theme.gold, fontSize: font.small, fontWeight: '600' },
+  balanceLabel: { color: theme.bouteilleSoft, fontSize: font.small, fontWeight: '600' },
   balanceFooter: {
     flexDirection: 'row',
     alignItems: 'center',
+    flexWrap: 'wrap',
     gap: space[3],
     marginTop: space[3],
   },
-  balanceChip: {
-    color: theme.ink,
-    backgroundColor: theme.gold,
-    fontSize: font.caption,
-    fontWeight: '700',
-    borderRadius: radius.pill,
-    paddingHorizontal: space[3],
-    paddingVertical: space[1],
-    overflow: 'hidden',
-  },
-  balanceMuted: { color: theme.onDarkMuted, fontSize: font.caption },
+  balanceMuted: { color: theme.onDarkMuted, fontSize: font.caption, flexShrink: 1 },
 
   section: { marginHorizontal: space[4], marginTop: space[4], gap: space[3] },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: space[3] },
@@ -214,7 +208,7 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: font.lead, fontWeight: '700', color: theme.ink },
   sectionHint: { fontSize: font.caption, lineHeight: line.caption, color: theme.muted },
 
-  logout: { marginHorizontal: space[4], marginTop: space[5] },
+  avatarPressed: { opacity: 0.7 },
   txSkeletons: { gap: space[2] },
   txRow: {
     flexDirection: 'row',

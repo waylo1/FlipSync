@@ -54,8 +54,8 @@ export default function LoginScreen() {
     setBusy(true)
     setError(null)
     try {
-      const { token } = await verifyMagicLink(devToken)
-      setToken(token)
+      const { token, email: verifiedEmail } = await verifyMagicLink(devToken)
+      setToken(token, verifiedEmail)
       router.replace('/(tabs)')
     } catch (err) {
       const code = err instanceof ApiError ? err.code : 'NETWORK_ERROR'

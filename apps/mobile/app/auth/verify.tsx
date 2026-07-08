@@ -23,8 +23,8 @@ export default function VerifyScreen() {
     done.current = true
     ;(async () => {
       try {
-        const { token: jwt } = await verifyMagicLink(token)
-        setToken(jwt)
+        const { token: jwt, email } = await verifyMagicLink(token)
+        setToken(jwt, email)
         router.replace('/(tabs)')
       } catch (err) {
         setError(err instanceof ApiError ? err.code : 'NETWORK_ERROR')

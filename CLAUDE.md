@@ -22,7 +22,7 @@ Stack décidée, schéma validé. Ne propose pas de refonte architecture sans ra
 | ORM | Prisma 5 + PostgreSQL (Supabase EU) |
 | Auth | JWT via @fastify/jwt |
 | Paiement | Stripe (wallet interne, centimes) |
-| IA on-device | llama.rn (llama.cpp bindings) + Moondream2 Q4 GGUF |
+| IA vision (serveur) | Ollama qwen2.5vl:3b en dev — POST /ai/draft (prod : GPU/API hébergée) |
 | Monorepo | Turborepo + npm workspaces |
 | State mobile | Zustand + MMKV |
 | Validation | Zod |
@@ -66,7 +66,10 @@ flipsync/
 - Erreurs : { error: 'SNAKE_CASE_CODE' }
 
 ### Mobile
-- Inférence IA = toujours on-device, jamais cloud
+- Inférence IA = côté serveur FlipSync (POST /ai/draft, JWT). PIVOT 2026-07-07 :
+  l'on-device (llama.rn + Moondream2) est abandonné — modèle trop faible pour
+  rédiger un JSON français + 2 Go à télécharger par user. Jamais d'IA tierce
+  appelée depuis le mobile ; le mobile ne parle qu'à l'API FlipSync.
 - Images listées avec sha256
 
 ---
@@ -113,7 +116,7 @@ commit() s'exécute APRÈS USER_VALIDATED — jamais à l'autorisation.
 - Connecteurs sanctionnés : Vinted Integrations/Pro, Leboncoin Partenaire
   (direct ou agrégateur Lengow). PAS d'automatisation UI, PAS de contournement.
 - Logique 100% serveur : package @flipsync/marketplace (MarketplaceClient + connecteurs).
-- Le brouillon Moondream2 on-device alimente le payload via l'API (POST /listing/:id/publish).
+- Le brouillon IA serveur (POST /ai/draft) alimente le payload via l'API (POST /listing/:id/publish).
 - Échec → PUBLISH_FAILED + remboursement wallet automatique.
 - Décision : modules AccessibilityService/stealth Android supprimés (pivot conformité).
 
@@ -165,9 +168,10 @@ eas.json submit (Apple/Play).
 ## Sprint 2 — État
 
 - [x] Provisioning GGUF mobile (download + manifest intégrité + bootstrap)
-      ⚠️ Quantisation : pas de Q4 public pour Moondream2 → Q5_K (1,06 GB) retenu
-      (cjpais/moondream2-llamafile). Pour un vrai Q4 : llama-quantize depuis f16,
-      puis mettre à jour MODEL_REGISTRY (apps/mobile/src/services/model-files.ts).
+      ⚠️ Quantisation : Q4_K public (salivosa/moondream2-gguf, ~919 MB, génération
+      2024-04) + mmproj f16 officiel APPARIÉ (moondream/moondream2-gguf, ~910 MB)
+      → ~1,83 GB. Aucun mmproj quantisé public. Consentement download (~2 Go) requis
+      dans l'UI. SSOT : MODEL_REGISTRY (apps/mobile/src/services/model-files.ts).
 - [x] Écran capture (vision-camera → resize 768px → base64+sha256 → analyze())
 - [x] Écran validation draft (édition, diplomatie 120%, create→ai-start→draft→validate)
 - [x] Routes API pipeline IA mobile (ai-start / draft / ai-failed)
@@ -207,3 +211,29 @@ eas.json submit (Apple/Play).
       focus refetch, pull-to-refresh, skeletons, ErrorBanner ; auto-recharge en
       lecture seule — pas d'endpoint de mutation). Validé contre l'API locale (curl).
       Reste : validation visuelle sur device (npx expo run:android — machine avec SDK)
+
+---
+
+## Sprint 4 — Pivot IA serveur (2026-07-07)
+
+- [x] ABANDON on-device : Moondream2 voit mais ne sait produire ni JSON ni français
+      (validé sur device : sortie = caption anglaise). Fichiers mobile supprimés
+      (useVision, vision.service, vision-bootstrap, model-files, model.store) ;
+      _layout efface documentDirectory/models/ (~1,8 Go) au démarrage.
+      llama.rn encore dans package.json — à retirer au prochain build EAS (APK plus léger).
+- [x] POST /ai/draft (JWT, bodyLimit 12 Mo) : photos base64 → VisionService
+      (OllamaVisionBackend, timeout 120 s, num_ctx 16384) → ListingDraft Zod.
+      app.visionService injecté par services-plugin. Erreurs AI_* → 502/504.
+- [x] Mobile : capture 768px (annonce) + downscale 512px de la SEULE 1ʳᵉ photo
+      pour /ai/draft (encodage image ~40-90 s/photo sur CPU dev — GPU prod :
+      passer les 3 premières). api.analyzeDraft timeout 150 s.
+- [x] Dev : Ollama qwen2.5vl:3b sur le PC (OLLAMA_MODEL, .env racine). Validé
+      curl : draft français complet en ~12 s (cache) / ~70 s (photo froide, CPU).
+- [x] VALIDÉ SUR DEVICE (2026-07-07, en 5G via Tailscale 100.64.87.44) : pipeline
+      complet photos → /ai/draft → validation → publish (QUEUED). Fixes au passage :
+      POST sans corps → body '{}' (Fastify 400 sinon) ; nouvelle capture ⇒ cancel
+      du pendingPublish obsolète (sinon mélange annonce/photos d'un autre objet).
+- [ ] Prod : héberger l'inférence — décision en attente (Maxime) entre API hébergée
+      (reco : Claude Haiku 4.5, ~0,5 c€/annonce, backend à ajouter dans packages/ai)
+      et GPU loué avec Ollama (~30-80 €/mois). Qualité dev actuelle : objets parfois
+      mal identifiés, prix sous-estimés — connu, assumé jusqu'à la décision.

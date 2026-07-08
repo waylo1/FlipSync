@@ -167,6 +167,66 @@ describe.skipIf(!DB_URL)('ListingEngine — intégration Postgres', async () => 
       expect(await getBalance()).toBe(1000)
     })
 
+    it('annulation post-commit depuis QUEUED : USER_CANCELLED, remboursement intégral', async () => {
+      await resetUser(1000, 0)
+      const { listing } = await engine.createListing(userId, ListingTier.OPTIMIZED)
+      await engine.startAiProcessing(listing.id)
+      await engine.completeAiDraft(listing.id, DRAFT)
+      await engine.validate(listing.id, 10_000)
+      await engine.queue(listing.id)
+      expect(await getBalance()).toBe(750) // débité
+
+      const cancelled = await engine.cancel(listing.id)
+
+      expect(cancelled.status).toBe('USER_CANCELLED')
+      expect(await getBalance()).toBe(1000) // remboursé intégralement
+
+      const refunds = await prisma.walletTransaction.findMany({
+        where: { listingId: listing.id, type: 'REFUND' },
+      })
+      expect(refunds).toHaveLength(1)
+      expect(refunds[0]?.amount).toBe(250)
+    })
+
+    it('annulation impossible depuis PUBLISHED (retrait marketplace hors scope)', async () => {
+      await resetUser(1000, 0)
+      const { listing } = await engine.createListing(userId, ListingTier.OPTIMIZED)
+      await engine.startAiProcessing(listing.id)
+      await engine.completeAiDraft(listing.id, DRAFT)
+      await engine.validate(listing.id, 10_000)
+      await engine.queue(listing.id)
+      await engine.markPublished(listing.id, { lbcUrl: 'https://leboncoin.fr/x/999' })
+
+      await expect(engine.cancel(listing.id)).rejects.toMatchObject({ code: 'INVALID_TRANSITION' })
+    })
+
+    it('editContent : corrige titre/prix post-validation sans impact wallet, recalcule le flag prix', async () => {
+      await resetUser(1000, 0)
+      const { listing } = await engine.createListing(userId, ListingTier.OPTIMIZED)
+      await engine.startAiProcessing(listing.id)
+      await engine.completeAiDraft(listing.id, DRAFT)
+      await engine.validate(listing.id, 10_000) // pas de flag (10000 <= 12000*1.2)
+
+      const edited = await engine.editContent(listing.id, {
+        titre: 'Veste cuir — révisée',
+        prixPublie: 20_000, // > 12000*1.2 → flag désormais vrai
+      })
+
+      expect(edited.titre).toBe('Veste cuir — révisée')
+      expect(edited.prixPublie).toBe(20_000)
+      expect(edited.isPriceFlagged).toBe(true)
+      expect(await getBalance()).toBe(750) // aucun mouvement d'argent
+    })
+
+    it('editContent refusé sur un listing pré-validation (pas encore "vivant")', async () => {
+      await resetUser(1000, 0)
+      const { listing } = await engine.createListing(userId, ListingTier.OPTIMIZED)
+
+      await expect(
+        engine.editContent(listing.id, { titre: 'Trop tôt' }),
+      ).rejects.toMatchObject({ code: 'LISTING_NOT_EDITABLE' })
+    })
+
     it('flux FREE_CREDIT : cost 0, commit consomme un crédit gratuit', async () => {
       await resetUser(0, 3)
       const { listing, auth } = await engine.createListing(userId, ListingTier.SIMPLE)

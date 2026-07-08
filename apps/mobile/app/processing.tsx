@@ -83,12 +83,13 @@ export default function ProcessingScreen() {
   )
 }
 
-/** Carte « ça tourne » — point pulsant + libellé rassurant. */
+/** Carte « ça tourne » — point pulsant + barre de progression déterministe. */
 function RunningCard({ count }: { count: number }) {
   const pulse = useRef(new Animated.Value(0)).current
+  const progress = useRef(new Animated.Value(0.05)).current
 
   useEffect(() => {
-    const loop = Animated.loop(
+    const pulseLoop = Animated.loop(
       Animated.sequence([
         Animated.timing(pulse, {
           toValue: 1,
@@ -104,12 +105,26 @@ function RunningCard({ count }: { count: number }) {
         }),
       ]),
     )
-    loop.start()
-    return () => loop.stop()
-  }, [pulse])
+    pulseLoop.start()
+
+    // Barre : 5% → 95% en ~90 s, courbe ease-out (rapide au début, puis lent).
+    const progressAnim = Animated.timing(progress, {
+      toValue: 0.95,
+      duration: 90_000,
+      easing: motion.ease.accelerate,
+      useNativeDriver: true,
+    })
+    progressAnim.start()
+
+    return () => {
+      pulseLoop.stop()
+      progressAnim.stop()
+    }
+  }, [pulse, progress])
 
   const scale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.35] })
   const opacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.35, 0.12] })
+  const progressWidth = progress.interpolate({ inputRange: [0, 1], outputRange: ['5%', '95%'] })
 
   return (
     <View style={styles.runningCard} accessibilityLiveRegion="polite">
@@ -128,6 +143,11 @@ function RunningCard({ count }: { count: number }) {
         Comptez environ une minute par objet. Vous pouvez photographier le suivant
         pendant ce temps — rien ne se perd.
       </Text>
+
+      {/* Barre de progression déterministe — simule l'avancement (5% → 95%). */}
+      <View style={styles.progressBar}>
+        <Animated.View style={[styles.progressFill, { width: progressWidth }]} />
+      </View>
     </View>
   )
 }
@@ -256,6 +276,19 @@ const styles = StyleSheet.create({
     lineHeight: line.small,
     color: theme.muted,
     textAlign: 'center',
+  },
+
+  progressBar: {
+    width: '100%',
+    height: space[1],
+    borderRadius: radius.xs,
+    backgroundColor: theme.onDarkTrack,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: theme.gold,
+    borderRadius: radius.xs,
   },
 
   card: {

@@ -20,8 +20,8 @@ import { Button } from '../../src/ui/Button'
 import { EmptyState } from '../../src/ui/EmptyState'
 import { PhotoTray } from '../../src/components/PhotoTray'
 
-const MIN_PHOTOS = 3
-const MAX_PHOTOS = 8
+const MIN_PHOTOS = 1
+const MAX_PHOTOS = 6
 /** Largeur de capture : qualité conservée pour l'annonce publiée (~150-300 Ko/photo). */
 const CAPTURE_WIDTH = 768
 

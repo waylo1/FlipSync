@@ -16,6 +16,9 @@ build/
 # Turborepo
 .turbo/
 
+# tsc -b (composite project refs — apps/web/tsconfig.node.json)
+.tsbuild/
+
 # Prisma
 packages/db/src/generated/
 packages/db/node_modules/.prisma/

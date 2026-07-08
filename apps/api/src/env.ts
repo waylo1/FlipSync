@@ -37,6 +37,8 @@ const envSchema = z.object({
   CORS_ORIGINS: z.string().optional(),
   MAGIC_LINK_TTL_MINUTES: z.coerce.number().int().positive().optional(),
   MAGIC_LINK_REDIRECT_URL: z.string().optional(),
+  /** CSV d'emails autorisés sur /admin — vide = aucun accès (fail-closed). */
+  ADMIN_EMAILS: z.string().optional(),
 })
 
 const parsed = envSchema.safeParse(process.env)

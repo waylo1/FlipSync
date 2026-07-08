@@ -10,6 +10,7 @@ import listingRoutes, { UPLOAD_DIR } from './routes/listing'
 import stripeRoutes from './routes/stripe'
 import authRoutes from './routes/auth'
 import aiRoutes from './routes/ai'
+import adminRoutes from './routes/admin'
 
 /** Construit l'app complète — utilisé par index.ts (listen) et les tests (inject). */
 export async function buildApp(): Promise<FastifyInstance> {
@@ -57,6 +58,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(listingRoutes, { prefix: '/listing' })
   await app.register(stripeRoutes, { prefix: '/stripe' })
   await app.register(aiRoutes, { prefix: '/ai' })
+  await app.register(adminRoutes, { prefix: '/admin' })
 
   return app
 }

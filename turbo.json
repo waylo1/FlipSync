@@ -14,7 +14,11 @@
     "API_PORT",
     "API_HOST",
     "OLLAMA_BASE_URL",
-    "OLLAMA_MODEL"
+    "OLLAMA_MODEL",
+    "ADMIN_EMAILS",
+    "MARKETPLACE_MOCK",
+    "VINTED_ACCESS_TOKEN",
+    "LEBONCOIN_ACCESS_TOKEN"
   ],
   "tasks": {
     "build": {

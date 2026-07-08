@@ -19,6 +19,56 @@ export const TIER_PRICING: Record<ListingTier, number> = {
   [ListingTier.PREMIUM]:   300,   // 3,00 €
 }
 
+// ─── Différenciation des paliers ───────────────────────────────────────────────
+
+/**
+ * Nombre de photos envoyées au modèle vision — SEUL levier de différenciation
+ * réel entre paliers aujourd'hui : plus de photos = identification et prix plus
+ * fiables. Coût : temps d'encodage/inférence proportionnel (négligeable en prod
+ * GPU, notable en dev CPU — cf. CLAUDE.md Sprint 4). Le choix de palier a lieu
+ * AVANT la rédaction (écran de capture) : c'est ce nombre qui est envoyé à
+ * /ai/draft/start, pas modifiable après coup sans relancer l'analyse.
+ */
+export const TIER_PHOTO_COUNT: Record<ListingTier, number> = {
+  [ListingTier.SIMPLE]:    1,
+  [ListingTier.OPTIMIZED]: 2,
+  [ListingTier.PREMIUM]:   3,
+}
+
+const TIER_ORDER: readonly ListingTier[] = [
+  ListingTier.SIMPLE,
+  ListingTier.OPTIMIZED,
+  ListingTier.PREMIUM,
+]
+
+export interface TierFeature {
+  label: string
+  /** Ce que CE palier ajoute par rapport au précédent — affiché de façon cumulative à l'écran. */
+  adds: readonly string[]
+}
+
+/** Descriptif produit des paliers — SSOT affichage (capture + validation). */
+export const TIER_FEATURES: Record<ListingTier, TierFeature> = {
+  [ListingTier.SIMPLE]: {
+    label: 'Simple',
+    adds: ['Rédaction IA à partir d’1 photo', 'Titre, description et estimation de prix'],
+  },
+  [ListingTier.OPTIMIZED]: {
+    label: 'Optimisée',
+    adds: ['Analyse de 2 photos (angles différents)', 'Identification et prix plus fiables'],
+  },
+  [ListingTier.PREMIUM]: {
+    label: 'Premium',
+    adds: ['Analyse de 3 photos', 'La meilleure précision possible aujourd’hui'],
+  },
+}
+
+/** Bullets cumulés du palier SIMPLE jusqu'à `tier` inclus (chaque palier inclut ceux du dessous). */
+export function cumulativeTierFeatures(tier: ListingTier): string[] {
+  const idx = TIER_ORDER.indexOf(tier)
+  return TIER_ORDER.slice(0, idx + 1).flatMap(t => TIER_FEATURES[t].adds)
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 /**

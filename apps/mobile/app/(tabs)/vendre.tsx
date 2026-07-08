@@ -14,13 +14,15 @@ import { Camera, useCameraDevice, useCameraPermission } from 'react-native-visio
 import { SaveFormat, manipulateAsync } from 'expo-image-manipulator'
 import * as Crypto from 'expo-crypto'
 import { CameraOff, Sparkles } from 'lucide-react-native'
+import { ListingTier, TIER_FEATURES, TIER_PHOTO_COUNT, TIER_PRICING } from '@flipsync/core'
 import { useAnalysisQueue } from '../../src/store/listing.store'
-import { font, line, motion, radius, space, theme } from '../../src/theme'
+import { font, formatEur, line, motion, radius, space, theme } from '../../src/theme'
 import { Button } from '../../src/ui/Button'
 import { EmptyState } from '../../src/ui/EmptyState'
 import { PhotoTray } from '../../src/components/PhotoTray'
 
-const MIN_PHOTOS = 1
+const TIERS: readonly ListingTier[] = [ListingTier.SIMPLE, ListingTier.OPTIMIZED, ListingTier.PREMIUM]
+
 const MAX_PHOTOS = 6
 /** Largeur de capture : qualité conservée pour l'annonce publiée (~150-300 Ko/photo). */
 const CAPTURE_WIDTH = 768
@@ -42,6 +44,10 @@ export default function VendreScreen() {
   const [photos, setPhotos] = useState<CapturedPhoto[]>([])
   const [capturing, setCapturing] = useState(false)
   const [cameraError, setCameraError] = useState<string | null>(null)
+  // Palier choisi AVANT la rédaction : détermine combien de photos l'IA analyse
+  // (TIER_PHOTO_COUNT — SSOT packages/core). Verrouillé à l'écran de validation.
+  const [tier, setTier] = useState<ListingTier>(ListingTier.OPTIMIZED)
+  const requiredPhotos = TIER_PHOTO_COUNT[tier]
 
   // Flash de capture : voile blanc bref (feedback immédiat, à la Instagram).
   const flash = useRef(new Animated.Value(0)).current
@@ -113,11 +119,11 @@ export default function VendreScreen() {
    * pendant que le modèle vision travaille — plus de blocage sur cet écran.
    */
   const startAnalysis = useCallback(() => {
-    if (photos.length < MIN_PHOTOS) return
-    useAnalysisQueue.getState().enqueue(photos)
+    if (photos.length < requiredPhotos) return
+    useAnalysisQueue.getState().enqueue(photos, tier)
     setPhotos([]) // objet suivant = capture vierge ; le job garde ces photos.
     router.push('/processing')
-  }, [photos, router])
+  }, [photos, tier, requiredPhotos, router])
 
   // ─── Branches d'état ──────────────────────────────────────────────────────
 
@@ -161,29 +167,59 @@ export default function VendreScreen() {
       {/* Flash de capture — voile blanc bref au-dessus du viseur. */}
       <Animated.View pointerEvents="none" style={[styles.flash, { opacity: flash }]} />
 
-      {/* Jauge signature : l'IA "se nourrit" des photos — segments dorés remplis. */}
-      <View style={styles.progressWrap} accessibilityLiveRegion="polite">
-        <View style={styles.progressRow}>
-          <Sparkles size={font.small} color={photos.length >= MIN_PHOTOS ? theme.gold : theme.onDarkMuted} />
-          <Text style={styles.progressText}>
-            {photos.length === 0
-              ? 'Photographiez votre objet sous tous les angles'
-              : photos.length < MIN_PHOTOS
-                ? `${photos.length}/${MIN_PHOTOS} photos pour lancer la rédaction`
-                : 'FlipSync a de quoi rédiger — continuez ou lancez'}
-          </Text>
+      <View style={styles.topOverlay}>
+        {/* Jauge signature : l'IA "se nourrit" des photos — segments dorés remplis. */}
+        <View style={styles.progressWrap} accessibilityLiveRegion="polite">
+          <View style={styles.progressRow}>
+            <Sparkles size={font.small} color={photos.length >= requiredPhotos ? theme.gold : theme.onDarkMuted} />
+            <Text style={styles.progressText}>
+              {photos.length === 0
+                ? 'Photographiez votre objet sous tous les angles'
+                : photos.length < requiredPhotos
+                  ? `${photos.length}/${requiredPhotos} photos pour lancer la rédaction`
+                  : 'FlipSync a de quoi rédiger — continuez ou lancez'}
+            </Text>
+          </View>
+          <View style={styles.segments}>
+            {Array.from({ length: MAX_PHOTOS }, (_, i) => (
+              <View
+                key={i}
+                style={[
+                  styles.segment,
+                  i < photos.length && styles.segmentFilled,
+                  i === requiredPhotos - 1 && i >= photos.length && styles.segmentThreshold,
+                ]}
+              />
+            ))}
+          </View>
         </View>
-        <View style={styles.segments}>
-          {Array.from({ length: MAX_PHOTOS }, (_, i) => (
-            <View
-              key={i}
-              style={[
-                styles.segment,
-                i < photos.length && styles.segmentFilled,
-                i === MIN_PHOTOS - 1 && i >= photos.length && styles.segmentThreshold,
-              ]}
-            />
-          ))}
+
+        {/* Formule — choisie AVANT la rédaction : détermine combien de photos l'IA analyse. */}
+        <View style={styles.tierWrap} accessibilityRole="radiogroup">
+          {TIERS.map(t => {
+            const active = tier === t
+            return (
+              <Pressable
+                key={t}
+                accessibilityRole="radio"
+                accessibilityLabel={`Formule ${TIER_FEATURES[t].label}, ${formatEur(TIER_PRICING[t])}, analyse ${TIER_PHOTO_COUNT[t]} photo${TIER_PHOTO_COUNT[t] > 1 ? 's' : ''}`}
+                accessibilityState={{ selected: active }}
+                style={({ pressed }) => [
+                  styles.tierChip,
+                  active && styles.tierChipActive,
+                  pressed && styles.pressed,
+                ]}
+                onPress={() => setTier(t)}
+              >
+                <Text style={[styles.tierChipLabel, active && styles.tierChipLabelActive]}>
+                  {TIER_FEATURES[t].label}
+                </Text>
+                <Text style={[styles.tierChipPrice, active && styles.tierChipLabelActive]}>
+                  {formatEur(TIER_PRICING[t])} · {TIER_PHOTO_COUNT[t]} photo{TIER_PHOTO_COUNT[t] > 1 ? 's' : ''}
+                </Text>
+              </Pressable>
+            )
+          })}
         </View>
       </View>
 
@@ -199,12 +235,12 @@ export default function VendreScreen() {
         <View style={styles.controlsSide}>
           <Button
             label={
-              photos.length < MIN_PHOTOS
-                ? `Encore ${MIN_PHOTOS - photos.length} photo${MIN_PHOTOS - photos.length > 1 ? 's' : ''}`
+              photos.length < requiredPhotos
+                ? `Encore ${requiredPhotos - photos.length} photo${requiredPhotos - photos.length > 1 ? 's' : ''}`
                 : `Rédiger (${photos.length}/${MAX_PHOTOS})`
             }
             onPress={() => startAnalysis()}
-            disabled={photos.length < MIN_PHOTOS}
+            disabled={photos.length < requiredPhotos}
           />
         </View>
 
@@ -250,11 +286,14 @@ const styles = StyleSheet.create({
 
   flash: { ...StyleSheet.absoluteFillObject, backgroundColor: theme.onDark },
 
-  progressWrap: {
+  topOverlay: {
     position: 'absolute',
     top: space[7],
     left: space[4],
     right: space[4],
+    gap: space[2],
+  },
+  progressWrap: {
     gap: space[2],
     backgroundColor: theme.scrim,
     borderRadius: radius.md,
@@ -278,16 +317,33 @@ const styles = StyleSheet.create({
   segmentFilled: { backgroundColor: theme.gold },
   segmentThreshold: { backgroundColor: theme.goldGhost },
 
+  tierWrap: { flexDirection: 'row', gap: space[2] },
+  tierChip: {
+    flex: 1,
+    backgroundColor: theme.scrim,
+    borderRadius: radius.md,
+    paddingVertical: space[2],
+    paddingHorizontal: space[2],
+    alignItems: 'center',
+    gap: space[1] / 2,
+  },
+  tierChipActive: { backgroundColor: theme.gold },
+  tierChipLabel: { color: theme.onDark, fontSize: font.small, fontWeight: '700' },
+  tierChipLabelActive: { color: theme.ink },
+  tierChipPrice: { color: theme.onDarkMuted, fontSize: font.caption },
+  pressed: { opacity: 0.7 },
+
   banner: {
     position: 'absolute',
-    top: space[8],
+    // Sous topOverlay (jauge + formules) — plus haut qu'avant pour ne pas chevaucher.
+    top: space[8] + space[8] + space[6],
     left: space[4],
     right: space[4],
     backgroundColor: theme.scrim,
     borderRadius: radius.md,
     padding: space[3],
   },
-  bannerError: { top: space[8] + space[7], backgroundColor: theme.scrimBrique },
+  bannerError: { backgroundColor: theme.scrimBrique },
   bannerText: { color: theme.onDark, fontSize: font.small, lineHeight: line.small, textAlign: 'center' },
 
   thumbRow: {

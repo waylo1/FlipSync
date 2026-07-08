@@ -141,8 +141,9 @@ function RunningCard({ count }: { count: number }) {
           : 'FlipSync rédige votre annonce…'}
       </Text>
       <Text style={styles.runningBody}>
-        Comptez 1 à 2 minutes par objet. Vous pouvez fermer l'app ou photographier
-        le suivant pendant ce temps — la rédaction continue sur nos serveurs.
+        Comptez 1 à 3 minutes par objet selon la formule (plus de photos analysées
+        = plus long). Vous pouvez fermer l'app ou photographier le suivant pendant
+        ce temps — la rédaction continue sur nos serveurs.
       </Text>
 
       {/* Barre de progression déterministe — simule l'avancement (5% → 95%). */}
@@ -169,7 +170,7 @@ function ReadyCard({ job }: { job: AnalysisJob }) {
         // Déjà annulée/validée côté serveur — rien à rattraper.
       })
     }
-    useListingSession.getState().setSession(job.draft, job.photos)
+    useListingSession.getState().setSession(job.draft, job.photos, job.tier)
     useAnalysisQueue.getState().remove(job.id)
     router.push('/validate')
   }, [job, router])

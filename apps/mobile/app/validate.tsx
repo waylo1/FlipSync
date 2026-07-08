@@ -5,8 +5,10 @@ import {
   ItemCondition,
   ListingDraft,
   ListingTier,
+  TIER_FEATURES,
   TIER_PRICING,
   centsToEur,
+  cumulativeTierFeatures,
   eurToCents,
   isPriceFlagged,
 } from '@flipsync/core'
@@ -31,12 +33,6 @@ const CONDITIONS: readonly { value: ItemCondition; label: string }[] = [
   { value: ItemCondition.correct, label: 'Correct' },
 ]
 
-const TIERS: readonly { value: ListingTier; label: string }[] = [
-  { value: ListingTier.SIMPLE, label: 'Simple' },
-  { value: ListingTier.OPTIMIZED, label: 'Optimisée' },
-  { value: ListingTier.PREMIUM, label: 'Premium' },
-]
-
 /** Messages utilisateur pour les codes d'erreur API les plus probables ici. */
 const ERROR_MESSAGES: Readonly<Record<string, string>> = {
   NO_AUTH_TOKEN: 'Session expirée — reconnectez-vous.',
@@ -50,11 +46,15 @@ const ERROR_MESSAGES: Readonly<Record<string, string>> = {
 
 export default function ValidateScreen() {
   const router = useRouter()
-  const { draft, photos, clearSession } = useListingSession()
+  const { draft, photos, tier, clearSession } = useListingSession()
   const pending = usePendingPublish(s => s.pending)
 
   // Reprise : sans session (restart), le brouillon persisté du pending fait foi.
   const effectiveDraft = draft ?? pending?.draft ?? null
+  // Le palier a été choisi À LA CAPTURE (avant rédaction) — verrouillé ici.
+  // Fallback OPTIMIZED : ne devrait survenir que sur un pending créé avant ce
+  // changement (aucun tel cas en pratique, l'app n'est pas encore publiée).
+  const effectiveTier = tier ?? pending?.tier ?? ListingTier.OPTIMIZED
 
   // Ni session ni publication interrompue → retour capture.
   if (!effectiveDraft) return <Redirect href="/(tabs)" />
@@ -63,6 +63,7 @@ export default function ValidateScreen() {
     <ValidateForm
       draft={effectiveDraft}
       photos={photos}
+      tier={effectiveTier}
       resume={pending}
       clearSession={clearSession}
       goHome={() => router.replace('/(tabs)')}
@@ -73,6 +74,8 @@ export default function ValidateScreen() {
 interface FormProps {
   draft: ListingDraft
   photos: readonly SessionPhoto[]
+  /** Palier choisi à la capture — verrouillé, non modifiable ici. */
+  tier: ListingTier
   /** Publication interrompue à reprendre — null pour une première tentative. */
   resume: PendingPublish | null
   clearSession: () => void
@@ -86,7 +89,7 @@ function ignoreAlreadyDone(err: unknown): void {
   throw err
 }
 
-function ValidateForm({ draft, photos, resume, clearSession, goHome }: FormProps) {
+function ValidateForm({ draft, photos, tier, resume, clearSession, goHome }: FormProps) {
   // Champs éditables — pré-remplis par l'IA, l'utilisateur a le dernier mot.
   const [titre, setTitre] = useState(draft.titre)
   const [description, setDescription] = useState(draft.description)
@@ -97,8 +100,6 @@ function ValidateForm({ draft, photos, resume, clearSession, goHome }: FormProps
   const [prixInput, setPrixInput] = useState(
     centsToEur(resume?.prixPublie ?? draft.prixHaut).toFixed(2),
   )
-  // Formule verrouillée en reprise : le coût du listing est figé à la création.
-  const [tier, setTier] = useState<ListingTier>(resume?.tier ?? ListingTier.OPTIMIZED)
 
   const [publishing, setPublishing] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -276,38 +277,16 @@ function ValidateForm({ draft, photos, resume, clearSession, goHome }: FormProps
         <PriceFlagAlert prixPublie={prixPublie} prixHaut={draft.prixHaut} />
       )}
 
-      <Text style={styles.label}>Formule</Text>
-      {resume !== null && (
-        <Text style={styles.hint}>
-          Formule verrouillée : l’annonce est déjà réservée avec cette formule.
-        </Text>
-      )}
-      <View style={styles.chipRow} accessibilityRole="radiogroup">
-        {TIERS.map(t => {
-          const active = tier === t.value
-          const locked = resume !== null
-          return (
-            <Pressable
-              key={t.value}
-              accessibilityRole="radio"
-              accessibilityLabel={`Formule ${t.label}, ${formatEur(TIER_PRICING[t.value])}`}
-              accessibilityState={{ selected: active, disabled: locked }}
-              disabled={locked}
-              style={({ pressed }) => [
-                styles.tierCard,
-                active && styles.chipActive,
-                locked && !active && styles.tierLocked,
-                pressed && styles.pressed,
-              ]}
-              onPress={() => setTier(t.value)}
-            >
-              <Text style={[styles.chipText, active && styles.chipTextActive]}>{t.label}</Text>
-              <Text style={[styles.tierPrice, active && styles.chipTextActive]}>
-                {formatEur(TIER_PRICING[t.value])}
-              </Text>
-            </Pressable>
-          )
-        })}
+      <Text style={styles.label}>Formule — {TIER_FEATURES[tier].label} ({formatEur(TIER_PRICING[tier])})</Text>
+      <Text style={styles.hint}>
+        Choisie à la capture, verrouillée ici — l’annonce est réservée avec cette formule.
+      </Text>
+      <View style={styles.tierSummary}>
+        {cumulativeTierFeatures(tier).map(feature => (
+          <Text key={feature} style={styles.tierFeature}>
+            · {feature}
+          </Text>
+        ))}
       </View>
 
       {errorMessage && <ErrorBanner message={errorMessage} />}
@@ -369,19 +348,15 @@ const styles = StyleSheet.create({
   // Feedback pressé net (80–150 ms perçu), sans déplacement de layout.
   pressed: { opacity: 0.7 },
 
-  tierCard: {
+  tierSummary: {
+    backgroundColor: theme.card,
+    borderRadius: radius.md,
     borderWidth: 1,
     borderColor: theme.border,
-    borderRadius: radius.md,
-    paddingHorizontal: space[4],
-    paddingVertical: space[3],
-    alignItems: 'center',
-    gap: space[1] / 2,
-    minHeight: MIN_TOUCH,
-    backgroundColor: theme.card,
+    padding: space[3],
+    gap: space[1],
   },
-  tierPrice: { fontSize: font.caption, color: theme.muted },
-  tierLocked: { opacity: 0.4 },
+  tierFeature: { fontSize: font.small, lineHeight: line.small, color: theme.ink },
 
   publishBtn: { marginTop: space[5] },
 })

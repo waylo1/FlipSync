@@ -1,8 +1,8 @@
 import { create } from 'zustand'
 import { MMKV } from 'react-native-mmkv'
 import { SaveFormat, manipulateAsync } from 'expo-image-manipulator'
-import { ListingStatus } from '@flipsync/core'
-import type { ListingDraft, ListingTier } from '@flipsync/core'
+import { ListingStatus, ListingTier, TIER_PHOTO_COUNT } from '@flipsync/core'
+import type { ListingDraft } from '@flipsync/core'
 import { ApiError, api } from '../services/api'
 
 const storage = new MMKV({ id: 'flipsync-session' })
@@ -27,10 +27,12 @@ export interface SessionPhoto {
 }
 
 interface ListingSessionState {
-  /** Brouillon issu de l'inférence on-device — base de l'écran de validation. */
+  /** Brouillon issu de l'inférence serveur — base de l'écran de validation. */
   draft: ListingDraft | null
   photos: SessionPhoto[]
-  setSession: (draft: ListingDraft, photos: SessionPhoto[]) => void
+  /** Palier choisi AVANT la rédaction (capture) — verrouillé à l'écran de validation. */
+  tier: ListingTier | null
+  setSession: (draft: ListingDraft, photos: SessionPhoto[], tier: ListingTier) => void
   clearSession: () => void
 }
 
@@ -42,8 +44,9 @@ interface ListingSessionState {
 export const useListingSession = create<ListingSessionState>(set => ({
   draft: null,
   photos: [],
-  setSession: (draft, photos) => set({ draft, photos }),
-  clearSession: () => set({ draft: null, photos: [] }),
+  tier: null,
+  setSession: (draft, photos, tier) => set({ draft, photos, tier }),
+  clearSession: () => set({ draft: null, photos: [], tier: null }),
 }))
 
 // ─── File d'analyses en tâche de fond (« enchaîner ») ────────────────────────
@@ -70,6 +73,8 @@ export interface AnalysisJob {
   id: string
   status: AnalysisJobStatus
   photos: SessionPhoto[]
+  /** Palier choisi à la capture — détermine TIER_PHOTO_COUNT photos envoyées à l'IA. */
+  tier: ListingTier
   /** Aperçu (1ʳᵉ photo) affiché sur la carte de la file. */
   coverUri: string
   /** Rempli quand `ready` — brouillon prêt à valider. */
@@ -80,9 +85,9 @@ export interface AnalysisJob {
 
 interface AnalysisQueueState {
   jobs: AnalysisJob[]
-  /** Lance une rédaction en fond (job serveur détaché). */
-  enqueue: (photos: SessionPhoto[]) => void
-  /** Relance un job échoué avec les mêmes photos (nouveau job serveur). */
+  /** Lance une rédaction en fond (job serveur détaché) au palier choisi. */
+  enqueue: (photos: SessionPhoto[], tier: ListingTier) => void
+  /** Relance un job échoué avec les mêmes photos et le même palier (nouveau job serveur). */
   retry: (id: string) => void
   remove: (id: string) => void
 }
@@ -152,20 +157,29 @@ export const useAnalysisQueue = create<AnalysisQueueState>((set, get) => {
     tick()
   }
 
-  /** Encode la 1ʳᵉ photo en 512 px, démarre le job serveur, puis poll. */
+  /**
+   * Encode en 512 px les TIER_PHOTO_COUNT[tier] premières photos (SSOT
+   * différenciation des paliers — cf. packages/core), démarre le job serveur,
+   * puis poll.
+   */
   async function start(job: AnalysisJob, photos: SessionPhoto[]): Promise<void> {
-    const primary = photos[0]
-    if (!primary) {
+    if (photos.length === 0) {
       updateJob(job.id, { status: 'failed', errorCode: 'NO_PHOTO' })
       return
     }
     try {
-      const forModel = await manipulateAsync(
-        primary.uri,
-        [{ resize: { width: ANALYZE_WIDTH } }],
-        { compress: 0.7, format: SaveFormat.JPEG, base64: true },
+      const selected = photos.slice(0, TIER_PHOTO_COUNT[job.tier])
+      const encoded = await Promise.all(
+        selected.map(async photo => {
+          const forModel = await manipulateAsync(
+            photo.uri,
+            [{ resize: { width: ANALYZE_WIDTH } }],
+            { compress: 0.7, format: SaveFormat.JPEG, base64: true },
+          )
+          return forModel.base64 ?? photo.base64
+        }),
       )
-      const { jobId } = await api.startDraftJob([forModel.base64 ?? primary.base64])
+      const { jobId } = await api.startDraftJob(encoded)
       // Le job local gardait un id temporaire (créé avant de connaître le
       // jobId serveur) — on le remplace par le vrai id, seule clé de poll valide.
       set(s => {
@@ -189,13 +203,14 @@ export const useAnalysisQueue = create<AnalysisQueueState>((set, get) => {
 
   return {
     jobs: initialJobs,
-    enqueue: photos => {
+    enqueue: (photos, tier) => {
       // id temporaire — remplacé par le jobId serveur dès que `start` le reçoit.
       const tempId = `pending_${photos[0]?.sha256 ?? Math.random().toString(36)}`
       const job: AnalysisJob = {
         id: tempId,
         status: 'running',
         photos,
+        tier,
         coverUri: photos[0]?.uri ?? '',
         draft: null,
         errorCode: null,

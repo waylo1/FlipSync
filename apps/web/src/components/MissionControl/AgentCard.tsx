@@ -65,17 +65,17 @@ export function AgentCard({
   icon = DEFAULT_ICON,
 }: AgentCardProps) {
   return (
-    <article className="relative flex flex-col gap-4 rounded-xl border border-slate-800 bg-slate-900/50 p-4">
+    <article className="relative flex h-full flex-col gap-2 overflow-hidden rounded-xl border border-slate-800 bg-slate-900/50 p-3">
       <span
-        className={`absolute right-4 top-4 flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-widest ${STATUS_TEXT[status]}`}
+        className={`absolute right-3 top-3 flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-widest ${STATUS_TEXT[status]}`}
       >
         <span className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT[status]}`} aria-hidden="true" />
         {status}
       </span>
 
-      <header className="flex items-center gap-3 pr-12">
+      <header className="flex shrink-0 items-center gap-3 pr-12">
         <div
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-700 ring-1 ring-slate-600 font-mono text-xs font-bold text-slate-300"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-700 ring-1 ring-slate-600 font-mono text-xs font-bold text-slate-300"
           aria-hidden="true"
         >
           {initials(name)}
@@ -87,11 +87,11 @@ export function AgentCard({
       </header>
 
       {description ? (
-        <p className="text-[10px] leading-relaxed text-slate-400">{description}</p>
+        <p className="line-clamp-2 shrink-0 text-[10px] leading-relaxed text-slate-400">{description}</p>
       ) : null}
 
       <div
-        className={`my-2 flex h-16 items-center justify-center gap-3 border-y border-slate-800/50 px-1 ${STATUS_TEXT[status]}`}
+        className={`flex h-10 shrink-0 items-center justify-center gap-2 border-y border-slate-800/50 px-1 ${STATUS_TEXT[status]}`}
       >
         {icon}
         <span className="truncate font-mono text-[10px] uppercase tracking-wide text-slate-300">
@@ -99,13 +99,13 @@ export function AgentCard({
         </span>
       </div>
 
-      <ul className="flex flex-col gap-2 font-mono text-[10px]">
+      <ul className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto font-mono text-[10px]">
         {metrics.map((metric) => (
           <li
             key={metric.label}
-            className="flex items-center justify-between border-b border-slate-800/30 pb-1"
+            className="flex shrink-0 items-center justify-between border-b border-slate-800/30 pb-1"
           >
-            <span className="uppercase text-slate-400">{metric.label}</span>
+            <span className="shrink-0 uppercase text-slate-400">{metric.label}</span>
             <span className="max-w-[60%] truncate text-right text-white">{metric.value}</span>
           </li>
         ))}

@@ -55,9 +55,19 @@ export function Dashboard() {
           <span>
             INCIDENTS <span className={alertCount > 0 ? "text-red-500" : "text-teal-400"}>{alertCount}</span>
           </span>
+          {overview ? (
+            <span className="text-slate-600">
+              MAJ{" "}
+              {new Date(overview.health.ts).toLocaleTimeString("fr-FR", {
+                hour: "2-digit",
+                minute: "2-digit",
+                second: "2-digit",
+              })}
+            </span>
+          ) : null}
           <button
             type="button"
-            onClick={() => void load()}
+            onClick={() => void load(false)}
             className="rounded border border-slate-700 px-2 py-1 uppercase tracking-widest text-slate-300 hover:border-teal-400 hover:text-teal-400"
           >
             {loading ? "…" : "Refresh"}
@@ -77,7 +87,7 @@ export function Dashboard() {
         Crew <span className="text-slate-700">/</span> <span className="text-teal-400">FlipSync Agents</span>
       </p>
 
-      <main className="grid min-h-0 flex-1 grid-cols-6 gap-4">
+      <main className="grid min-h-0 flex-1 auto-rows-fr grid-cols-6 gap-4">
         {agents.length === 0 && !loading ? (
           <p className="col-span-6 flex items-center justify-center font-mono text-xs text-slate-600">
             Aucune donnée — clique Refresh

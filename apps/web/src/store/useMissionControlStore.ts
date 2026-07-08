@@ -205,6 +205,9 @@ function buildAlerts(overview: AdminOverview): AlertP1[] {
   return alerts;
 }
 
+/** Rythme du panel Logs/Alertes — assez court pour rester « temps réel » sans matraquer l'API. */
+const POLL_INTERVAL_MS = 15_000;
+
 interface MissionControlState {
   overview: AdminOverview | null;
   agents: Agent[];
@@ -212,18 +215,21 @@ interface MissionControlState {
   alerts: AlertP1[];
   loading: boolean;
   error: string | null;
-  load: () => Promise<void>;
+  /** silent=true (poll de fond) : ne touche pas `loading`, les données affichées restent stables. */
+  load: (silent?: boolean) => Promise<void>;
+  /** Premier chargement + refetch périodique — à appeler une seule fois, hors composants. */
+  startPolling: () => void;
 }
 
-export const useMissionControlStore = create<MissionControlState>()((set) => ({
+export const useMissionControlStore = create<MissionControlState>()((set, get) => ({
   overview: null,
   agents: [],
   logs: [],
   alerts: [],
   loading: false,
   error: null,
-  load: async () => {
-    set({ loading: true, error: null });
+  load: async (silent = false) => {
+    if (!silent) set({ loading: true, error: null });
     try {
       const overview = await api.getOverview();
       set({
@@ -232,10 +238,16 @@ export const useMissionControlStore = create<MissionControlState>()((set) => ({
         logs: buildLogs(overview),
         alerts: buildAlerts(overview),
         loading: false,
+        error: null,
       });
     } catch (err) {
       const code = err instanceof ApiError ? err.code : "NETWORK_ERROR";
+      // Poll silencieux : on garde les données déjà affichées, seule l'erreur est notée.
       set({ error: code, loading: false });
     }
+  },
+  startPolling: () => {
+    void get().load(false);
+    setInterval(() => void get().load(true), POLL_INTERVAL_MS);
   },
 }));

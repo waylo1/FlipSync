@@ -205,8 +205,8 @@ function buildAlerts(overview: AdminOverview): AlertP1[] {
   return alerts;
 }
 
-/** Rythme du panel Logs/Alertes — assez court pour rester « temps réel » sans matraquer l'API. */
-const POLL_INTERVAL_MS = 15_000;
+/** Rythme par défaut du panel Logs/Alertes si l'appelant n'en précise pas. */
+export const DEFAULT_POLL_INTERVAL_MS = 15_000;
 
 interface MissionControlState {
   overview: AdminOverview | null;
@@ -215,10 +215,14 @@ interface MissionControlState {
   alerts: AlertP1[];
   loading: boolean;
   error: string | null;
+  /** Id renvoyé par setInterval — null si aucun polling actif (cf. stopPolling). */
+  intervalId: ReturnType<typeof setInterval> | null;
   /** silent=true (poll de fond) : ne touche pas `loading`, les données affichées restent stables. */
-  load: (silent?: boolean) => Promise<void>;
-  /** Premier chargement + refetch périodique — à appeler une seule fois, hors composants. */
-  startPolling: () => void;
+  fetchAgents: (silent?: boolean) => Promise<void>;
+  /** Premier fetch immédiat + refetch toutes les intervalMs. Ré-appeler remplace le polling en cours. */
+  startPolling: (intervalMs: number) => void;
+  /** Coupe le polling en cours (clearInterval) — no-op si aucun n'est actif. */
+  stopPolling: () => void;
 }
 
 export const useMissionControlStore = create<MissionControlState>()((set, get) => ({
@@ -228,7 +232,8 @@ export const useMissionControlStore = create<MissionControlState>()((set, get) =
   alerts: [],
   loading: false,
   error: null,
-  load: async (silent = false) => {
+  intervalId: null,
+  fetchAgents: async (silent = false) => {
     if (!silent) set({ loading: true, error: null });
     try {
       const overview = await api.getOverview();
@@ -246,8 +251,18 @@ export const useMissionControlStore = create<MissionControlState>()((set, get) =
       set({ error: code, loading: false });
     }
   },
-  startPolling: () => {
-    void get().load(false);
-    setInterval(() => void get().load(true), POLL_INTERVAL_MS);
+  startPolling: (intervalMs: number) => {
+    // Évite d'empiler plusieurs setInterval si startPolling est rappelé (ex: changement de rythme).
+    get().stopPolling();
+    void get().fetchAgents(false);
+    const intervalId = setInterval(() => void get().fetchAgents(true), intervalMs);
+    set({ intervalId });
+  },
+  stopPolling: () => {
+    const { intervalId } = get();
+    if (intervalId !== null) {
+      clearInterval(intervalId);
+      set({ intervalId: null });
+    }
   },
 }));

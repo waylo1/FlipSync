@@ -31,7 +31,7 @@ export function Dashboard() {
   const overview = useMissionControlStore((state) => state.overview);
   const loading = useMissionControlStore((state) => state.loading);
   const error = useMissionControlStore((state) => state.error);
-  const load = useMissionControlStore((state) => state.load);
+  const fetchAgents = useMissionControlStore((state) => state.fetchAgents);
 
   const queued = overview?.listings.byStatus.QUEUED ?? 0;
   const alertCount = alerts.length;
@@ -67,7 +67,7 @@ export function Dashboard() {
           ) : null}
           <button
             type="button"
-            onClick={() => void load(false)}
+            onClick={() => void fetchAgents(false)}
             className="rounded border border-slate-700 px-2 py-1 uppercase tracking-widest text-slate-300 hover:border-teal-400 hover:text-teal-400"
           >
             {loading ? "…" : "Refresh"}

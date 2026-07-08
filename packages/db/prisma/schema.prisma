@@ -18,8 +18,9 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  wallet   UserWallet?
-  listings Listing[]
+  wallet    UserWallet?
+  listings  Listing[]
+  draftJobs DraftJob[]
 }
 
 // ─── WALLET ───────────────────────────────────────────────────────────────────
@@ -99,6 +100,25 @@ model Listing {
   transactions WalletTransaction[]
 }
 
+// ─── IA — brouillon en job détaché ─────────────────────────────────────────────
+// Cycle de vie DÉCOUPLÉ du modèle Listing (cf. CLAUDE.md Sprint 4) : pure
+// génération de texte, aucun débit wallet, aucune transition ListingStatus ici.
+
+model DraftJob {
+  id        String         @id @default(uuid())
+  userId    String
+  status    DraftJobStatus @default(RUNNING)
+  draft     Json?
+  errorCode String?
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
 // ─── AUTH (magic link) ──────────────────────────────────────────────────────
 
 model MagicLinkToken {
@@ -160,6 +180,12 @@ enum TransactionType {
   DEBIT
   BONUS
   REFUND
+}
+
+enum DraftJobStatus {
+  RUNNING
+  READY
+  FAILED
 }
 
 enum ItemCondition {

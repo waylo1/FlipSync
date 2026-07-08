@@ -1,7 +1,7 @@
-import { randomUUID } from 'node:crypto'
 import { FastifyPluginAsync } from 'fastify'
 import { z } from 'zod'
 import { EngineError } from '@flipsync/ai'
+import { prisma, DraftJobStatus, Prisma } from '@flipsync/db'
 import type { ListingDraft } from '@flipsync/core'
 
 /**
@@ -16,19 +16,6 @@ const jobParams = z.object({
   jobId: z.string().min(1),
 })
 
-type JobStatus = 'running' | 'ready' | 'failed'
-
-interface DraftJob {
-  status: JobStatus
-  userId: string
-  draft: ListingDraft | null
-  errorCode: string | null
-  createdAt: number
-}
-
-/** Un job oublié (app jamais revenue le consulter) est purgé après ce délai. */
-const JOB_TTL_MS = 15 * 60 * 1000
-
 /**
  * Routes /ai — rédaction du brouillon d'annonce CÔTÉ SERVEUR (pivot), en job
  * asynchrone détaché de la requête mobile.
@@ -42,50 +29,47 @@ const JOB_TTL_MS = 15 * 60 * 1000
  * POST /ai/draft/start : photos (base64) → { jobId } immédiat (202).
  * GET  /ai/draft/:jobId : { status, draft? , error? } — poll côté mobile.
  *
- * Store en mémoire (Map) : pas de persistance DB — un redémarrage serveur perd
- * les jobs en cours (acceptable : le mobile relance si le job a disparu).
- * Aucun listing ni débit ici : pure génération de texte, le cycle wallet/machine
- * à états reste intégralement porté par /listing/*.
+ * Persistance : table DraftJob (Prisma) — un redémarrage serveur ne perd plus
+ * les jobs en cours. Cycle de vie DÉCOUPLÉ du modèle Listing (cf. CLAUDE.md
+ * Sprint 4) : pure génération de texte, aucun débit wallet, aucune transition
+ * ListingStatus ici — le cycle wallet/machine à états reste intégralement
+ * porté par /listing/*.
  */
 const aiRoutes: FastifyPluginAsync = async app => {
   app.addHook('preHandler', app.authenticate)
-
-  const jobs = new Map<string, DraftJob>()
-
-  function pruneStaleJobs(): void {
-    const cutoff = Date.now() - JOB_TTL_MS
-    for (const [id, job] of jobs) {
-      if (job.createdAt < cutoff) jobs.delete(id)
-    }
-  }
 
   // Même plafond que l'upload photos : 6 × ~1 Mo base64 + marge.
   app.post('/draft/start', { bodyLimit: 12 * 1024 * 1024 }, async (req, reply) => {
     const body = draftBody.safeParse(req.body)
     if (!body.success) return reply.code(400).send({ error: 'INVALID_BODY' })
 
-    pruneStaleJobs()
-    const jobId = randomUUID()
-    jobs.set(jobId, { status: 'running', userId: req.userId, draft: null, errorCode: null, createdAt: Date.now() })
+    const job = await prisma.draftJob.create({
+      data: { userId: req.userId, status: DraftJobStatus.RUNNING },
+      select: { id: true },
+    })
 
     // DÉTACHÉ : ne pas attendre ici — la requête mobile répond tout de suite,
     // l'inférence continue même si le mobile se déconnecte ou est tué par l'OS.
     const started = Date.now()
     void app.visionService
       .analyze(body.data.photos)
-      .then(draft => {
+      .then(async draft => {
         req.log.info({ ms: Date.now() - started, titre: draft.titre }, 'brouillon IA généré (job)')
-        const job = jobs.get(jobId)
-        if (job) jobs.set(jobId, { ...job, status: 'ready', draft })
+        await prisma.draftJob.update({
+          where: { id: job.id },
+          data: { status: DraftJobStatus.READY, draft: draft as unknown as Prisma.InputJsonValue },
+        })
       })
-      .catch((err: unknown) => {
+      .catch(async (err: unknown) => {
         const code = err instanceof EngineError ? err.code : 'AI_BACKEND_ERROR'
-        req.log.warn({ err, jobId }, 'brouillon IA échoué (job)')
-        const job = jobs.get(jobId)
-        if (job) jobs.set(jobId, { ...job, status: 'failed', errorCode: code })
+        req.log.warn({ err, jobId: job.id }, 'brouillon IA échoué (job)')
+        await prisma.draftJob.update({
+          where: { id: job.id },
+          data: { status: DraftJobStatus.FAILED, errorCode: code },
+        })
       })
 
-    return reply.code(202).send({ jobId })
+    return reply.code(202).send({ jobId: job.id })
   })
 
   /** Statut d'un job — appartenance vérifiée (pas de fuite entre utilisateurs). */
@@ -93,10 +77,14 @@ const aiRoutes: FastifyPluginAsync = async app => {
     const params = jobParams.safeParse(req.params)
     if (!params.success) return reply.code(400).send({ error: 'INVALID_BODY' })
 
-    const job = jobs.get(params.data.jobId)
+    const job = await prisma.draftJob.findUnique({ where: { id: params.data.jobId } })
     if (!job || job.userId !== req.userId) return reply.code(404).send({ error: 'JOB_NOT_FOUND' })
 
-    return { status: job.status, draft: job.draft, error: job.errorCode }
+    return {
+      status: job.status.toLowerCase() as 'running' | 'ready' | 'failed',
+      draft: job.draft as unknown as ListingDraft | null,
+      error: job.errorCode,
+    }
   })
 }
 

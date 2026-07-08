@@ -13,8 +13,7 @@ import { Camera, useCameraDevice, useCameraPermission } from 'react-native-visio
 import { SaveFormat, manipulateAsync } from 'expo-image-manipulator'
 import * as Crypto from 'expo-crypto'
 import { CameraOff } from 'lucide-react-native'
-import { ApiError, api } from '../../src/services/api'
-import { useListingSession, usePendingPublish } from '../../src/store/listing.store'
+import { useAnalysisQueue } from '../../src/store/listing.store'
 import { font, line, radius, space, theme } from '../../src/theme'
 import { Button } from '../../src/ui/Button'
 import { EmptyState } from '../../src/ui/EmptyState'
@@ -24,19 +23,6 @@ const MIN_PHOTOS = 3
 const MAX_PHOTOS = 8
 /** Largeur de capture : qualité conservée pour l'annonce publiée (~150-300 Ko/photo). */
 const CAPTURE_WIDTH = 768
-/**
- * Largeur envoyée au modèle vision serveur : 512 px divise par ~2,3 le coût
- * d'encodage image (dominant sur CPU en dev) sans dégrader la compréhension.
- */
-const ANALYZE_WIDTH = 512
-
-/** Messages utilisateur — jamais de code technique brut à l'écran. */
-const ANALYZE_ERROR_MESSAGES: Readonly<Record<string, string>> = {
-  NETWORK_ERROR: 'Impossible de joindre le serveur — vérifiez votre connexion, rien n’est débité.',
-  TIMEOUT: 'La rédaction a pris trop de temps — rien n’est débité, réessayez.',
-  NO_AUTH_TOKEN: 'Session expirée — reconnectez-vous.',
-}
-const ANALYZE_ERROR_FALLBACK = 'L’analyse n’a pas abouti — rien n’est débité, réessayez.'
 
 interface CapturedPhoto {
   uri: string // jpeg redimensionné (thumbnail + upload futur)
@@ -55,8 +41,6 @@ export default function VendreScreen() {
   const [photos, setPhotos] = useState<CapturedPhoto[]>([])
   const [capturing, setCapturing] = useState(false)
   const [cameraError, setCameraError] = useState<string | null>(null)
-  const [analyzing, setAnalyzing] = useState(false)
-  const [analyzeError, setAnalyzeError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!hasPermission) void requestPermission()
@@ -109,45 +93,17 @@ export default function VendreScreen() {
     })
   }, [])
 
-  /** Rédaction serveur (POST /ai/draft) puis écran de validation (draft + photos). */
-  const runAnalysis = useCallback(async () => {
-    const primary = photos[0]
-    if (photos.length < MIN_PHOTOS || analyzing || !primary) return
-    setAnalyzing(true)
-    setAnalyzeError(null)
-    try {
-      // Seule la 1ʳᵉ photo (vue principale) part au modèle : chaque photo coûte
-      // ~40-90 s d'encodage sur le serveur CPU de dev. Toutes les photos restent
-      // attachées à l'annonce. Avec un GPU en prod : envoyer les 3 premières.
-      const forModel = await manipulateAsync(
-        primary.uri,
-        [{ resize: { width: ANALYZE_WIDTH } }],
-        { compress: 0.7, format: SaveFormat.JPEG, base64: true },
-      )
-      const { draft } = await api.analyzeDraft([forModel.base64 ?? primary.base64])
-
-      // Nouvelle capture = nouvel objet : une reprise en attente (tentative
-      // interrompue d'un AUTRE objet) deviendrait un mélange annonce/photos.
-      // On l'abandonne : cancel serveur (gratuit, pré-commit) + purge locale.
-      const stale = usePendingPublish.getState().pending
-      if (stale) {
-        usePendingPublish.getState().clearPending()
-        api.cancel(stale.listingId).catch(() => {
-          // Déjà annulée/validée côté serveur — rien à rattraper.
-        })
-      }
-
-      useListingSession.getState().setSession(draft, photos)
-      setPhotos([])
-      router.push('/validate')
-    } catch (err) {
-      if (__DEV__) console.error('[vision] analyse serveur échouée:', err)
-      const code = err instanceof ApiError ? err.code : 'UNKNOWN'
-      setAnalyzeError(ANALYZE_ERROR_MESSAGES[code] ?? ANALYZE_ERROR_FALLBACK)
-    } finally {
-      setAnalyzing(false)
-    }
-  }, [photos, analyzing, router])
+  /**
+   * Lance la rédaction en TÂCHE DE FOND puis file vers l'écran /processing.
+   * L'utilisateur peut y « enchaîner » (revenir photographier l'objet suivant)
+   * pendant que le modèle vision travaille — plus de blocage sur cet écran.
+   */
+  const startAnalysis = useCallback(() => {
+    if (photos.length < MIN_PHOTOS) return
+    useAnalysisQueue.getState().enqueue(photos)
+    setPhotos([]) // objet suivant = capture vierge ; le job garde ces photos.
+    router.push('/processing')
+  }, [photos, router])
 
   // ─── Branches d'état ──────────────────────────────────────────────────────
 
@@ -188,15 +144,6 @@ export default function VendreScreen() {
         photo={true}
       />
 
-      {/* Rédaction en cours — l'attente est normale (modèle vision serveur). */}
-      {analyzing && (
-        <View style={styles.banner} accessibilityLiveRegion="polite">
-          <Text style={styles.bannerText}>
-            FlipSync rédige votre annonce — cela peut prendre une minute, restez sur cet écran.
-          </Text>
-        </View>
-      )}
-
       {/* Bandeau de photos réordonnable (glisser) + suppression (croix). */}
       {photos.length > 0 && (
         <View style={styles.thumbRow}>
@@ -213,8 +160,7 @@ export default function VendreScreen() {
                 ? `Encore ${MIN_PHOTOS - photos.length} photo${MIN_PHOTOS - photos.length > 1 ? 's' : ''}`
                 : `Rédiger (${photos.length}/${MAX_PHOTOS})`
             }
-            onPress={() => void runAnalysis()}
-            loading={analyzing}
+            onPress={() => startAnalysis()}
             disabled={photos.length < MIN_PHOTOS}
           />
         </View>
@@ -249,17 +195,6 @@ export default function VendreScreen() {
             Appareil photo indisponible — vérifiez qu'aucun réglage système ne le bloque, puis
             revenez sur cet écran.
           </Text>
-        </View>
-      )}
-
-      {/* Échec de la rédaction serveur — message humain, jamais de code brut. */}
-      {analyzeError && !analyzing && (
-        <View
-          style={[styles.banner, styles.bannerError]}
-          accessibilityRole="alert"
-          accessibilityLiveRegion="polite"
-        >
-          <Text style={styles.bannerText}>{analyzeError}</Text>
         </View>
       )}
     </View>

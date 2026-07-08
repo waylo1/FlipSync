@@ -16,6 +16,7 @@ import { Skeleton } from '../../src/ui/Skeleton'
 import { ListingRow } from '../../src/components/ListingCard'
 import { ListingTile } from '../../src/components/ListingTile'
 import { PendingPublishBanner } from '../../src/components/PendingPublishBanner'
+import { AnalysisQueueBanner } from '../../src/components/AnalysisQueueBanner'
 
 /** Réponse serveur → ligne d'affichage. Le statut vient du serveur, jamais déduit. */
 function toRow(listing: ApiListing): ListingRow {
@@ -148,6 +149,7 @@ export default function HomeScreen() {
         })}
       </ScrollView>
 
+      <AnalysisQueueBanner />
       <PendingPublishBanner onCancelled={() => void refresh()} />
 
       {error !== null && rows === null ? (

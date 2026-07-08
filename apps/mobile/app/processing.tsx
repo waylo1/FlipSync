@@ -108,11 +108,12 @@ function RunningCard({ count }: { count: number }) {
     pulseLoop.start()
 
     // Barre : 5% → 95% en ~90 s, courbe ease-out (rapide au début, puis lent).
+    // useNativeDriver: false car on anime width (layout), pas transform.
     const progressAnim = Animated.timing(progress, {
       toValue: 0.95,
       duration: 90_000,
       easing: motion.ease.accelerate,
-      useNativeDriver: true,
+      useNativeDriver: false,
     })
     progressAnim.start()
 

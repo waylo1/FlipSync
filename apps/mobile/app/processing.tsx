@@ -141,8 +141,8 @@ function RunningCard({ count }: { count: number }) {
           : 'FlipSync rédige votre annonce…'}
       </Text>
       <Text style={styles.runningBody}>
-        Comptez environ une minute par objet. Vous pouvez photographier le suivant
-        pendant ce temps — rien ne se perd.
+        Comptez 1 à 2 minutes par objet. Vous pouvez fermer l'app ou photographier
+        le suivant pendant ce temps — la rédaction continue sur nos serveurs.
       </Text>
 
       {/* Barre de progression déterministe — simule l'avancement (5% → 95%). */}

@@ -16,15 +16,12 @@ import { useAuthStore } from '../store/auth.store'
 // 10.0.2.2 = localhost de la machine hôte vu depuis l'émulateur Android.
 export const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://10.0.2.2:3001'
 
-/** Délai maximal d'une requête — au-delà : ApiError('TIMEOUT'). */
-const REQUEST_TIMEOUT_MS = 10_000
-
 /**
- * Rédaction IA serveur : le modèle vision peut prendre 30-90 s (CPU en dev).
- * Doit rester > SERVER_VISION_TIMEOUT_MS côté API (120 s) pour que le serveur
- * réponde toujours avant que le mobile ne coupe.
+ * Délai maximal d'une requête — au-delà : ApiError('TIMEOUT'). Suffisant pour
+ * TOUS les appels désormais : la rédaction IA (start + poll) ne bloque plus
+ * jamais une requête HTTP au-delà de quelques secondes (job détaché serveur).
  */
-const AI_DRAFT_TIMEOUT_MS = 150_000
+const REQUEST_TIMEOUT_MS = 10_000
 
 /** Erreur API — code SNAKE_CASE renvoyé par le backend ({ error: code }). */
 export class ApiError extends Error {
@@ -214,10 +211,19 @@ export function devLogin(email: string): Promise<{ token: string; userId: string
   return publicPost('/auth/dev-token', { email })
 }
 
+export interface DraftJobStatus {
+  status: 'running' | 'ready' | 'failed'
+  draft: ListingDraft | null
+  error: string | null
+}
+
 export const api = {
-  // ─── IA serveur — photos → brouillon d'annonce (aucun listing, aucun débit) ─
-  analyzeDraft: (photosBase64: readonly string[]) =>
-    post<{ draft: ListingDraft }>('/ai/draft', { photos: photosBase64 }, AI_DRAFT_TIMEOUT_MS),
+  // ─── IA serveur — job détaché (survit à l'app tuée en arrière-plan) ────────
+  /** Lance la rédaction ; retourne un jobId immédiatement (le serveur travaille seul). */
+  startDraftJob: (photosBase64: readonly string[]) =>
+    post<{ jobId: string }>('/ai/draft/start', { photos: photosBase64 }),
+  /** Poll léger — à appeler toutes les 3-5 s tant que status === 'running'. */
+  getDraftJob: (jobId: string) => request<DraftJobStatus>(`/ai/draft/${jobId}`),
 
   // ─── Wallet ────────────────────────────────────────────────────────────────
   getWallet: () => request<ApiWallet>('/wallet'),

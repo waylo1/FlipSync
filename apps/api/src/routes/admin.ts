@@ -5,6 +5,8 @@ import type {
   AdminOverview,
   ConnectorState,
   DevActionsState,
+  DevSessionDetail,
+  DevSessionSummary,
   RestartOllamaResult,
   SystemHealth,
   SystemMetrics,
@@ -18,6 +20,7 @@ import {
   startTunnel,
   stopTunnel,
 } from '../services/dev-actions.service'
+import { devSessionsEnabled, getSessionDetail, listSessions } from '../services/dev-sessions.service'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -159,6 +162,32 @@ const adminRoutes: FastifyPluginAsync = async app => {
         .send({ ok: false, detail: 'DEV_ACTIONS_DISABLED', tunnel: { active: false, url: null } })
     }
     return stopTunnel()
+  })
+
+  /**
+   * Developer Sessions — lecture seule côté admin (l'ingestion vient du mobile,
+   * cf. routes/dev-sessions.ts). Désactivé en production comme tout le
+   * Developer Control Center.
+   */
+  app.get('/dev-sessions', async (_req, reply): Promise<DevSessionSummary[]> => {
+    if (!devSessionsEnabled()) return reply.code(403).send([])
+    return listSessions()
+  })
+
+  app.get<{ Params: { id: string } }>('/dev-sessions/:id', async (req, reply): Promise<DevSessionDetail> => {
+    if (!devSessionsEnabled()) return reply.code(403).send({ error: 'DEV_SESSIONS_DISABLED' })
+    const detail = await getSessionDetail(req.params.id)
+    if (!detail) return reply.code(404).send({ error: 'DEV_SESSION_NOT_FOUND' })
+    return detail
+  })
+
+  /** Export JSON autonome d'une session — pensé pour être collé/attaché à une analyse. */
+  app.get<{ Params: { id: string } }>('/dev-sessions/:id/export', async (req, reply) => {
+    if (!devSessionsEnabled()) return reply.code(403).send({ error: 'DEV_SESSIONS_DISABLED' })
+    const detail = await getSessionDetail(req.params.id)
+    if (!detail) return reply.code(404).send({ error: 'DEV_SESSION_NOT_FOUND' })
+    reply.header('content-disposition', `attachment; filename="dev-session-${detail.id}.json"`)
+    return detail
   })
 }
 

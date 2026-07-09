@@ -12,6 +12,7 @@ import stripeRoutes from './routes/stripe'
 import authRoutes from './routes/auth'
 import aiRoutes from './routes/ai'
 import adminRoutes from './routes/admin'
+import devSessionsRoutes from './routes/dev-sessions'
 
 /** Construit l'app complète — utilisé par index.ts (listen) et les tests (inject). */
 export async function buildApp(): Promise<FastifyInstance> {
@@ -61,6 +62,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(stripeRoutes, { prefix: '/stripe' })
   await app.register(aiRoutes, { prefix: '/ai' })
   await app.register(adminRoutes, { prefix: '/admin' })
+  await app.register(devSessionsRoutes, { prefix: '/dev-sessions' })
 
   return app
 }

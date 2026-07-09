@@ -55,6 +55,8 @@ model WalletTransaction {
 
   wallet  UserWallet @relation(fields: [walletId], references: [id])
   listing Listing?   @relation(fields: [listingId], references: [id])
+
+  @@index([type, createdAt])
 }
 
 // ─── LISTING ──────────────────────────────────────────────────────────────────
@@ -98,6 +100,8 @@ model Listing {
   user         User                @relation(fields: [userId], references: [id])
   photos       ListingPhoto[]
   transactions WalletTransaction[]
+
+  @@index([status, updatedAt])
 }
 
 // ─── IA — brouillon en job détaché ─────────────────────────────────────────────
@@ -117,6 +121,7 @@ model DraftJob {
 
   @@index([userId])
   @@index([createdAt])
+  @@index([status, updatedAt])
 }
 
 // ─── AUTH (magic link) ──────────────────────────────────────────────────────

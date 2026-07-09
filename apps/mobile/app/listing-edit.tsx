@@ -1,22 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { Redirect, useLocalSearchParams, useRouter } from 'expo-router'
 import { ItemCondition, centsToEur, eurToCents, isPriceFlagged } from '@flipsync/core'
 import { ApiError, ApiListing, api } from '../src/services/api'
+import { ConditionChips } from '../src/components/ConditionChips'
 import { PriceFlagAlert } from '../src/components/PriceFlagAlert'
-import { MIN_TOUCH, font, formatEur, line, radius, space, theme } from '../src/theme'
+import { font, formatEur, line, space, theme } from '../src/theme'
 import { Button } from '../src/ui/Button'
 import { Field } from '../src/ui/Field'
 import { ErrorBanner } from '../src/ui/ErrorBanner'
 import { Skeleton } from '../src/ui/Skeleton'
 import { StackHeader } from '../src/ui/StackHeader'
-
-const CONDITIONS: readonly { value: ItemCondition; label: string }[] = [
-  { value: ItemCondition.neuf, label: 'Neuf' },
-  { value: ItemCondition.tres_bon, label: 'Très bon' },
-  { value: ItemCondition.bon, label: 'Bon' },
-  { value: ItemCondition.correct, label: 'Correct' },
-]
 
 const ERROR_MESSAGES: Readonly<Record<string, string>> = {
   LISTING_NOT_EDITABLE: 'Cette annonce ne peut plus être modifiée.',
@@ -143,13 +137,15 @@ function EditForm({ listing, goBack }: { listing: ApiListing; goBack: () => void
   }, [listing.id, goBack])
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <Text style={styles.hint}>
-        Les photos ne sont plus modifiables une fois l'annonce validée. Vos autres corrections sont
-        gratuites.
-      </Text>
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={styles.content}
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="on-drag"
+    >
+      <Text style={styles.hint}>ℹ️ Photos verrouillées après validation. · Corrections gratuites.</Text>
 
-      <Field label="Titre" value={titre} onChangeText={setTitre} maxLength={120} />
+      <Field label="Titre" value={titre} onChangeText={setTitre} maxLength={120} showCount />
 
       <Field
         label="Description"
@@ -162,27 +158,7 @@ function EditForm({ listing, goBack }: { listing: ApiListing; goBack: () => void
       <Field label="Marque" value={marque} onChangeText={setMarque} placeholder="Aucune" />
 
       <Text style={styles.label}>État</Text>
-      <View style={styles.chipRow} accessibilityRole="radiogroup">
-        {CONDITIONS.map(c => {
-          const active = etat === c.value
-          return (
-            <Pressable
-              key={c.value}
-              accessibilityRole="radio"
-              accessibilityLabel={`État : ${c.label}`}
-              accessibilityState={{ selected: active }}
-              style={({ pressed }) => [
-                styles.chip,
-                active && styles.chipActive,
-                pressed && styles.pressed,
-              ]}
-              onPress={() => setEtat(c.value)}
-            >
-              <Text style={[styles.chipText, active && styles.chipTextActive]}>{c.label}</Text>
-            </Pressable>
-          )
-        })}
-      </View>
+      <ConditionChips value={etat} onChange={setEtat} />
 
       <Field
         label="Prix de vente (€)"
@@ -206,18 +182,23 @@ function EditForm({ listing, goBack }: { listing: ApiListing; goBack: () => void
         style={styles.saveBtn}
       />
 
-      <Button
-        label="Annuler l'annonce"
-        variant="danger"
-        onPress={confirmCancel}
-        loading={cancelling}
-        disabled={saving}
-        style={styles.cancelBtn}
-      />
-      <Text style={styles.hint}>
-        {listing.prixPublie !== null ? formatEur(listing.cost) : ''} seront remboursés sur votre
-        cagnotte si vous annulez.
-      </Text>
+      {/* Séparée du CTA principal — action destructive, jamais au même poids
+          visuel qu'Enregistrer. */}
+      <View style={styles.dangerZone}>
+        <View style={styles.divider} />
+        <Button
+          label="Annuler l'annonce"
+          variant="danger"
+          onPress={confirmCancel}
+          loading={cancelling}
+          disabled={saving}
+        />
+        {listing.prixPublie !== null && (
+          <Text style={styles.hint}>
+            {formatEur(listing.cost)} seront remboursés sur votre cagnotte si vous annulez.
+          </Text>
+        )}
+      </View>
     </ScrollView>
   )
 }
@@ -233,22 +214,10 @@ const styles = StyleSheet.create({
   label: { fontSize: font.small, fontWeight: '600', marginTop: space[4], color: theme.ink },
   multiline: { minHeight: space[8] + space[7], textAlignVertical: 'top' },
 
-  chipRow: { flexDirection: 'row', gap: space[2], flexWrap: 'wrap' },
-  chip: {
-    borderWidth: 1,
-    borderColor: theme.border,
-    borderRadius: radius.pill,
-    paddingHorizontal: space[4],
-    paddingVertical: space[2],
-    minHeight: MIN_TOUCH,
-    justifyContent: 'center',
-    backgroundColor: theme.card,
-  },
-  chipActive: { backgroundColor: theme.terracotta, borderColor: theme.terracotta },
-  chipText: { fontSize: font.small, color: theme.ink },
-  chipTextActive: { color: theme.onDark, fontWeight: '600' },
-  pressed: { opacity: 0.7 },
-
   saveBtn: { marginTop: space[5] },
-  cancelBtn: { marginTop: space[2] },
+
+  // Zone destructive nettement détachée du flux principal (Enregistrer) —
+  // jamais la même urgence visuelle qu'une action courante.
+  dangerZone: { marginTop: space[7], gap: space[3] },
+  divider: { height: 1, backgroundColor: theme.border },
 })

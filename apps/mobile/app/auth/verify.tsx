@@ -3,7 +3,8 @@ import { ActivityIndicator, StyleSheet, Text, View } from 'react-native'
 import { Redirect, useLocalSearchParams, useRouter } from 'expo-router'
 import { ApiError, verifyMagicLink } from '../../src/services/api'
 import { useAuthStore } from '../../src/store/auth.store'
-import { font, space, theme } from '../../src/theme'
+import { dev } from '../../src/dev-session/recorder'
+import { font, line, space, theme } from '../../src/theme'
 import { Button } from '../../src/ui/Button'
 
 /**
@@ -25,6 +26,7 @@ export default function VerifyScreen() {
       try {
         const { token: jwt, email } = await verifyMagicLink(token)
         setToken(jwt, email)
+        dev.track('login_success')
         router.replace('/(tabs)')
       } catch (err) {
         setError(err instanceof ApiError ? err.code : 'NETWORK_ERROR')
@@ -70,6 +72,6 @@ const styles = StyleSheet.create({
     gap: space[4],
     backgroundColor: theme.paper,
   },
-  title: { fontSize: font.title, fontWeight: '700', color: theme.ink },
+  title: { fontSize: font.title, lineHeight: line.title, fontWeight: '700', color: theme.ink },
   body: { fontSize: font.body, color: theme.muted, textAlign: 'center' },
 })

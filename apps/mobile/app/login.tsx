@@ -3,7 +3,8 @@ import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { useRouter } from 'expo-router'
 import { ApiError, requestMagicLink, verifyMagicLink } from '../src/services/api'
 import { useAuthStore } from '../src/store/auth.store'
-import { font, space, theme } from '../src/theme'
+import { dev } from '../src/dev-session/recorder'
+import { font, line, space, theme } from '../src/theme'
 import { Button } from '../src/ui/Button'
 import { Field } from '../src/ui/Field'
 import { ErrorBanner } from '../src/ui/ErrorBanner'
@@ -33,6 +34,7 @@ export default function LoginScreen() {
     if (!emailValid || busy) return
     setBusy(true)
     setError(null)
+    dev.track('login_started')
     try {
       const { devLink } = await requestMagicLink(email)
       setSent(true)
@@ -56,6 +58,7 @@ export default function LoginScreen() {
     try {
       const { token, email: verifiedEmail } = await verifyMagicLink(devToken)
       setToken(token, verifiedEmail)
+      dev.track('login_success')
       router.replace('/(tabs)')
     } catch (err) {
       const code = err instanceof ApiError ? err.code : 'NETWORK_ERROR'
@@ -116,6 +119,9 @@ export default function LoginScreen() {
         autoComplete="email"
         keyboardType="email-address"
         inputMode="email"
+        autoFocus
+        returnKeyType="send"
+        onSubmitEditing={() => void sendLink()}
       />
 
       {error && <ErrorBanner message={error} />}
@@ -147,7 +153,13 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: space[4],
   },
-  title: { fontSize: font.title, fontWeight: '700', textAlign: 'center', color: theme.ink },
+  title: {
+    fontSize: font.title,
+    lineHeight: line.title,
+    fontWeight: '700',
+    textAlign: 'center',
+    color: theme.ink,
+  },
   body: {
     fontSize: font.body,
     color: theme.muted,

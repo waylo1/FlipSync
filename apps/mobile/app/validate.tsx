@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from 'react'
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { Redirect, useRouter } from 'expo-router'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import {
   ItemCondition,
   ListingDraft,
@@ -8,11 +9,11 @@ import {
   TIER_FEATURES,
   TIER_PRICING,
   centsToEur,
-  cumulativeTierFeatures,
   eurToCents,
   isPriceFlagged,
 } from '@flipsync/core'
 import { api, ApiError } from '../src/services/api'
+import { dev } from '../src/dev-session/recorder'
 import {
   PUBLISH_STEP_RANK,
   PendingPublish,
@@ -20,18 +21,12 @@ import {
   useListingSession,
   usePendingPublish,
 } from '../src/store/listing.store'
+import { ConditionChips } from '../src/components/ConditionChips'
 import { PriceFlagAlert } from '../src/components/PriceFlagAlert'
-import { MIN_TOUCH, font, formatEur, line, radius, space, theme, tracking } from '../src/theme'
+import { font, formatEur, line, radius, space, theme, tracking } from '../src/theme'
 import { Button } from '../src/ui/Button'
 import { Field } from '../src/ui/Field'
 import { ErrorBanner } from '../src/ui/ErrorBanner'
-
-const CONDITIONS: readonly { value: ItemCondition; label: string }[] = [
-  { value: ItemCondition.neuf, label: 'Neuf' },
-  { value: ItemCondition.tres_bon, label: 'Très bon' },
-  { value: ItemCondition.bon, label: 'Bon' },
-  { value: ItemCondition.correct, label: 'Correct' },
-]
 
 /** Messages utilisateur pour les codes d'erreur API les plus probables ici. */
 const ERROR_MESSAGES: Readonly<Record<string, string>> = {
@@ -193,10 +188,12 @@ function ValidateForm({ draft, photos, tier, resume, clearSession, goHome }: For
 
       clearPending()
       clearSession()
+      dev.track('publish_success')
       goHome()
     } catch (err) {
       const code = err instanceof ApiError ? err.code : 'INTERNAL_ERROR'
       setErrorMessage(ERROR_MESSAGES[code] ?? `Publication échouée (${code}).`)
+      dev.track('publish_failed')
     } finally {
       setPublishing(false)
     }
@@ -209,6 +206,7 @@ function ValidateForm({ draft, photos, tier, resume, clearSession, goHome }: For
    * et une annulation ultérieure rembourse intégralement (cf. écran « Mes annonces »).
    */
   const confirmPublish = useCallback(() => {
+    dev.track(resume !== null ? 'retry_publish' : 'publish_button_pressed')
     Alert.alert(
       'Confirmer la publication ?',
       `${formatEur(TIER_PRICING[tier])} seront débités de votre cagnotte maintenant. Les photos ne pourront plus être changées, mais vous pourrez encore corriger le texte, le prix et l'état, ou annuler (remboursement intégral) depuis « Mes annonces ».`,
@@ -217,19 +215,23 @@ function ValidateForm({ draft, photos, tier, resume, clearSession, goHome }: For
         { text: 'Confirmer', onPress: () => void publish() },
       ],
     )
-  }, [tier, publish])
+  }, [tier, publish, resume])
+
+  const insets = useSafeAreaInsets()
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={[styles.content, { paddingTop: insets.top + space[4] }]}
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="on-drag"
+    >
       <Text accessibilityRole="header" style={styles.heading}>
         Vérifiez votre annonce
       </Text>
-      <Text style={styles.subheading}>
-        Rédigée à partir de vos photos — modifiez ce que vous voulez, rien n'est débité avant
-        votre validation.
-      </Text>
+      <Text style={styles.subheading}>Modifiez ce que vous voulez avant de valider.</Text>
 
-      <Field label="Titre" value={titre} onChangeText={setTitre} maxLength={120} />
+      <Field label="Titre" value={titre} onChangeText={setTitre} maxLength={120} showCount />
 
       <Field
         label="Description"
@@ -242,27 +244,7 @@ function ValidateForm({ draft, photos, tier, resume, clearSession, goHome }: For
       <Field label="Marque" value={marque} onChangeText={setMarque} placeholder="Aucune" />
 
       <Text style={styles.label}>État</Text>
-      <View style={styles.chipRow} accessibilityRole="radiogroup">
-        {CONDITIONS.map(c => {
-          const active = etat === c.value
-          return (
-            <Pressable
-              key={c.value}
-              accessibilityRole="radio"
-              accessibilityLabel={`État : ${c.label}`}
-              accessibilityState={{ selected: active }}
-              style={({ pressed }) => [
-                styles.chip,
-                active && styles.chipActive,
-                pressed && styles.pressed,
-              ]}
-              onPress={() => setEtat(c.value)}
-            >
-              <Text style={[styles.chipText, active && styles.chipTextActive]}>{c.label}</Text>
-            </Pressable>
-          )
-        })}
-      </View>
+      <ConditionChips value={etat} onChange={setEtat} />
 
       <Field
         label="Prix de vente (€)"
@@ -277,17 +259,10 @@ function ValidateForm({ draft, photos, tier, resume, clearSession, goHome }: For
         <PriceFlagAlert prixPublie={prixPublie} prixHaut={draft.prixHaut} />
       )}
 
-      <Text style={styles.label}>Formule — {TIER_FEATURES[tier].label} ({formatEur(TIER_PRICING[tier])})</Text>
-      <Text style={styles.hint}>
-        Choisie à la capture, verrouillée ici — l’annonce est réservée avec cette formule.
+      <Text style={styles.formuleInfo}>
+        ℹ️ Formule {TIER_FEATURES[tier].label} · {formatEur(TIER_PRICING[tier])} · verrouillée à
+        la capture
       </Text>
-      <View style={styles.tierSummary}>
-        {cumulativeTierFeatures(tier).map(feature => (
-          <Text key={feature} style={styles.tierFeature}>
-            · {feature}
-          </Text>
-        ))}
-      </View>
 
       {errorMessage && <ErrorBanner message={errorMessage} />}
 
@@ -303,7 +278,7 @@ function ValidateForm({ draft, photos, tier, resume, clearSession, goHome }: For
         style={styles.publishBtn}
       />
       <Text style={styles.hint}>
-        Le débit n'a lieu qu'à cette validation. Échec de publication = remboursement automatique.
+        Le débit n'a lieu qu'à cette validation — rien n'est prélevé avant.
       </Text>
     </ScrollView>
   )
@@ -312,7 +287,8 @@ function ValidateForm({ draft, photos, tier, resume, clearSession, goHome }: For
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: theme.paper },
   // Rythme vertical hiérarchisé : 12 entre éléments, 16 avant chaque section (labels).
-  content: { padding: space[5], paddingTop: space[7], gap: space[3], paddingBottom: space[7] },
+  // paddingTop fourni en inline (safe-area insets.top).
+  content: { padding: space[5], gap: space[3], paddingBottom: space[7] },
   // Un seul H1 par écran — cran heading de l'échelle, jamais de taille dérivée.
   heading: {
     fontSize: font.heading,
@@ -331,32 +307,19 @@ const styles = StyleSheet.create({
   hint: { fontSize: font.caption, lineHeight: line.caption, color: theme.muted, textAlign: 'center' },
   multiline: { minHeight: space[8] + space[7], textAlignVertical: 'top' },
 
-  chipRow: { flexDirection: 'row', gap: space[2], flexWrap: 'wrap' },
-  chip: {
+  // Info discrète plutôt qu'un bloc label+hint+liste de features : la formule
+  // est verrouillée ici, elle ne mérite pas plus qu'une ligne de rappel.
+  formuleInfo: {
+    fontSize: font.caption,
+    lineHeight: line.caption,
+    color: theme.muted,
+    marginTop: space[4],
+    backgroundColor: theme.card,
     borderWidth: 1,
     borderColor: theme.border,
-    borderRadius: radius.pill,
-    paddingHorizontal: space[4],
-    paddingVertical: space[2],
-    minHeight: MIN_TOUCH,
-    justifyContent: 'center',
-    backgroundColor: theme.card,
-  },
-  chipActive: { backgroundColor: theme.terracotta, borderColor: theme.terracotta },
-  chipText: { fontSize: font.small, color: theme.ink },
-  chipTextActive: { color: theme.onDark, fontWeight: '600' },
-  // Feedback pressé net (80–150 ms perçu), sans déplacement de layout.
-  pressed: { opacity: 0.7 },
-
-  tierSummary: {
-    backgroundColor: theme.card,
     borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: theme.border,
     padding: space[3],
-    gap: space[1],
   },
-  tierFeature: { fontSize: font.small, lineHeight: line.small, color: theme.ink },
 
   publishBtn: { marginTop: space[5] },
 })

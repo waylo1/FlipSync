@@ -1,10 +1,9 @@
 import { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
 import { prisma, ListingStatus, TransactionType } from '@flipsync/db'
 import { Marketplace } from '@flipsync/marketplace'
+import type { AdminOverview, ConnectorState } from '@flipsync/core'
 
 const DAY_MS = 24 * 60 * 60 * 1000
-
-type ConnectorState = 'MISSING' | 'MOCK' | 'LIVE'
 
 /**
  * Liste blanche d'emails admin (CSV, ex: "a@x.com,b@y.com"). Aucun rôle en
@@ -52,7 +51,7 @@ const adminRoutes: FastifyPluginAsync = async app => {
   app.addHook('preHandler', app.authenticate)
   app.addHook('preHandler', requireAdmin)
 
-  app.get('/overview', async () => {
+  app.get('/overview', async (): Promise<AdminOverview> => {
     const since24h = new Date(Date.now() - DAY_MS)
 
     const [byStatus, aiFailed24h, publishFailed24h, walletAgg24h, walletTotals] = await Promise.all([

@@ -1,11 +1,14 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { GitBranch, Image, Cpu, KeyRound, Send, Wallet } from "lucide-react";
 import { AgentCard, type AgentCardProps, type AgentStatus as CardStatus } from "./AgentCard";
 import { SystemHealthBar } from "./SystemHealthBar";
 import { KpiStrip } from "./KpiStrip";
 import { HealthScore } from "./HealthScore";
 import { DeveloperActions } from "./DeveloperActions";
+import { DeveloperSessions } from "./DeveloperSessions";
 import { useMissionControlStore, type Agent, type AgentStatus } from "../../store/useMissionControlStore";
+
+type Tab = "mission-control" | "dev-sessions";
 
 const LOG_LEVEL_STYLE = {
   nominal: { text: "text-nominal", bar: "bg-nominal" },
@@ -42,6 +45,7 @@ function toCardProps(agent: Agent): AgentCardProps {
 }
 
 export function Dashboard() {
+  const [tab, setTab] = useState<Tab>("mission-control");
   const agents = useMissionControlStore((state) => state.agents);
   const logs = useMissionControlStore((state) => state.logs);
   const alerts = useMissionControlStore((state) => state.alerts);
@@ -70,6 +74,28 @@ export function Dashboard() {
           <span className="rounded border border-nominal/30 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-widest text-nominal">
             Live
           </span>
+          <nav className="flex items-center gap-1 font-mono text-[10px] uppercase tracking-widest" aria-label="Sections du dashboard">
+            <button
+              type="button"
+              onClick={() => setTab("mission-control")}
+              aria-current={tab === "mission-control" ? "page" : undefined}
+              className={`rounded border px-2 py-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-nominal ${
+                tab === "mission-control" ? "border-nominal text-nominal" : "border-slate-800 text-slate-500 hover:text-slate-300"
+              }`}
+            >
+              Mission Control
+            </button>
+            <button
+              type="button"
+              onClick={() => setTab("dev-sessions")}
+              aria-current={tab === "dev-sessions" ? "page" : undefined}
+              className={`rounded border px-2 py-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-nominal ${
+                tab === "dev-sessions" ? "border-nominal text-nominal" : "border-slate-800 text-slate-500 hover:text-slate-300"
+              }`}
+            >
+              Developer Sessions
+            </button>
+          </nav>
         </div>
         <div className="flex items-center gap-3 font-mono text-xs text-slate-400">
           <span className="rounded border border-slate-800 px-2 py-1">
@@ -105,84 +131,90 @@ export function Dashboard() {
         </div>
       </header>
 
-      <div className="flex items-center justify-between gap-4">
-        {health && metrics ? <HealthScore health={health} metrics={metrics} /> : null}
-        {health ? <SystemHealthBar services={health.services} /> : null}
-      </div>
+      {tab === "mission-control" ? (
+        <>
+          <div className="flex items-center justify-between gap-4">
+            {health && metrics ? <HealthScore health={health} metrics={metrics} /> : null}
+            {health ? <SystemHealthBar services={health.services} /> : null}
+          </div>
 
-      {metrics ? <KpiStrip metrics={metrics} /> : null}
+          {metrics ? <KpiStrip metrics={metrics} /> : null}
 
-      {devActions ? <DeveloperActions state={devActions} onActionDone={() => void fetchAgents(false)} /> : null}
+          {devActions ? <DeveloperActions state={devActions} onActionDone={() => void fetchAgents(false)} /> : null}
 
-      {error ? (
-        <p className="rounded-lg border border-alert/40 bg-alert/10 px-3 py-2 font-mono text-[11px] text-alert" role="alert">
-          {error === "NO_AUTH_TOKEN"
-            ? "VITE_ADMIN_TOKEN manquant — impossible d'interroger /admin/overview."
-            : `Échec du chargement : ${error}`}
-        </p>
-      ) : null}
+          {error ? (
+            <p className="rounded-lg border border-alert/40 bg-alert/10 px-3 py-2 font-mono text-[11px] text-alert" role="alert">
+              {error === "NO_AUTH_TOKEN"
+                ? "VITE_ADMIN_TOKEN manquant — impossible d'interroger /admin/overview."
+                : `Échec du chargement : ${error}`}
+            </p>
+          ) : null}
 
-      <p className="font-mono text-[10px] uppercase tracking-widest text-slate-500">
-        Crew <span className="text-slate-700">/</span> <span className="text-nominal">FlipSync Agents</span>
-      </p>
-
-      <main className="grid min-h-0 flex-1 auto-rows-fr grid-cols-6 gap-4">
-        {agents.length === 0 && !loading ? (
-          <p className="col-span-6 flex items-center justify-center font-mono text-xs text-slate-600">
-            Aucune donnée — clique Refresh
+          <p className="font-mono text-[10px] uppercase tracking-widest text-slate-500">
+            Crew <span className="text-slate-700">/</span> <span className="text-nominal">FlipSync Agents</span>
           </p>
-        ) : (
-          agents.map((agent) => <AgentCard key={agent.id} {...toCardProps(agent)} />)
-        )}
-      </main>
 
-      <section className="grid h-1/3 min-h-0 grid-cols-3 gap-4" aria-live="polite">
-        <div className="col-span-2 flex min-h-0 flex-col gap-3 rounded-xl border border-slate-800 bg-slate-900/50 p-4">
-          <h2 className="font-sans text-[11px] font-bold uppercase tracking-widest text-nominal">Logs Système</h2>
-          <ul className="flex flex-col gap-1.5 overflow-y-auto">
-            {logs.map((log) => {
-              const style = LOG_LEVEL_STYLE[log.level];
-              return (
-                <li key={log.id} className="flex items-baseline gap-3 border-l-2 border-slate-800 pl-2">
-                  <span className={`h-full w-0.5 shrink-0 self-stretch rounded ${style.bar}`} aria-hidden="true" />
-                  <span className="shrink-0 font-mono text-xs tabular-nums text-slate-500">{log.time}</span>
-                  <span className={`w-14 shrink-0 font-mono text-xs uppercase ${style.text}`}>{log.source}</span>
-                  <span className="truncate font-mono text-xs text-slate-300">{log.message}</span>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-
-        <div className="flex min-h-0 flex-col gap-3 rounded-xl border border-slate-800 bg-slate-900/50 p-4">
-          <h2 className="flex items-center gap-2 font-sans text-[11px] font-bold uppercase tracking-widest text-alert">
-            {alertCount > 0 ? (
-              <span className="relative flex h-1.5 w-1.5" aria-hidden="true">
-                <span className="absolute inline-flex h-full w-full rounded-full bg-alert motion-safe:animate-pulse-ring" />
-                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-alert" />
-              </span>
-            ) : null}
-            Alertes P1
-          </h2>
-          <ul className="flex flex-col gap-2 overflow-y-auto font-mono text-xs">
-            {alerts.length === 0 ? (
-              <li className="text-slate-600">Aucune alerte P1</li>
+          <main className="grid min-h-0 flex-1 auto-rows-fr grid-cols-6 gap-4">
+            {agents.length === 0 && !loading ? (
+              <p className="col-span-6 flex items-center justify-center font-mono text-xs text-slate-600">
+                Aucune donnée — clique Refresh
+              </p>
             ) : (
-              alerts.map((alert) => (
-                <li key={alert.id} className="border-b border-slate-800/30 pb-1">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-alert">
-                      {alert.id} · <span className="uppercase text-white">{alert.agent}</span>
-                    </span>
-                    <span className="tabular-nums text-slate-500">{alert.time}</span>
-                  </div>
-                  <p className="truncate text-slate-300">{alert.message}</p>
-                </li>
-              ))
+              agents.map((agent) => <AgentCard key={agent.id} {...toCardProps(agent)} />)
             )}
-          </ul>
-        </div>
-      </section>
+          </main>
+
+          <section className="grid h-1/3 min-h-0 grid-cols-3 gap-4" aria-live="polite">
+            <div className="col-span-2 flex min-h-0 flex-col gap-3 rounded-xl border border-slate-800 bg-slate-900/50 p-4">
+              <h2 className="font-sans text-[11px] font-bold uppercase tracking-widest text-nominal">Logs Système</h2>
+              <ul className="flex flex-col gap-1.5 overflow-y-auto">
+                {logs.map((log) => {
+                  const style = LOG_LEVEL_STYLE[log.level];
+                  return (
+                    <li key={log.id} className="flex items-baseline gap-3 border-l-2 border-slate-800 pl-2">
+                      <span className={`h-full w-0.5 shrink-0 self-stretch rounded ${style.bar}`} aria-hidden="true" />
+                      <span className="shrink-0 font-mono text-xs tabular-nums text-slate-500">{log.time}</span>
+                      <span className={`w-14 shrink-0 font-mono text-xs uppercase ${style.text}`}>{log.source}</span>
+                      <span className="truncate font-mono text-xs text-slate-300">{log.message}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+
+            <div className="flex min-h-0 flex-col gap-3 rounded-xl border border-slate-800 bg-slate-900/50 p-4">
+              <h2 className="flex items-center gap-2 font-sans text-[11px] font-bold uppercase tracking-widest text-alert">
+                {alertCount > 0 ? (
+                  <span className="relative flex h-1.5 w-1.5" aria-hidden="true">
+                    <span className="absolute inline-flex h-full w-full rounded-full bg-alert motion-safe:animate-pulse-ring" />
+                    <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-alert" />
+                  </span>
+                ) : null}
+                Alertes P1
+              </h2>
+              <ul className="flex flex-col gap-2 overflow-y-auto font-mono text-xs">
+                {alerts.length === 0 ? (
+                  <li className="text-slate-600">Aucune alerte P1</li>
+                ) : (
+                  alerts.map((alert) => (
+                    <li key={alert.id} className="border-b border-slate-800/30 pb-1">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-alert">
+                          {alert.id} · <span className="uppercase text-white">{alert.agent}</span>
+                        </span>
+                        <span className="tabular-nums text-slate-500">{alert.time}</span>
+                      </div>
+                      <p className="truncate text-slate-300">{alert.message}</p>
+                    </li>
+                  ))
+                )}
+              </ul>
+            </div>
+          </section>
+        </>
+      ) : (
+        <DeveloperSessions />
+      )}
     </div>
   );
 }

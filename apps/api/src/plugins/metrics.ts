@@ -42,7 +42,7 @@ export class MetricsCollector {
     if (this.recent.length === 0) return 0
     const sorted = [...this.recent].map(r => r.durationMs).sort((a, b) => a - b)
     const idx = Math.min(sorted.length - 1, Math.floor((p / 100) * sorted.length))
-    return sorted[idx] ?? 0
+    return Math.round(sorted[idx] ?? 0)
   }
 
   /** % CPU du process depuis le dernier appel (deltas cpuUsage/temps réel écoulé). */

@@ -13,3 +13,27 @@ export interface AdminOverview {
   marketplace: { vinted: ConnectorState; leboncoin: ConnectorState; publishFailed24h: number }
   wallet: { totalBalance: number; debited24h: number; refunded24h: number }
 }
+
+/**
+ * Contrat GET /admin/health — état RÉEL des dépendances (pings live), pas un
+ * statut décoratif. `down` = mesuré injoignable ; `warning` = dégradé/non vérifié
+ * (ex: clé Stripe de test) ; `healthy` = ping OK.
+ */
+export type ServiceStatus = 'healthy' | 'warning' | 'down'
+
+export interface ServiceHealth {
+  id: string
+  label: string
+  status: ServiceStatus
+  /** Latence du ping en ms (absente si le service n'est pas pingé ou est down). */
+  latencyMs?: number
+  detail?: string
+}
+
+export interface SystemHealth {
+  ts: string
+  overall: ServiceStatus
+  /** Score 0–100 dérivé de l'état réel des services (formule côté serveur). */
+  score: number
+  services: ServiceHealth[]
+}

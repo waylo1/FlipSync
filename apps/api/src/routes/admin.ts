@@ -1,7 +1,8 @@
 import { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
 import { prisma, ListingStatus, TransactionType } from '@flipsync/db'
 import { Marketplace } from '@flipsync/marketplace'
-import type { AdminOverview, ConnectorState } from '@flipsync/core'
+import type { AdminOverview, ConnectorState, SystemHealth } from '@flipsync/core'
+import { checkHealth } from '../services/health.service'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -99,6 +100,12 @@ const adminRoutes: FastifyPluginAsync = async app => {
       },
     }
   })
+
+  /**
+   * État réel des dépendances (pings live DB + Ollama + config Stripe) + score.
+   * Aucun statut supposé : chaque service est mesuré au moment de l'appel.
+   */
+  app.get('/health', async (): Promise<SystemHealth> => checkHealth(prisma))
 }
 
 export default adminRoutes

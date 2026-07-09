@@ -58,9 +58,32 @@ describe.skipIf(!DB_URL)('GET /admin/health', () => {
     expect(ids).toContain('api')
     expect(ids).toContain('database')
     expect(ids).toContain('inference')
+    expect(ids).toContain('mobile')
 
     // La base est réellement pingée et disponible en test → healthy.
     expect(body.services.find(s => s.id === 'database')?.status).toBe('healthy')
+  })
+
+  it('service mobile → down/"jamais connecté" avant toute requête hors /admin', async () => {
+    const res = await app.inject({ method: 'GET', url: '/admin/health', headers: authed(adminToken) })
+    const body = res.json() as SystemHealth
+    // Ce test tourne avant toute requête /wallet dans ce fichier → jamais vu.
+    expect(body.services.find(s => s.id === 'mobile')).toEqual({
+      id: 'mobile',
+      label: 'Mobile',
+      status: 'down',
+      detail: 'jamais connecté',
+    })
+  })
+
+  it('service mobile → healthy juste après une requête authentifiée hors /admin', async () => {
+    await app.inject({ method: 'GET', url: '/wallet', headers: authed(userToken) })
+
+    const res = await app.inject({ method: 'GET', url: '/admin/health', headers: authed(adminToken) })
+    const body = res.json() as SystemHealth
+    const mobile = body.services.find(s => s.id === 'mobile')
+    expect(mobile?.status).toBe('healthy')
+    expect(mobile?.detail).toMatch(/^vu il y a \d+s$/)
   })
 
   it('utilisateur non-admin → 403 NOT_ADMIN', async () => {

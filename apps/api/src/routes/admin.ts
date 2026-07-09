@@ -105,7 +105,7 @@ const adminRoutes: FastifyPluginAsync = async app => {
    * État réel des dépendances (pings live DB + Ollama + config Stripe) + score.
    * Aucun statut supposé : chaque service est mesuré au moment de l'appel.
    */
-  app.get('/health', async (): Promise<SystemHealth> => checkHealth(prisma))
+  app.get('/health', async (): Promise<SystemHealth> => checkHealth(prisma, app.mobileActivity.lastSeenAt))
 
   /** Métriques process réelles (CPU/RAM/uptime/trafic) — cf. plugins/metrics.ts. */
   app.get('/metrics', async (): Promise<SystemMetrics> => app.metrics.snapshot())

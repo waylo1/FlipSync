@@ -15,6 +15,11 @@ declare module 'fastify' {
   interface FastifyInstance {
     /** preHandler à appliquer sur toutes les routes protégées. */
     authenticate: (req: FastifyRequest, reply: FastifyReply) => Promise<void>
+    /**
+     * Horodatage de la dernière requête authentifiée hors /admin (donc mobile,
+     * seul client qui appelle ces routes) — cf. GET /admin/health, service "mobile".
+     */
+    mobileActivity: { lastSeenAt: number | null }
   }
 }
 
@@ -41,11 +46,13 @@ const authPlugin: FastifyPluginAsync = async app => {
   await app.register(jwt, { secret, sign: { expiresIn: '30d' } })
 
   app.decorateRequest('userId', '')
+  app.decorate('mobileActivity', { lastSeenAt: null })
 
   app.decorate('authenticate', async (req: FastifyRequest, reply: FastifyReply) => {
     try {
       const payload = await req.jwtVerify<JwtPayload>()
       req.userId = payload.sub
+      if (!req.url.startsWith('/admin')) app.mobileActivity.lastSeenAt = Date.now()
     } catch {
       return reply.code(401).send({ error: 'UNAUTHORIZED' })
     }

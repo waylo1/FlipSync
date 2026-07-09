@@ -1,13 +1,27 @@
 import { StyleSheet, Text, View } from 'react-native'
 import { useRouter } from 'expo-router'
 import { AlertTriangle } from 'lucide-react-native'
+import { ListingStatus } from '@flipsync/core'
 import { STATUS_META, font, line, radius, shadow, space, theme } from '../theme'
 import { AmountText } from '../ui/AmountText'
 import { Badge } from '../ui/Badge'
 import { FadeInUp } from '../ui/FadeInUp'
 import { Tappable } from '../ui/Tappable'
 import { AuthImage } from './AuthImage'
-import { ListingRow } from './ListingCard'
+
+export interface ListingRow {
+  id: string
+  titre: string
+  /** Centimes Int — null tant qu'aucun prix n'existe (avant brouillon IA). */
+  prixCents: number | null
+  status: ListingStatus
+  failureReason: string | null
+  publishedLbc: boolean
+  publishedVinted: boolean
+  quand: string
+  /** URL absolue de la première photo — vignette lettre si absente. */
+  thumbUri: string | null
+}
 
 /**
  * Tuile de grille (accueil) — vignette + prix + statut. Tap → fiche détail.

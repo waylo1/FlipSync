@@ -25,6 +25,13 @@ packages/db/node_modules/.prisma/
 
 # Expo / React Native
 apps/mobile/.expo/
+
+# Artefacts Expo générés par erreur à la racine (commande expo/eas lancée hors
+# apps/mobile/) — apps/mobile/app.json et apps/mobile/tsconfig.json restent la
+# seule config réelle. Cf. TECH_GOVERNANCE.md Action A5.
+/app.json
+/tsconfig.json
+/.expo/
 apps/mobile/android/
 apps/mobile/ios/
 apps/mobile/*.jks

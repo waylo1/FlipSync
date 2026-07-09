@@ -54,7 +54,7 @@ describe.skipIf(!DB_URL)('Developer Sessions', () => {
     const { id } = start.json() as StartDevSessionResult
     expect(id).toBeTruthy()
 
-    const events = await app.inject({
+    const ingest = await app.inject({
       method: 'POST',
       url: `/dev-sessions/${id}/events`,
       headers: authed(userToken),
@@ -83,8 +83,8 @@ describe.skipIf(!DB_URL)('Developer Sessions', () => {
         ],
       },
     })
-    expect(events.statusCode).toBe(200)
-    expect(events.json()).toEqual({ ok: true, accepted: 5, rejected: 1 })
+    expect(ingest.statusCode).toBe(200)
+    expect(ingest.json()).toEqual({ ok: true, accepted: 5, rejected: 1 })
 
     const stop = await app.inject({ method: 'POST', url: `/dev-sessions/${id}/stop`, headers: authed(userToken) })
     expect(stop.statusCode).toBe(200)
@@ -108,13 +108,56 @@ describe.skipIf(!DB_URL)('Developer Sessions', () => {
       ['action', 'api_call', 'error', 'navigation', 'performance'].sort(),
     )
 
-    const exported = await app.inject({
+    const events = await app.inject({
       method: 'GET',
-      url: `/admin/dev-sessions/${id}/export`,
+      url: `/admin/dev-sessions/${id}/export/events`,
       headers: authed(adminToken),
     })
-    expect(exported.statusCode).toBe(200)
-    expect(exported.headers['content-disposition']).toContain(`dev-session-${id}.json`)
+    expect(events.statusCode).toBe(200)
+    expect(events.headers['content-type']).toContain('application/json')
+    expect(events.headers['content-disposition']).toContain('events.json')
+    expect(JSON.parse(events.body).id).toBe(id)
+
+    const report = await app.inject({
+      method: 'GET',
+      url: `/admin/dev-sessions/${id}/export/report`,
+      headers: authed(adminToken),
+    })
+    expect(report.statusCode).toBe(200)
+    expect(report.headers['content-type']).toContain('text/markdown')
+    expect(report.headers['content-disposition']).toContain('report.md')
+    expect(report.body).toContain(`# Session ${id}`)
+    expect(report.body).toContain('## Timeline')
+    expect(report.body).toContain('## Erreurs')
+
+    const llmContext = await app.inject({
+      method: 'GET',
+      url: `/admin/dev-sessions/${id}/export/llm-context`,
+      headers: authed(adminToken),
+    })
+    expect(llmContext.statusCode).toBe(200)
+    expect(llmContext.headers['content-disposition']).toContain('llm-context.json')
+    const contextBody = JSON.parse(llmContext.body) as { session: { id: string }; errors: unknown[] }
+    expect(contextBody.session.id).toBe(id)
+    expect(contextBody.errors).toHaveLength(1)
+
+    const llmPrompt = await app.inject({
+      method: 'GET',
+      url: `/admin/dev-sessions/${id}/export/llm-prompt`,
+      headers: authed(adminToken),
+    })
+    expect(llmPrompt.statusCode).toBe(200)
+    expect(llmPrompt.headers['content-disposition']).toContain('llm-prompt.md')
+    expect(llmPrompt.body).toContain('Aucune hypothèse')
+    expect(llmPrompt.body).toContain('```json')
+
+    const badFormat = await app.inject({
+      method: 'GET',
+      url: `/admin/dev-sessions/${id}/export/does-not-exist`,
+      headers: authed(adminToken),
+    })
+    expect(badFormat.statusCode).toBe(400)
+    expect(badFormat.json()).toEqual({ error: 'INVALID_EXPORT_FORMAT' })
   })
 
   it('événements vers une session inconnue → 404', async () => {

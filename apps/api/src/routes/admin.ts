@@ -21,6 +21,7 @@ import {
   stopTunnel,
 } from '../services/dev-actions.service'
 import { devSessionsEnabled, getSessionDetail, listSessions } from '../services/dev-sessions.service'
+import { buildExport, EXPORT_FORMATS, type ExportFormat } from '../services/dev-session-export.service'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -181,14 +182,27 @@ const adminRoutes: FastifyPluginAsync = async app => {
     return detail
   })
 
-  /** Export JSON autonome d'une session — pensé pour être collé/attaché à une analyse. */
-  app.get<{ Params: { id: string } }>('/dev-sessions/:id/export', async (req, reply) => {
-    if (!devSessionsEnabled()) return reply.code(403).send({ error: 'DEV_SESSIONS_DISABLED' })
-    const detail = await getSessionDetail(req.params.id)
-    if (!detail) return reply.code(404).send({ error: 'DEV_SESSION_NOT_FOUND' })
-    reply.header('content-disposition', `attachment; filename="dev-session-${detail.id}.json"`)
-    return detail
-  })
+  /**
+   * Exports autonomes — events.json (brut), report.md (lecture humaine),
+   * llm-context.json / llm-prompt.md (contexte factuel prêt à coller dans un LLM).
+   * Aucune IA impliquée dans la génération : gabarits fixes sur données mesurées.
+   */
+  app.get<{ Params: { id: string; format: string } }>(
+    '/dev-sessions/:id/export/:format',
+    async (req, reply) => {
+      if (!devSessionsEnabled()) return reply.code(403).send({ error: 'DEV_SESSIONS_DISABLED' })
+      if (!EXPORT_FORMATS.includes(req.params.format as ExportFormat)) {
+        return reply.code(400).send({ error: 'INVALID_EXPORT_FORMAT' })
+      }
+      const detail = await getSessionDetail(req.params.id)
+      if (!detail) return reply.code(404).send({ error: 'DEV_SESSION_NOT_FOUND' })
+
+      const file = buildExport(detail, req.params.format as ExportFormat)
+      reply.header('content-type', file.contentType)
+      reply.header('content-disposition', `attachment; filename="${file.filename}"`)
+      return file.body
+    },
+  )
 }
 
 export default adminRoutes

@@ -10,12 +10,14 @@ import {
 } from 'react-native'
 import { useRouter } from 'expo-router'
 import { useIsFocused } from '@react-navigation/native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Camera, useCameraDevice, useCameraPermission } from 'react-native-vision-camera'
 import { SaveFormat, manipulateAsync } from 'expo-image-manipulator'
 import * as Crypto from 'expo-crypto'
 import { CameraOff, Sparkles } from 'lucide-react-native'
 import { ListingTier, TIER_FEATURES, TIER_PHOTO_COUNT, TIER_PRICING } from '@flipsync/core'
 import { useAnalysisQueue } from '../../src/store/listing.store'
+import { dev } from '../../src/dev-session/recorder'
 import { font, formatEur, line, motion, radius, space, theme } from '../../src/theme'
 import { Button } from '../../src/ui/Button'
 import { EmptyState } from '../../src/ui/EmptyState'
@@ -27,6 +29,12 @@ const MAX_PHOTOS = 6
 /** Largeur de capture : qualité conservée pour l'annonce publiée (~150-300 Ko/photo). */
 const CAPTURE_WIDTH = 768
 
+// Décalages relatifs au sommet de topOverlay / au bas de controls (safe-area déjà
+// ajoutée séparément) — évite le chevauchement avec la jauge, les formules et le
+// déclencheur, quelle que soit la hauteur de l'encoche/barre de gestes du device.
+const BANNER_TOP_OFFSET = space[8] + space[8] + space[6] - space[3]
+const THUMB_ROW_OFFSET = space[8] + space[8] + space[5] - space[4]
+
 interface CapturedPhoto {
   uri: string // jpeg redimensionné (thumbnail + upload futur)
   base64: string // payload envoyé au serveur pour la rédaction
@@ -36,6 +44,7 @@ interface CapturedPhoto {
 /** Onglet Vendre — caméra active tant que l'onglet a le focus. */
 export default function VendreScreen() {
   const router = useRouter()
+  const insets = useSafeAreaInsets()
   const camera = useRef<Camera>(null)
   const isFocused = useIsFocused()
   const device = useCameraDevice('back')
@@ -91,6 +100,7 @@ export default function VendreScreen() {
         resized.base64,
       )
       setPhotos(prev => [...prev, { uri: resized.uri, base64: resized.base64 ?? '', sha256 }])
+      dev.track('photo_added')
     } catch {
       // Caméra fermée/restreinte par l'OS (politique appareil, permission
       // révoquée en cours de session) — jamais laisser la rejection remonter.
@@ -120,6 +130,7 @@ export default function VendreScreen() {
    */
   const startAnalysis = useCallback(() => {
     if (photos.length < requiredPhotos) return
+    dev.track('create_listing_started')
     useAnalysisQueue.getState().enqueue(photos, tier)
     setPhotos([]) // objet suivant = capture vierge ; le job garde ces photos.
     router.push('/processing')
@@ -167,7 +178,7 @@ export default function VendreScreen() {
       {/* Flash de capture — voile blanc bref au-dessus du viseur. */}
       <Animated.View pointerEvents="none" style={[styles.flash, { opacity: flash }]} />
 
-      <View style={styles.topOverlay}>
+      <View style={[styles.topOverlay, { top: insets.top + space[3] }]}>
         {/* Jauge signature : l'IA "se nourrit" des photos — segments dorés remplis. */}
         <View style={styles.progressWrap} accessibilityLiveRegion="polite">
           <View style={styles.progressRow}>
@@ -225,13 +236,13 @@ export default function VendreScreen() {
 
       {/* Bandeau de photos réordonnable (glisser) + suppression (croix). */}
       {photos.length > 0 && (
-        <View style={styles.thumbRow}>
+        <View style={[styles.thumbRow, { bottom: insets.bottom + space[4] + THUMB_ROW_OFFSET }]}>
           <PhotoTray photos={photos} onReorder={reorderPhotos} onRemove={removePhoto} />
         </View>
       )}
 
       {/* Commandes bas d'écran — déclencheur centré (à la Instagram), CTA à gauche. */}
-      <View style={styles.controls}>
+      <View style={[styles.controls, { bottom: insets.bottom + space[4] }]}>
         <View style={styles.controlsSide}>
           <Button
             label={
@@ -266,7 +277,7 @@ export default function VendreScreen() {
       {/* Caméra coupée par l'OS en cours de session (politique appareil, permission révoquée). */}
       {cameraError && (
         <View
-          style={[styles.banner, styles.bannerError]}
+          style={[styles.banner, { top: insets.top + space[3] + BANNER_TOP_OFFSET }, styles.bannerError]}
           accessibilityRole="alert"
           accessibilityLiveRegion="polite"
         >
@@ -288,7 +299,7 @@ const styles = StyleSheet.create({
 
   topOverlay: {
     position: 'absolute',
-    top: space[7],
+    // top fourni en inline (safe-area insets.top, cf. rendu).
     left: space[4],
     right: space[4],
     gap: space[2],
@@ -335,8 +346,7 @@ const styles = StyleSheet.create({
 
   banner: {
     position: 'absolute',
-    // Sous topOverlay (jauge + formules) — plus haut qu'avant pour ne pas chevaucher.
-    top: space[8] + space[8] + space[6],
+    // top fourni en inline (safe-area insets.top + BANNER_TOP_OFFSET).
     left: space[4],
     right: space[4],
     backgroundColor: theme.scrim,
@@ -348,15 +358,15 @@ const styles = StyleSheet.create({
 
   thumbRow: {
     position: 'absolute',
-    bottom: space[8] + space[8] + space[5],
+    // bottom fourni en inline (safe-area insets.bottom + THUMB_ROW_OFFSET).
     left: space[4],
     right: space[4],
   },
 
   controls: {
-    // 48 en bas : dégage la barre de gestes système (safe-area, cible primaire).
+    // bottom fourni en inline (safe-area insets.bottom) : dégage la barre de
+    // gestes système quelle que soit sa hauteur réelle sur le device.
     position: 'absolute',
-    bottom: space[7],
     left: 0,
     right: 0,
     flexDirection: 'row',

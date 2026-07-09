@@ -1,8 +1,13 @@
 import { useEffect } from 'react'
-import { Stack } from 'expo-router'
+import { Stack, usePathname } from 'expo-router'
 import * as FileSystem from 'expo-file-system'
+import { StatusBar } from 'expo-status-bar'
+import { SafeAreaProvider } from 'react-native-safe-area-context'
+import { initDevSession, trackNavigation } from '../src/dev-session/recorder'
 
 export default function RootLayout() {
+  const pathname = usePathname()
+
   useEffect(() => {
     // Pivot IA serveur : plus aucun modèle embarqué. On efface les GGUF
     // téléchargés par les anciennes versions (~1,8 Go) pour rendre l'espace.
@@ -13,5 +18,17 @@ export default function RootLayout() {
     })
   }, [])
 
-  return <Stack screenOptions={{ headerShown: false }} />
+  // Developer Control Center — capture auto en dev (cf. src/dev-session/recorder.ts).
+  useEffect(() => initDevSession(), [])
+  useEffect(() => {
+    trackNavigation(pathname)
+  }, [pathname])
+
+  return (
+    <SafeAreaProvider>
+      {/* Fond papier clair partout → contenu de la barre système en sombre. */}
+      <StatusBar style="dark" />
+      <Stack screenOptions={{ headerShown: false }} />
+    </SafeAreaProvider>
+  )
 }

@@ -65,18 +65,9 @@ export default function WalletScreen() {
   const w = wallet.data
 
   return (
-    <ScrollView
-      style={styles.screen}
-      contentContainerStyle={styles.content}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={refreshAll}
-          tintColor={theme.goldDark}
-          colors={[theme.goldDark]}
-        />
-      }
-    >
+    <View style={styles.screen}>
+      {/* Fixe au-dessus du scroll (cohérent avec Home) : ne défile jamais sous
+          la barre système. */}
       <ScreenHeader
         title="Ma cagnotte"
         right={
@@ -91,7 +82,17 @@ export default function WalletScreen() {
           </Pressable>
         }
       />
-
+      <ScrollView
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={refreshAll}
+            tintColor={theme.goldDark}
+            colors={[theme.goldDark]}
+          />
+        }
+      >
       {error !== null && (
         <View style={styles.bannerWrap}>
           <ErrorBanner
@@ -127,32 +128,6 @@ export default function WalletScreen() {
         </View>
       )}
 
-      {/* Auto-recharge — réglage serveur (WalletService.authorize, étape 3).
-          Lecture seule : aucun endpoint de modification pour l'instant. */}
-      {w !== null && (
-        <Card style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <View style={styles.sectionTitleBlock}>
-              <Text style={styles.sectionTitle}>Recharge automatique</Text>
-              <Text style={styles.sectionHint}>
-                {w.autoRechargeEnabled
-                  ? `Sous ${formatEur(w.autoRechargeThreshold)}, recharge de ${formatEur(w.autoRechargeAmount)} déclenchée à la prochaine annonce.`
-                  : 'Désactivée — modifiable bientôt depuis l’app.'}
-              </Text>
-            </View>
-            <Switch
-              accessibilityRole="switch"
-              accessibilityLabel="Recharge automatique (réglage en lecture seule)"
-              accessibilityState={{ checked: w.autoRechargeEnabled, disabled: true }}
-              value={w.autoRechargeEnabled}
-              disabled
-              trackColor={{ false: theme.border, true: theme.gold }}
-              thumbColor={theme.card}
-            />
-          </View>
-        </Card>
-      )}
-
       {/* Historique — montants signés, sémantique par type de transaction. */}
       <Card style={styles.section}>
         <Text style={styles.sectionTitle}>Historique</Text>
@@ -174,7 +149,30 @@ export default function WalletScreen() {
         )}
       </Card>
 
-    </ScrollView>
+      {/* Auto-recharge — réglage serveur (WalletService.authorize, étape 3), lecture
+          seule (aucun endpoint de modification). Volontairement discrète : c'est un
+          réglage de fond, pas une information que l'utilisateur vient chercher ici. */}
+      {w !== null && (
+        <View style={styles.autoRow}>
+          <Text style={styles.autoLabel} numberOfLines={2}>
+            Recharge automatique —{' '}
+            {w.autoRechargeEnabled
+              ? `sous ${formatEur(w.autoRechargeThreshold)}, +${formatEur(w.autoRechargeAmount)}`
+              : 'désactivée'}
+          </Text>
+          <Switch
+            accessibilityRole="switch"
+            accessibilityLabel="Recharge automatique (réglage en lecture seule)"
+            accessibilityState={{ checked: w.autoRechargeEnabled, disabled: true }}
+            value={w.autoRechargeEnabled}
+            disabled
+            trackColor={{ false: theme.border, true: theme.gold }}
+            thumbColor={theme.card}
+          />
+        </View>
+      )}
+      </ScrollView>
+    </View>
   )
 }
 
@@ -202,11 +200,19 @@ const styles = StyleSheet.create({
   balanceMuted: { color: theme.onDarkMuted, fontSize: font.caption, flexShrink: 1 },
 
   section: { marginHorizontal: space[4], marginTop: space[4], gap: space[3] },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: space[3] },
-  sectionTitleBlock: { flex: 1, gap: space[1] },
   // Titre de section un cran au-dessus du contenu (hiérarchie taille + poids).
   sectionTitle: { fontSize: font.lead, fontWeight: '700', color: theme.ink },
-  sectionHint: { fontSize: font.caption, lineHeight: line.caption, color: theme.muted },
+
+  // Réglage secondaire (lecture seule) : une ligne discrète, jamais une Card
+  // pleine — ne doit pas rivaliser visuellement avec le solde ou l'historique.
+  autoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space[3],
+    marginHorizontal: space[4],
+    marginTop: space[5],
+  },
+  autoLabel: { flex: 1, fontSize: font.caption, lineHeight: line.caption, color: theme.muted },
 
   avatarPressed: { opacity: 0.7 },
   txSkeletons: { gap: space[2] },

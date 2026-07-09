@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { Redirect, useLocalSearchParams, useRouter } from 'expo-router'
-import { ArrowLeft } from 'lucide-react-native'
 import { ItemCondition, centsToEur, eurToCents, isPriceFlagged } from '@flipsync/core'
 import { ApiError, ApiListing, api } from '../src/services/api'
 import { PriceFlagAlert } from '../src/components/PriceFlagAlert'
@@ -10,6 +9,7 @@ import { Button } from '../src/ui/Button'
 import { Field } from '../src/ui/Field'
 import { ErrorBanner } from '../src/ui/ErrorBanner'
 import { Skeleton } from '../src/ui/Skeleton'
+import { StackHeader } from '../src/ui/StackHeader'
 
 const CONDITIONS: readonly { value: ItemCondition; label: string }[] = [
   { value: ItemCondition.neuf, label: 'Neuf' },
@@ -47,18 +47,7 @@ export default function ListingEditScreen() {
 
   return (
     <View style={styles.screen}>
-      <View style={styles.header}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Retour"
-          onPress={() => router.back()}
-          hitSlop={space[2]}
-          style={styles.back}
-        >
-          <ArrowLeft size={space[5]} color={theme.ink} />
-        </Pressable>
-        <Text style={styles.headerTitle}>Modifier l'annonce</Text>
-      </View>
+      <StackHeader title="Modifier l'annonce" />
 
       {loadError !== null ? (
         <View style={styles.center}>
@@ -235,16 +224,6 @@ function EditForm({ listing, goBack }: { listing: ApiListing; goBack: () => void
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: theme.paper },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space[3],
-    paddingHorizontal: space[5],
-    paddingTop: space[7],
-    paddingBottom: space[3],
-  },
-  back: { minWidth: MIN_TOUCH, minHeight: MIN_TOUCH, justifyContent: 'center' },
-  headerTitle: { fontSize: font.heading, lineHeight: line.heading, fontWeight: '700', color: theme.ink },
 
   center: { flex: 1, padding: space[5] },
   loading: { padding: space[5], gap: space[3] },

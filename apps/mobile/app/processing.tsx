@@ -3,14 +3,13 @@ import {
   Animated,
   Easing,
   Image,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native'
 import { Redirect, useRouter } from 'expo-router'
-import { AlertTriangle, ArrowLeft, Camera, Check, Sparkles } from 'lucide-react-native'
+import { AlertTriangle, Camera, Check, Sparkles } from 'lucide-react-native'
 import { api } from '../src/services/api'
 import {
   AnalysisJob,
@@ -18,9 +17,10 @@ import {
   useListingSession,
   usePendingPublish,
 } from '../src/store/listing.store'
-import { MIN_TOUCH, font, line, motion, radius, shadow, space, theme } from '../src/theme'
+import { font, line, motion, radius, shadow, space, theme } from '../src/theme'
 import { Button } from '../src/ui/Button'
 import { FadeInUp } from '../src/ui/FadeInUp'
+import { StackHeader } from '../src/ui/StackHeader'
 
 /** Messages humains pour les échecs de rédaction (jamais de code brut à l'écran). */
 const ERROR_MESSAGES: Readonly<Record<string, string>> = {
@@ -28,6 +28,7 @@ const ERROR_MESSAGES: Readonly<Record<string, string>> = {
   TIMEOUT: 'La rédaction a pris trop de temps — réessayez.',
   NO_AUTH_TOKEN: 'Session expirée — reconnectez-vous.',
   NO_PHOTO: 'Aucune photo à analyser.',
+  AI_JOB_STALE: 'La rédaction a expiré côté serveur (redémarrage pendant l’analyse) — réessayez.',
 }
 const ERROR_FALLBACK = 'La rédaction n’a pas abouti — rien n’est débité, réessayez.'
 
@@ -48,18 +49,7 @@ export default function ProcessingScreen() {
 
   return (
     <View style={styles.screen}>
-      <View style={styles.header}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Retour"
-          onPress={() => router.replace('/(tabs)')}
-          hitSlop={space[2]}
-          style={styles.back}
-        >
-          <ArrowLeft size={space[5]} color={theme.ink} />
-        </Pressable>
-        <Text style={styles.headerTitle}>Rédactions en cours</Text>
-      </View>
+      <StackHeader title="Rédactions en cours" onBack={() => router.replace('/(tabs)')} />
 
       <ScrollView contentContainerStyle={styles.content}>
         {running.length > 0 && <RunningCard count={running.length} />}
@@ -227,16 +217,6 @@ function FailedCard({ job }: { job: AnalysisJob }) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: theme.paper },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space[3],
-    paddingHorizontal: space[5],
-    paddingTop: space[7],
-    paddingBottom: space[3],
-  },
-  back: { minWidth: MIN_TOUCH, minHeight: MIN_TOUCH, justifyContent: 'center' },
-  headerTitle: { fontSize: font.title, lineHeight: line.title, fontWeight: '700', color: theme.ink },
 
   content: { padding: space[5], paddingTop: space[3], gap: space[4] },
 

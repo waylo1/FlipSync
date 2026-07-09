@@ -1,18 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
-import {
-  Dimensions,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native'
+import { Dimensions, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { Redirect, useLocalSearchParams, useRouter } from 'expo-router'
-import { AlertTriangle, ArrowLeft, Pencil, RotateCcw } from 'lucide-react-native'
+import { AlertTriangle, Pencil, RotateCcw } from 'lucide-react-native'
 import { ItemCondition, ListingStatus } from '@flipsync/core'
 import { API_BASE, ApiError, ApiListing, api } from '../src/services/api'
 import { LISTING_EDITABLE_STATUSES } from '../src/store/listing.store'
-import { MIN_TOUCH, font, formatEur, line, radius, space, theme } from '../src/theme'
+import { font, formatEur, line, radius, space, theme } from '../src/theme'
 import { AuthImage } from '../src/components/AuthImage'
 import { StatusBadge } from '../src/components/StatusBadge'
 import { PipelineRail } from '../src/components/PipelineRail'
@@ -21,6 +14,7 @@ import { Badge } from '../src/ui/Badge'
 import { Button } from '../src/ui/Button'
 import { ErrorBanner } from '../src/ui/ErrorBanner'
 import { Skeleton } from '../src/ui/Skeleton'
+import { StackHeader } from '../src/ui/StackHeader'
 
 const CONDITION_LABELS: Readonly<Record<ItemCondition, string>> = {
   [ItemCondition.neuf]: 'Neuf',
@@ -65,20 +59,7 @@ export default function ListingViewScreen() {
 
   return (
     <View style={styles.screen}>
-      <View style={styles.header}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Retour"
-          onPress={() => router.back()}
-          hitSlop={space[2]}
-          style={styles.back}
-        >
-          <ArrowLeft size={space[5]} color={theme.ink} />
-        </Pressable>
-        <Text style={styles.headerTitle} numberOfLines={1}>
-          {listing?.titre ?? 'Annonce'}
-        </Text>
-      </View>
+      <StackHeader title={listing?.titre ?? 'Annonce'} />
 
       {loadError !== null ? (
         <View style={styles.center}>
@@ -215,16 +196,6 @@ function MetaCell({ label, value }: { label: string; value: string }) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: theme.paper },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space[3],
-    paddingHorizontal: space[5],
-    paddingTop: space[7],
-    paddingBottom: space[3],
-  },
-  back: { minWidth: MIN_TOUCH, minHeight: MIN_TOUCH, justifyContent: 'center' },
-  headerTitle: { flex: 1, fontSize: font.title, lineHeight: line.title, fontWeight: '700', color: theme.ink },
 
   center: { flex: 1, padding: space[5] },
   loading: { padding: space[5], gap: space[3] },

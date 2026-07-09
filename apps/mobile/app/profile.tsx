@@ -1,11 +1,13 @@
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { ScrollView, StyleSheet, Text, View } from 'react-native'
 import { useRouter } from 'expo-router'
-import { ArrowLeft, Bell, CircleHelp, LogOut, RefreshCcw } from 'lucide-react-native'
+import { Bell, CircleHelp, LogOut, RefreshCcw } from 'lucide-react-native'
 import { useAuthStore } from '../src/store/auth.store'
+import { dev } from '../src/dev-session/recorder'
 import { font, line, radius, space, theme } from '../src/theme'
 import { Avatar } from '../src/ui/Avatar'
 import { Button } from '../src/ui/Button'
 import { Card } from '../src/ui/Card'
+import { StackHeader } from '../src/ui/StackHeader'
 
 /** Ligne de réglage — placeholder tant que la fonctionnalité n'est pas branchée. */
 function SettingRow({ icon, label }: { icon: React.ReactNode; label: string }) {
@@ -24,87 +26,55 @@ export default function ProfileScreen() {
   const setToken = useAuthStore(s => s.setToken)
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      {/* Retour + titre — écran poussé au-dessus des tabs. */}
-      <View style={styles.header}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Retour"
-          onPress={() => router.back()}
-          hitSlop={space[2]}
-          style={({ pressed }) => [styles.back, pressed && styles.pressed]}
-        >
-          <ArrowLeft size={font.title} color={theme.ink} />
-        </Pressable>
-        <Text accessibilityRole="header" style={styles.heading}>
-          Mon profil
-        </Text>
-      </View>
+    <View style={styles.screen}>
+      <StackHeader title="Mon profil" />
+      <ScrollView style={styles.content} contentContainerStyle={styles.contentInner}>
+        {/* Identité du compte. */}
+        <View style={styles.identity}>
+          <Avatar email={email} size={72} />
+          <Text style={styles.email} numberOfLines={1}>
+            {email ?? 'Compte connecté'}
+          </Text>
+        </View>
 
-      {/* Identité du compte. */}
-      <View style={styles.identity}>
-        <Avatar email={email} size={72} />
-        <Text style={styles.email} numberOfLines={1}>
-          {email ?? 'Compte connecté'}
-        </Text>
-      </View>
+        {/* Réglages — placeholders honnêtes tant que rien n'est branché. */}
+        <Card style={styles.section}>
+          <Text style={styles.sectionTitle}>Paramètres</Text>
+          <SettingRow
+            icon={<Bell size={font.lead} color={theme.goldDark} />}
+            label="Notifications"
+          />
+          <SettingRow
+            icon={<RefreshCcw size={font.lead} color={theme.goldDark} />}
+            label="Recharge automatique"
+          />
+          <SettingRow
+            icon={<CircleHelp size={font.lead} color={theme.goldDark} />}
+            label="Aide et contact"
+          />
+        </Card>
 
-      {/* Réglages — placeholders honnêtes tant que rien n'est branché. */}
-      <Card style={styles.section}>
-        <Text style={styles.sectionTitle}>Paramètres</Text>
-        <SettingRow
-          icon={<Bell size={font.lead} color={theme.goldDark} />}
-          label="Notifications"
+        {/* Déconnexion : purge du JWT (MMKV) → la garde (tabs) renvoie au login. */}
+        <Button
+          label="Se déconnecter"
+          variant="ghost"
+          icon={<LogOut size={font.lead} color={theme.ink} />}
+          onPress={() => {
+            dev.track('logout')
+            setToken(null)
+            router.replace('/login')
+          }}
+          style={styles.logout}
         />
-        <SettingRow
-          icon={<RefreshCcw size={font.lead} color={theme.goldDark} />}
-          label="Recharge automatique"
-        />
-        <SettingRow
-          icon={<CircleHelp size={font.lead} color={theme.goldDark} />}
-          label="Aide et contact"
-        />
-      </Card>
-
-      {/* Déconnexion : purge du JWT (MMKV) → la garde (tabs) renvoie au login. */}
-      <Button
-        label="Se déconnecter"
-        variant="ghost"
-        icon={<LogOut size={font.lead} color={theme.ink} />}
-        onPress={() => {
-          setToken(null)
-          router.replace('/login')
-        }}
-        style={styles.logout}
-      />
-    </ScrollView>
+      </ScrollView>
+    </View>
   )
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: theme.paper },
-  content: { paddingBottom: space[7] },
-
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space[3],
-    paddingTop: space[8],
-    paddingHorizontal: space[5],
-    paddingBottom: space[3],
-  },
-  back: {
-    width: space[6] + space[2],
-    height: space[6] + space[2],
-    borderRadius: radius.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: theme.card,
-    borderWidth: 1,
-    borderColor: theme.border,
-  },
-  pressed: { opacity: 0.7 },
-  heading: { fontSize: font.heading, fontWeight: '800', color: theme.ink },
+  content: { flex: 1 },
+  contentInner: { paddingBottom: space[7] },
 
   identity: { alignItems: 'center', gap: space[3], marginTop: space[4] },
   email: {

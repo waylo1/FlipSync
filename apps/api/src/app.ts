@@ -5,6 +5,7 @@ import fastifyStatic from '@fastify/static'
 import authPlugin from './plugins/auth'
 import servicesPlugin from './plugins/services'
 import errorHandlerPlugin from './plugins/error-handler'
+import metricsPlugin from './plugins/metrics'
 import walletRoutes from './routes/wallet'
 import listingRoutes, { UPLOAD_DIR } from './routes/listing'
 import stripeRoutes from './routes/stripe'
@@ -37,6 +38,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(authPlugin)
   await app.register(servicesPlugin)
   await app.register(errorHandlerPlugin)
+  await app.register(metricsPlugin)
 
   // /health — seule route publique sans vérification (pas de JWT).
   app.get('/health', async () => ({ status: 'ok', ts: new Date().toISOString() }))

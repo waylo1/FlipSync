@@ -1,7 +1,7 @@
 import { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
 import { prisma, ListingStatus, TransactionType } from '@flipsync/db'
 import { Marketplace } from '@flipsync/marketplace'
-import type { AdminOverview, ConnectorState, SystemHealth } from '@flipsync/core'
+import type { AdminOverview, ConnectorState, SystemHealth, SystemMetrics } from '@flipsync/core'
 import { checkHealth } from '../services/health.service'
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -106,6 +106,9 @@ const adminRoutes: FastifyPluginAsync = async app => {
    * Aucun statut supposé : chaque service est mesuré au moment de l'appel.
    */
   app.get('/health', async (): Promise<SystemHealth> => checkHealth(prisma))
+
+  /** Métriques process réelles (CPU/RAM/uptime/trafic) — cf. plugins/metrics.ts. */
+  app.get('/metrics', async (): Promise<SystemMetrics> => app.metrics.snapshot())
 }
 
 export default adminRoutes

@@ -37,3 +37,28 @@ export interface SystemHealth {
   score: number
   services: ServiceHealth[]
 }
+
+/**
+ * Contrat GET /admin/metrics — mesures RÉELLES du process Node (pas de simulation).
+ * Trafic agrégé depuis le démarrage du process (reset au redémarrage — acceptable,
+ * pas d'historique persistant en V1).
+ */
+export interface SystemMetrics {
+  ts: string
+  uptimeSec: number
+  version: string
+  process: {
+    /** % d'usage CPU du process sur la fenêtre de mesure (0-100, peut dépasser 100 en multi-cœur). */
+    cpuPercent: number
+    memoryUsedMb: number
+    memoryTotalMb: number
+  }
+  traffic: {
+    requestCount: number
+    errorCount: number
+    /** Requêtes/min glissantes (fenêtre 60s). */
+    requestsPerMinute: number
+    p50LatencyMs: number
+    p95LatencyMs: number
+  }
+}

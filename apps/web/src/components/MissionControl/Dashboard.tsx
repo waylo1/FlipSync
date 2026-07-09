@@ -4,6 +4,7 @@ import { AgentCard, type AgentCardProps, type AgentStatus as CardStatus } from "
 import { SystemHealthBar } from "./SystemHealthBar";
 import { KpiStrip } from "./KpiStrip";
 import { HealthScore } from "./HealthScore";
+import { DeveloperActions } from "./DeveloperActions";
 import { useMissionControlStore, type Agent, type AgentStatus } from "../../store/useMissionControlStore";
 
 const LOG_LEVEL_STYLE = {
@@ -47,6 +48,7 @@ export function Dashboard() {
   const overview = useMissionControlStore((state) => state.overview);
   const health = useMissionControlStore((state) => state.health);
   const metrics = useMissionControlStore((state) => state.metrics);
+  const devActions = useMissionControlStore((state) => state.devActions);
   const loading = useMissionControlStore((state) => state.loading);
   const error = useMissionControlStore((state) => state.error);
   const fetchAgents = useMissionControlStore((state) => state.fetchAgents);
@@ -105,12 +107,12 @@ export function Dashboard() {
 
       <div className="flex items-center justify-between gap-4">
         {health && metrics ? <HealthScore health={health} metrics={metrics} /> : null}
-        {health ? (
-          <SystemHealthBar services={health.services} onActionDone={() => void fetchAgents(false)} />
-        ) : null}
+        {health ? <SystemHealthBar services={health.services} /> : null}
       </div>
 
       {metrics ? <KpiStrip metrics={metrics} /> : null}
+
+      {devActions ? <DeveloperActions state={devActions} onActionDone={() => void fetchAgents(false)} /> : null}
 
       {error ? (
         <p className="rounded-lg border border-alert/40 bg-alert/10 px-3 py-2 font-mono text-[11px] text-alert" role="alert">

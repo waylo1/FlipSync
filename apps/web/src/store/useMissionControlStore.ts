@@ -1,5 +1,12 @@
 import { create } from "zustand";
-import { api, ApiError, type AdminOverview, type SystemHealth, type SystemMetrics } from "../services/api";
+import {
+  api,
+  ApiError,
+  type AdminOverview,
+  type DevActionsState,
+  type SystemHealth,
+  type SystemMetrics,
+} from "../services/api";
 
 export type AgentStatus = "NOMINAL" | "WATCH" | "ALERT";
 
@@ -212,6 +219,7 @@ interface MissionControlState {
   overview: AdminOverview | null;
   health: SystemHealth | null;
   metrics: SystemMetrics | null;
+  devActions: DevActionsState | null;
   agents: Agent[];
   logs: SystemLog[];
   alerts: AlertP1[];
@@ -231,6 +239,7 @@ export const useMissionControlStore = create<MissionControlState>()((set, get) =
   overview: null,
   health: null,
   metrics: null,
+  devActions: null,
   agents: [],
   logs: [],
   alerts: [],
@@ -240,15 +249,17 @@ export const useMissionControlStore = create<MissionControlState>()((set, get) =
   fetchAgents: async (silent = false) => {
     if (!silent) set({ loading: true, error: null });
     try {
-      const [overview, health, metrics] = await Promise.all([
+      const [overview, health, metrics, devActions] = await Promise.all([
         api.getOverview(),
         api.getHealth(),
         api.getMetrics(),
+        api.getDevActionsStatus(),
       ]);
       set({
         overview,
         health,
         metrics,
+        devActions,
         agents: buildAgents(overview),
         logs: buildLogs(overview),
         alerts: buildAlerts(overview),

@@ -2,7 +2,7 @@
  * Client HTTP → API Fastify FlipSync, scope /admin uniquement (console interne).
  * Toutes les valeurs monétaires transitent en CENTIMES (Int) — cf. CLAUDE.md.
  */
-import type { AdminOverview, ServiceRestartResult, SystemHealth, SystemMetrics } from '@flipsync/core'
+import type { AdminOverview, DevActionsState, RestartOllamaResult, SystemHealth, SystemMetrics, TunnelActionResult } from '@flipsync/core'
 
 export const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:3001";
 
@@ -44,7 +44,12 @@ async function request<T>(path: string): Promise<T> {
   return (await res.json()) as T;
 }
 
-async function post<T>(path: string): Promise<T> {
+/**
+ * Variant pour les routes /admin/actions/* : le corps (ok/detail/tunnel) est
+ * significatif même en 403/502 — pas de throw sur !res.ok, seulement sur
+ * l'absence de token ou une réponse non-JSON (panne réseau réelle).
+ */
+async function postAction<T>(path: string): Promise<T> {
   if (!ADMIN_TOKEN) throw new ApiError("NO_AUTH_TOKEN", 401);
 
   const res = await fetch(`${API_BASE}${path}`, {
@@ -52,37 +57,33 @@ async function post<T>(path: string): Promise<T> {
     headers: { authorization: `Bearer ${ADMIN_TOKEN}` },
   });
 
-  let body: unknown;
   try {
-    body = await res.json();
+    return (await res.json()) as T;
   } catch {
-    body = null;
+    throw new ApiError("INTERNAL_ERROR", res.status);
   }
-
-  if (!res.ok) {
-    const code =
-      body && typeof (body as { error?: unknown }).error === "string"
-        ? (body as { error: string }).error
-        : "INTERNAL_ERROR";
-    throw new ApiError(code, res.status);
-  }
-
-  return body as T;
 }
 
 export type {
   AdminOverview,
   ConnectorState,
+  DevActionsState,
+  OllamaStatus,
+  RestartOllamaResult,
   ServiceHealth,
-  ServiceRestartResult,
   ServiceStatus,
   SystemHealth,
   SystemMetrics,
+  TunnelActionResult,
+  TunnelStatus,
 } from "@flipsync/core";
 
 export const api = {
   getOverview: () => request<AdminOverview>("/admin/overview"),
   getHealth: () => request<SystemHealth>("/admin/health"),
   getMetrics: () => request<SystemMetrics>("/admin/metrics"),
-  restartOllama: () => post<ServiceRestartResult>("/admin/services/ollama/restart"),
+  getDevActionsStatus: () => request<DevActionsState>("/admin/actions/status"),
+  restartOllama: () => postAction<RestartOllamaResult>("/admin/actions/restart-ollama"),
+  startTunnel: () => postAction<TunnelActionResult>("/admin/actions/start-tunnel"),
+  stopTunnel: () => postAction<TunnelActionResult>("/admin/actions/stop-tunnel"),
 };

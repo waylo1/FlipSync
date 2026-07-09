@@ -199,3 +199,40 @@ enum ItemCondition {
   bon
   correct
 }
+
+// ─── DEV SESSIONS (Developer Control Center) ───────────────────────────────────
+// Capacité générique de diagnostic dev — aucune FK vers User/Listing, réutilisable
+// telle quelle hors FlipSync. Jamais actif en production (cf. routes dev-sessions).
+
+enum DevEventType {
+  navigation
+  action
+  api_call
+  error
+  console
+  device_info
+}
+
+model DevSession {
+  id        String    @id @default(cuid())
+  startedAt DateTime  @default(now())
+  endedAt   DateTime?
+  platform  String? // ex: "android", "ios"
+  appVersion String?
+
+  events DevEvent[]
+
+  @@index([startedAt])
+}
+
+model DevEvent {
+  id        String       @id @default(cuid())
+  sessionId String
+  type      DevEventType
+  ts        DateTime     @default(now())
+  payload   Json // forme dépend de `type` — cf. DevSessionEvent (packages/core)
+
+  session DevSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, ts])
+}

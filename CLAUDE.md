@@ -152,6 +152,14 @@ eas.json submit (Apple/Play).
 
 ## Gouvernance & standards
 
+> **Definition of Done — observabilité.** Aucune fonctionnalité importante n'est considérée
+> comme terminée tant qu'elle n'est pas observable depuis le dashboard admin, OU explicitement
+> justifiée comme ne nécessitant pas d'observabilité. Le dashboard fait partie du produit : il
+> évolue **en parallèle**, jamais après. À chaque fonctionnalité métier, répondre à 3 questions :
+> (1) quelle donnée produit-elle ? (2) quel événement journaliser ? (3) mérite-t-elle d'apparaître
+> au dashboard ? Non → ne rien afficher. Oui → instrumenter immédiatement. Toujours des données
+> **réelles**, jamais de métrique artificielle.
+
 > Détail complet : TECH_GOVERNANCE.md. Ici, uniquement les règles à appliquer par défaut.
 
 - **Types partagés** : ne jamais recopier un payload d'API côté front. Le contrat vit dans

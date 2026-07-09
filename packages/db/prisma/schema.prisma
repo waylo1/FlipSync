@@ -203,21 +203,17 @@ enum ItemCondition {
 // ─── DEV SESSIONS (Developer Control Center) ───────────────────────────────────
 // Capacité générique de diagnostic dev — aucune FK vers User/Listing, réutilisable
 // telle quelle hors FlipSync. Jamais actif en production (cf. routes dev-sessions).
-
-enum DevEventType {
-  navigation
-  action
-  api_call
-  error
-  console
-  device_info
-}
+//
+// `DevEvent.type` est volontairement un String libre (pas d'enum Prisma) : la
+// liste des types d'événements doit rester extensible sans migration (ajouter
+// "performance", "websocket", etc. = juste étendre le schéma Zod côté app).
+// L'intégrité est garantie à l'ingestion (Zod), pas au niveau DB.
 
 model DevSession {
-  id        String    @id @default(cuid())
-  startedAt DateTime  @default(now())
-  endedAt   DateTime?
-  platform  String? // ex: "android", "ios"
+  id         String    @id @default(cuid())
+  startedAt  DateTime  @default(now())
+  endedAt    DateTime?
+  platform   String? // ex: "android", "ios"
   appVersion String?
 
   events DevEvent[]
@@ -226,10 +222,10 @@ model DevSession {
 }
 
 model DevEvent {
-  id        String       @id @default(cuid())
+  id        String   @id @default(cuid())
   sessionId String
-  type      DevEventType
-  ts        DateTime     @default(now())
+  type      String // libre — cf. DEV_EVENT_TYPES (packages/core), pas d'enum DB
+  ts        DateTime @default(now())
   payload   Json // forme dépend de `type` — cf. DevSessionEvent (packages/core)
 
   session DevSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)

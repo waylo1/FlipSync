@@ -150,6 +150,28 @@ eas.json submit (Apple/Play).
 
 ---
 
+## Gouvernance & standards
+
+> Détail complet : TECH_GOVERNANCE.md. Ici, uniquement les règles à appliquer par défaut.
+
+- **Types partagés** : ne jamais recopier un payload d'API côté front. Le contrat vit dans
+  `packages/core` (types purs, zéro dépendance runtime), importé par `api` **et** `web`/`mobile`.
+- **Données UI** : une valeur affichée doit venir d'une mesure réelle. Interdit d'inventer une
+  métrique, une latence ou un état de service — y compris pour un dashboard interne.
+- **Composants web** : un composant = un fichier. `memo` sur les lignes de liste. Animations en
+  `motion-safe:`. `aria-label` + `focus-visible` sur l'interactif. `tabular-nums` sur les chiffres.
+- **Événements (observabilité)** : émettre aux points de transition réels (job IA, transitions
+  `ListingStatus`, publish, refus admin), `type` dans une enum figée, `meta` sans PII ni donnée
+  financière en clair.
+- **Tests** : tout nouvel endpoint `/admin/*` a un test `app.inject` (au moins 200 + forme du payload).
+- **Commits** : un commit par tâche atomique (`feat(scope): …`). Ne pas grouper plusieurs sujets.
+- **Console admin (`apps/web`)** : reste locale/dev tant qu'il n'y a pas de vrai login — le token
+  admin est inliné dans le bundle Vite, donc **non déployable publiquement** en l'état.
+- **ADR** : toute décision qui fige un contrat (schéma, API, événement) ou choisit une techno
+  structurante → un ADR dans `docs/adr/` (10 lignes max, cf. `ADR-000-template.md`).
+
+---
+
 ## Sprint 1 — État
 
 - [x] Monorepo Turborepo

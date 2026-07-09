@@ -1,6 +1,5 @@
 import { PrismaClient } from '@flipsync/db'
-import { spawn } from 'node:child_process'
-import type { ServiceHealth, ServiceRestartResult, ServiceStatus, SystemHealth } from '@flipsync/core'
+import type { ServiceHealth, ServiceStatus, SystemHealth } from '@flipsync/core'
 
 /**
  * Service de santé — chaque service est PINGÉ réellement (pas de statut supposé).
@@ -109,25 +108,6 @@ function computeOverall(services: ServiceHealth[]): ServiceStatus {
   if (byId.get('database')?.status === 'down') return 'down'
   if (systemServices.some(s => s.status === 'down' || s.status === 'warning')) return 'warning'
   return 'healthy'
-}
-
-/**
- * Relance Ollama en local (`ollama serve`, détaché — le process API ne l'attend pas).
- * Action volontairement limitée à Ollama : c'est le seul service ici qui tourne en
- * process local relançable. Stripe/PostgreSQL sont des services externes, pas de
- * bouton "restart" honnête possible pour eux.
- */
-export function restartInference(): ServiceRestartResult {
-  try {
-    const child = spawn('ollama', ['serve'], { detached: true, stdio: 'ignore' })
-    child.unref()
-    child.on('error', () => {
-      // process introuvable ou déjà lancé ailleurs — visible via le prochain ping health
-    })
-    return { started: true, detail: 'commande ollama serve envoyée' }
-  } catch {
-    return { started: false, detail: 'binaire ollama introuvable' }
-  }
 }
 
 /** Ping tous les services en parallèle et agrège overall + score. */

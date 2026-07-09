@@ -72,3 +72,38 @@ export interface ServiceRestartResult {
   started: boolean
   detail: string
 }
+
+/**
+ * Contrat GET /admin/actions/status — état des « Developer Actions », section
+ * réservée au dev local (jamais en production). `enabled` reflète NODE_ENV côté
+ * serveur ; le front doit masquer la section entière si `enabled` est faux.
+ */
+export interface DevActionsState {
+  enabled: boolean
+  ollama: OllamaStatus
+  tunnel: TunnelStatus
+}
+
+export interface OllamaStatus {
+  running: boolean
+  version: string | null
+  model: string
+}
+
+export interface TunnelStatus {
+  active: boolean
+  url: string | null
+}
+
+/** Contrat POST /admin/actions/restart-ollama. */
+export interface RestartOllamaResult {
+  ok: boolean
+  detail: string
+}
+
+/** Contrat POST /admin/actions/start-tunnel | stop-tunnel. */
+export interface TunnelActionResult {
+  ok: boolean
+  detail: string
+  tunnel: TunnelStatus
+}

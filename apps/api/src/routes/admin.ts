@@ -1,8 +1,23 @@
 import { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
 import { prisma, ListingStatus, TransactionType } from '@flipsync/db'
 import { Marketplace } from '@flipsync/marketplace'
-import type { AdminOverview, ConnectorState, ServiceRestartResult, SystemHealth, SystemMetrics } from '@flipsync/core'
-import { checkHealth, restartInference } from '../services/health.service'
+import type {
+  AdminOverview,
+  ConnectorState,
+  DevActionsState,
+  RestartOllamaResult,
+  SystemHealth,
+  SystemMetrics,
+  TunnelActionResult,
+} from '@flipsync/core'
+import { checkHealth } from '../services/health.service'
+import {
+  devActionsEnabled,
+  getDevActionsState,
+  restartOllama,
+  startTunnel,
+  stopTunnel,
+} from '../services/dev-actions.service'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -111,14 +126,39 @@ const adminRoutes: FastifyPluginAsync = async app => {
   app.get('/metrics', async (): Promise<SystemMetrics> => app.metrics.snapshot())
 
   /**
-   * Relance Ollama en local. Action volontairement limitée à ce seul service
-   * (process local relançable) — pas de bouton "restart" pour Stripe/PostgreSQL,
-   * services externes pour lesquels ça n'aurait pas de sens.
+   * Developer Actions — section réservée au dev local (jamais en production).
+   * Chaque route POST revérifie `devActionsEnabled()` elle-même (pas seulement au
+   * niveau du front) : un token admin volé ne doit pas pouvoir exécuter de commande
+   * shell sur une instance de production.
    */
-  app.post('/services/ollama/restart', async (_req, reply): Promise<ServiceRestartResult> => {
-    const result = restartInference()
-    if (!result.started) return reply.code(502).send(result)
+  app.get('/actions/status', async (): Promise<DevActionsState> => getDevActionsState())
+
+  app.post('/actions/restart-ollama', async (_req, reply): Promise<RestartOllamaResult> => {
+    if (!devActionsEnabled()) return reply.code(403).send({ ok: false, detail: 'DEV_ACTIONS_DISABLED' })
+    const result = restartOllama()
+    if (!result.ok) return reply.code(502).send(result)
     return result
+  })
+
+  app.post('/actions/start-tunnel', async (_req, reply): Promise<TunnelActionResult> => {
+    if (!devActionsEnabled()) {
+      return reply
+        .code(403)
+        .send({ ok: false, detail: 'DEV_ACTIONS_DISABLED', tunnel: { active: false, url: null } })
+    }
+    const port = Number(process.env.API_PORT ?? 3001)
+    const result = await startTunnel(port)
+    if (!result.ok) return reply.code(502).send(result)
+    return result
+  })
+
+  app.post('/actions/stop-tunnel', async (_req, reply): Promise<TunnelActionResult> => {
+    if (!devActionsEnabled()) {
+      return reply
+        .code(403)
+        .send({ ok: false, detail: 'DEV_ACTIONS_DISABLED', tunnel: { active: false, url: null } })
+    }
+    return stopTunnel()
   })
 }
 

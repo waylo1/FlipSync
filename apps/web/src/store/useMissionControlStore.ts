@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { api, ApiError, type AdminOverview } from "../services/api";
+import { api, ApiError, type AdminOverview, type SystemHealth, type SystemMetrics } from "../services/api";
 
 export type AgentStatus = "NOMINAL" | "WATCH" | "ALERT";
 
@@ -210,6 +210,8 @@ export const DEFAULT_POLL_INTERVAL_MS = 15_000;
 
 interface MissionControlState {
   overview: AdminOverview | null;
+  health: SystemHealth | null;
+  metrics: SystemMetrics | null;
   agents: Agent[];
   logs: SystemLog[];
   alerts: AlertP1[];
@@ -227,6 +229,8 @@ interface MissionControlState {
 
 export const useMissionControlStore = create<MissionControlState>()((set, get) => ({
   overview: null,
+  health: null,
+  metrics: null,
   agents: [],
   logs: [],
   alerts: [],
@@ -236,9 +240,15 @@ export const useMissionControlStore = create<MissionControlState>()((set, get) =
   fetchAgents: async (silent = false) => {
     if (!silent) set({ loading: true, error: null });
     try {
-      const overview = await api.getOverview();
+      const [overview, health, metrics] = await Promise.all([
+        api.getOverview(),
+        api.getHealth(),
+        api.getMetrics(),
+      ]);
       set({
         overview,
+        health,
+        metrics,
         agents: buildAgents(overview),
         logs: buildLogs(overview),
         alerts: buildAlerts(overview),

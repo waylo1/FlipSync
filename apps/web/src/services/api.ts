@@ -2,7 +2,7 @@
  * Client HTTP → API Fastify FlipSync, scope /admin uniquement (console interne).
  * Toutes les valeurs monétaires transitent en CENTIMES (Int) — cf. CLAUDE.md.
  */
-import type { AdminOverview } from '@flipsync/core'
+import type { AdminOverview, SystemHealth, SystemMetrics } from '@flipsync/core'
 
 export const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:3001";
 
@@ -44,8 +44,10 @@ async function request<T>(path: string): Promise<T> {
   return (await res.json()) as T;
 }
 
-export type { AdminOverview, ConnectorState } from "@flipsync/core";
+export type { AdminOverview, ConnectorState, SystemHealth, SystemMetrics } from "@flipsync/core";
 
 export const api = {
   getOverview: () => request<AdminOverview>("/admin/overview"),
+  getHealth: () => request<SystemHealth>("/admin/health"),
+  getMetrics: () => request<SystemMetrics>("/admin/metrics"),
 };

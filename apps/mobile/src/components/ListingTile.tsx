@@ -34,7 +34,7 @@ export function ListingTile({ item, index = 0 }: { item: ListingRow; index?: num
           </View>
         )}
         <View style={styles.badgeWrap}>
-          <Badge label={meta.label} fg={meta.fg} bg={meta.bg} />
+          <Badge label={meta.label} fg={meta.fg} bg={meta.bg} numberOfLines={1} />
         </View>
         {failed && (
           <View style={styles.alertWrap}>
@@ -74,7 +74,9 @@ const styles = StyleSheet.create({
   thumb: { width: '100%', height: '100%' },
   thumbFallback: { alignItems: 'center', justifyContent: 'center' },
   thumbLetter: { fontSize: font.display, fontWeight: '700', color: theme.goldDark },
-  badgeWrap: { position: 'absolute', top: space[2], left: space[2] },
+  // right : borne la largeur dispo pour que le libellé tronque (…) au lieu de
+  // déborder ou de forcer le badge sur 2 lignes (ex. « Annulée — rien n'est débité »).
+  badgeWrap: { position: 'absolute', top: space[2], left: space[2], right: space[2] + space[6] },
   alertWrap: {
     position: 'absolute',
     top: space[2],

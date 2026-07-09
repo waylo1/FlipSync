@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
+import { Dimensions, FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
 import { useRouter } from 'expo-router'
 import { Camera, Search } from 'lucide-react-native'
 import { ListingStatus } from '@flipsync/core'
@@ -54,6 +54,9 @@ const FILTERS: Readonly<Record<Filter, { label: string; statuses: readonly Listi
 const FILTER_ORDER: readonly Filter[] = ['TOUT', 'EN_LIGNE', 'A_VALIDER', 'EN_COURS', 'ANNULEES']
 
 const SKELETON_KEYS = ['s1', 's2', 's3', 's4'] as const
+// Même géométrie que la grille réelle (2 colonnes, gap space[3], tuile carrée)
+// pour qu'aucun saut de layout ne se produise au passage skeleton → données.
+const SKELETON_TILE_WIDTH = (Dimensions.get('window').width - space[4] * 2 - space[3]) / 2
 
 export default function HomeScreen() {
   const router = useRouter()
@@ -107,10 +110,10 @@ export default function HomeScreen() {
         <TextInput
           value={query}
           onChangeText={setQuery}
-          placeholder="Rechercher dans mes annonces"
+          placeholder="Rechercher une annonce"
           placeholderTextColor={theme.muted}
           style={styles.searchInput}
-          accessibilityLabel="Rechercher dans mes annonces"
+          accessibilityLabel="Rechercher une annonce"
           returnKeyType="search"
         />
         {/* Raccourci capture (pattern Vinted/eBay : caméra dans la barre de recherche). */}
@@ -139,11 +142,12 @@ export default function HomeScreen() {
               accessibilityRole="button"
               accessibilityState={{ selected: active }}
               onPress={() => setFilter(key)}
-              style={[styles.chip, active && styles.chipActive]}
             >
-              <Text style={[styles.chipText, active && styles.chipTextActive]}>
-                {FILTERS[key].label}
-              </Text>
+              <View style={[styles.chip, active && styles.chipActive]}>
+                <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                  {FILTERS[key].label}
+                </Text>
+              </View>
             </Pressable>
           )
         })}
@@ -166,7 +170,10 @@ export default function HomeScreen() {
       ) : loading && rows === null ? (
         <View style={styles.skeletonGrid}>
           {SKELETON_KEYS.map(k => (
-            <Skeleton key={k} height={space[8] + space[6]} round="lg" style={styles.skeletonTile} />
+            <View key={k} style={styles.skeletonTile}>
+              <Skeleton height={SKELETON_TILE_WIDTH} round="md" />
+              <Skeleton height={space[3]} width="70%" round="xs" style={styles.skeletonLine} />
+            </View>
           ))}
         </View>
       ) : (
@@ -221,7 +228,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: space[2],
     marginHorizontal: space[4],
-    marginBottom: space[3],
+    marginBottom: space[2],
     paddingHorizontal: space[4],
     height: space[7],
     borderRadius: radius.pill,
@@ -231,18 +238,24 @@ const styles = StyleSheet.create({
   },
   searchInput: { flex: 1, fontSize: font.body, color: theme.ink },
 
-  chipsScroll: { flexGrow: 0, marginBottom: space[3] },
-  chipsRow: { paddingHorizontal: space[4], gap: space[2] },
+  chipsScroll: { flexGrow: 0, marginBottom: space[2] },
+  chipsRow: { paddingHorizontal: space[4] },
+  // height + centrage plutôt que padding : padding sur ce Pressable répété
+  // corrompt le rendu du texte sur certains devices Android (glyphes tronqués)
+  // — bug de rendu isolé empiriquement. L'air horizontal vient donc d'une
+  // marginHorizontal sur le Text interne (une marge, jamais un padding).
   chip: {
-    paddingHorizontal: space[4],
-    paddingVertical: space[2],
+    marginRight: space[2],
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
     borderRadius: radius.pill,
     backgroundColor: theme.card,
     borderWidth: 1,
     borderColor: theme.border,
   },
   chipActive: { backgroundColor: theme.terracotta, borderColor: theme.terracotta },
-  chipText: { fontSize: font.caption, fontWeight: '600', color: theme.muted },
+  chipText: { fontSize: font.caption, fontWeight: '600', color: theme.muted, marginHorizontal: space[3] },
   chipTextActive: { color: theme.onDark },
 
   bannerWrap: { paddingHorizontal: space[4] },
@@ -255,5 +268,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: space[4],
     gap: space[3],
   },
-  skeletonTile: { width: '47%' },
+  skeletonTile: { width: SKELETON_TILE_WIDTH },
+  skeletonLine: { marginTop: space[2] },
 })

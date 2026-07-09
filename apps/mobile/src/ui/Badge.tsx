@@ -9,6 +9,8 @@ interface Props {
   bg: string
   /** Icône Lucide optionnelle (taille 12–14), avant le libellé. */
   icon?: ReactNode
+  /** Tronque avec ellipse au lieu de wrapper — utile en espace contraint (vignette). */
+  numberOfLines?: number
 }
 
 /**
@@ -16,7 +18,7 @@ interface Props {
  * Apparition en fondu + micro-zoom (0.9 → 1) : le statut « se pose » sur la
  * carte au lieu de clignoter. Reduced-motion : rendu direct.
  */
-export function Badge({ label, fg, bg, icon }: Props) {
+export function Badge({ label, fg, bg, icon, numberOfLines }: Props) {
   const reduced = useReducedMotion()
   const progress = useRef(new Animated.Value(reduced ? 1 : 0)).current
 
@@ -39,7 +41,9 @@ export function Badge({ label, fg, bg, icon }: Props) {
       style={[styles.pill, { backgroundColor: bg, opacity: progress, transform: [{ scale }] }]}
     >
       {icon}
-      <Text style={[styles.text, { color: fg }]}>{label}</Text>
+      <Text style={[styles.text, { color: fg }]} numberOfLines={numberOfLines}>
+        {label}
+      </Text>
     </Animated.View>
   )
 }
@@ -53,6 +57,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: space[3],
     paddingVertical: space[1],
     alignSelf: 'flex-start',
+    maxWidth: '100%',
   },
-  text: { fontSize: font.caption, fontWeight: '600' },
+  // flexShrink : quand numberOfLines borne la hauteur, le texte doit pouvoir
+  // rétrécir sous sa largeur naturelle (sinon il déborde le pill au lieu de tronquer).
+  text: { fontSize: font.caption, fontWeight: '600', flexShrink: 1 },
 })

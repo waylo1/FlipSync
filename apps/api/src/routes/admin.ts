@@ -1,8 +1,8 @@
 import { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
 import { prisma, ListingStatus, TransactionType } from '@flipsync/db'
 import { Marketplace } from '@flipsync/marketplace'
-import type { AdminOverview, ConnectorState, SystemHealth, SystemMetrics } from '@flipsync/core'
-import { checkHealth } from '../services/health.service'
+import type { AdminOverview, ConnectorState, ServiceRestartResult, SystemHealth, SystemMetrics } from '@flipsync/core'
+import { checkHealth, restartInference } from '../services/health.service'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -109,6 +109,17 @@ const adminRoutes: FastifyPluginAsync = async app => {
 
   /** Métriques process réelles (CPU/RAM/uptime/trafic) — cf. plugins/metrics.ts. */
   app.get('/metrics', async (): Promise<SystemMetrics> => app.metrics.snapshot())
+
+  /**
+   * Relance Ollama en local. Action volontairement limitée à ce seul service
+   * (process local relançable) — pas de bouton "restart" pour Stripe/PostgreSQL,
+   * services externes pour lesquels ça n'aurait pas de sens.
+   */
+  app.post('/services/ollama/restart', async (_req, reply): Promise<ServiceRestartResult> => {
+    const result = restartInference()
+    if (!result.started) return reply.code(502).send(result)
+    return result
+  })
 }
 
 export default adminRoutes

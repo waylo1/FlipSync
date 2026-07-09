@@ -2,7 +2,7 @@
  * Client HTTP → API Fastify FlipSync, scope /admin uniquement (console interne).
  * Toutes les valeurs monétaires transitent en CENTIMES (Int) — cf. CLAUDE.md.
  */
-import type { AdminOverview, SystemHealth, SystemMetrics } from '@flipsync/core'
+import type { AdminOverview, ServiceRestartResult, SystemHealth, SystemMetrics } from '@flipsync/core'
 
 export const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:3001";
 
@@ -44,10 +44,37 @@ async function request<T>(path: string): Promise<T> {
   return (await res.json()) as T;
 }
 
+async function post<T>(path: string): Promise<T> {
+  if (!ADMIN_TOKEN) throw new ApiError("NO_AUTH_TOKEN", 401);
+
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${ADMIN_TOKEN}` },
+  });
+
+  let body: unknown;
+  try {
+    body = await res.json();
+  } catch {
+    body = null;
+  }
+
+  if (!res.ok) {
+    const code =
+      body && typeof (body as { error?: unknown }).error === "string"
+        ? (body as { error: string }).error
+        : "INTERNAL_ERROR";
+    throw new ApiError(code, res.status);
+  }
+
+  return body as T;
+}
+
 export type {
   AdminOverview,
   ConnectorState,
   ServiceHealth,
+  ServiceRestartResult,
   ServiceStatus,
   SystemHealth,
   SystemMetrics,
@@ -57,4 +84,5 @@ export const api = {
   getOverview: () => request<AdminOverview>("/admin/overview"),
   getHealth: () => request<SystemHealth>("/admin/health"),
   getMetrics: () => request<SystemMetrics>("/admin/metrics"),
+  restartOllama: () => post<ServiceRestartResult>("/admin/services/ollama/restart"),
 };

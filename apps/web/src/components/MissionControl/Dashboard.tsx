@@ -105,7 +105,9 @@ export function Dashboard() {
 
       <div className="flex items-center justify-between gap-4">
         {health && metrics ? <HealthScore health={health} metrics={metrics} /> : null}
-        {health ? <SystemHealthBar services={health.services} /> : null}
+        {health ? (
+          <SystemHealthBar services={health.services} onActionDone={() => void fetchAgents(false)} />
+        ) : null}
       </div>
 
       {metrics ? <KpiStrip metrics={metrics} /> : null}

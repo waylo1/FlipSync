@@ -62,3 +62,13 @@ export interface SystemMetrics {
     p95LatencyMs: number
   }
 }
+
+/**
+ * Contrat POST /admin/services/:id/restart — action déclenchée manuellement depuis
+ * le dashboard. `started` confirme uniquement que la commande a été lancée, pas
+ * que le service est sain (relire GET /admin/health juste après pour confirmer).
+ */
+export interface ServiceRestartResult {
+  started: boolean
+  detail: string
+}

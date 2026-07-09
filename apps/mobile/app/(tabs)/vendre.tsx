@@ -248,7 +248,7 @@ export default function VendreScreen() {
             label={
               photos.length < requiredPhotos
                 ? `Encore ${requiredPhotos - photos.length} photo${requiredPhotos - photos.length > 1 ? 's' : ''}`
-                : `Rédiger (${photos.length}/${MAX_PHOTOS})`
+                : 'Rédiger'
             }
             onPress={() => startAnalysis()}
             disabled={photos.length < requiredPhotos}
@@ -329,19 +329,27 @@ const styles = StyleSheet.create({
   segmentThreshold: { backgroundColor: theme.goldGhost },
 
   tierWrap: { flexDirection: 'row', gap: space[2] },
+  // minHeight + centrage plutôt que padding : padding sur ce Pressable répété
+  // corrompt le rendu du texte sur certains devices Android (glyphes tronqués)
+  // — même précaution que les chips filtres de l'accueil.
   tierChip: {
     flex: 1,
+    minHeight: space[8],
     backgroundColor: theme.scrim,
     borderRadius: radius.md,
-    paddingVertical: space[2],
-    paddingHorizontal: space[2],
     alignItems: 'center',
+    justifyContent: 'center',
     gap: space[1] / 2,
   },
   tierChipActive: { backgroundColor: theme.gold },
-  tierChipLabel: { color: theme.onDark, fontSize: font.small, fontWeight: '700' },
+  tierChipLabel: {
+    color: theme.onDark,
+    fontSize: font.small,
+    fontWeight: '700',
+    marginHorizontal: space[2],
+  },
   tierChipLabelActive: { color: theme.ink },
-  tierChipPrice: { color: theme.onDarkMuted, fontSize: font.caption },
+  tierChipPrice: { color: theme.onDarkMuted, fontSize: font.caption, marginHorizontal: space[2] },
   pressed: { opacity: 0.7 },
 
   banner: {

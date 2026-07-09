@@ -7,15 +7,25 @@ interface Props extends TextInputProps {
   hint?: string
   /** Message d'erreur — borde le champ en brique et est annoncé (a11y). */
   error?: string | null
+  /** Compteur value.length/maxLength sous le champ — nécessite maxLength. */
+  showCount?: boolean
 }
 
 /** Champ de formulaire unique : label lié, focus visible, erreur annoncée. */
-export function Field({ label, hint, error, style, ...input }: Props) {
+export function Field({ label, hint, error, showCount = false, style, ...input }: Props) {
   const [focused, setFocused] = useState(false)
+  const count = typeof input.value === 'string' ? input.value.length : 0
 
   return (
     <View style={styles.wrap}>
-      <Text style={styles.label}>{label}</Text>
+      <View style={styles.labelRow}>
+        <Text style={styles.label}>{label}</Text>
+        {showCount && input.maxLength !== undefined && (
+          <Text style={styles.count}>
+            {count}/{input.maxLength}
+          </Text>
+        )}
+      </View>
       {hint !== undefined && <Text style={styles.hint}>{hint}</Text>}
       <TextInput
         accessibilityLabel={label}
@@ -48,7 +58,14 @@ export function Field({ label, hint, error, style, ...input }: Props) {
 
 const styles = StyleSheet.create({
   wrap: { gap: space[1] },
-  label: { fontSize: font.small, fontWeight: '600', color: theme.ink, marginTop: space[3] },
+  labelRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    marginTop: space[3],
+  },
+  label: { fontSize: font.small, fontWeight: '600', color: theme.ink },
+  count: { fontSize: font.caption, color: theme.muted, fontVariant: ['tabular-nums'] },
   hint: { fontSize: font.caption, color: theme.muted },
   input: {
     borderWidth: 1,

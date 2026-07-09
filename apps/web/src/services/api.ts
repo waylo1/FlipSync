@@ -44,7 +44,14 @@ async function request<T>(path: string): Promise<T> {
   return (await res.json()) as T;
 }
 
-export type { AdminOverview, ConnectorState, SystemHealth, SystemMetrics } from "@flipsync/core";
+export type {
+  AdminOverview,
+  ConnectorState,
+  ServiceHealth,
+  ServiceStatus,
+  SystemHealth,
+  SystemMetrics,
+} from "@flipsync/core";
 
 export const api = {
   getOverview: () => request<AdminOverview>("/admin/overview"),

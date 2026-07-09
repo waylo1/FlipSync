@@ -1,6 +1,9 @@
 import type { ReactNode } from "react";
 import { GitBranch, Image, Cpu, KeyRound, Send, Wallet } from "lucide-react";
 import { AgentCard, type AgentCardProps, type AgentStatus as CardStatus } from "./AgentCard";
+import { SystemHealthBar } from "./SystemHealthBar";
+import { KpiStrip } from "./KpiStrip";
+import { HealthScore } from "./HealthScore";
 import { useMissionControlStore, type Agent, type AgentStatus } from "../../store/useMissionControlStore";
 
 const LOG_LEVEL_STYLE = {
@@ -42,6 +45,8 @@ export function Dashboard() {
   const logs = useMissionControlStore((state) => state.logs);
   const alerts = useMissionControlStore((state) => state.alerts);
   const overview = useMissionControlStore((state) => state.overview);
+  const health = useMissionControlStore((state) => state.health);
+  const metrics = useMissionControlStore((state) => state.metrics);
   const loading = useMissionControlStore((state) => state.loading);
   const error = useMissionControlStore((state) => state.error);
   const fetchAgents = useMissionControlStore((state) => state.fetchAgents);
@@ -97,6 +102,13 @@ export function Dashboard() {
           </button>
         </div>
       </header>
+
+      <div className="flex items-center justify-between gap-4">
+        {health && metrics ? <HealthScore health={health} metrics={metrics} /> : null}
+        {health ? <SystemHealthBar services={health.services} /> : null}
+      </div>
+
+      {metrics ? <KpiStrip metrics={metrics} /> : null}
 
       {error ? (
         <p className="rounded-lg border border-alert/40 bg-alert/10 px-3 py-2 font-mono text-[11px] text-alert" role="alert">

@@ -17,6 +17,15 @@ const jobParams = z.object({
 })
 
 /**
+ * Un job RUNNING plus vieux que ça est considéré orphelin (le plus souvent :
+ * process serveur redémarré pendant l'inférence, la promesse en mémoire qui
+ * devait le clore est perdue — rien ne le fera jamais plus passer à
+ * READY/FAILED de lui-même). Largement au-dessus des 70-90 s d'inférence CPU
+ * dev observées, pour ne jamais couper un job encore réellement en cours.
+ */
+const STALE_JOB_MS = 5 * 60 * 1000
+
+/**
  * Routes /ai — rédaction du brouillon d'annonce CÔTÉ SERVEUR (pivot), en job
  * asynchrone détaché de la requête mobile.
  *
@@ -77,8 +86,16 @@ const aiRoutes: FastifyPluginAsync = async app => {
     const params = jobParams.safeParse(req.params)
     if (!params.success) return reply.code(400).send({ error: 'INVALID_BODY' })
 
-    const job = await prisma.draftJob.findUnique({ where: { id: params.data.jobId } })
+    let job = await prisma.draftJob.findUnique({ where: { id: params.data.jobId } })
     if (!job || job.userId !== req.userId) return reply.code(404).send({ error: 'JOB_NOT_FOUND' })
+
+    if (job.status === DraftJobStatus.RUNNING && Date.now() - job.createdAt.getTime() > STALE_JOB_MS) {
+      req.log.warn({ jobId: job.id }, 'job IA orphelin (RUNNING au-delà du délai) — marqué FAILED')
+      job = await prisma.draftJob.update({
+        where: { id: job.id },
+        data: { status: DraftJobStatus.FAILED, errorCode: 'AI_JOB_STALE' },
+      })
+    }
 
     return {
       status: job.status.toLowerCase() as 'running' | 'ready' | 'failed',

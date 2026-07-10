@@ -69,3 +69,9 @@ coverage/
 
 # Enums générés depuis schema.prisma (regénérés au build de @flipsync/core)
 packages/core/src/generated/
+
+# Config locale de l'outil cockpit (raccourcis de commandes par machine)
+/.cockpit.json
+
+# Vidéos égarées à la racine (enregistrements d'écran, rushes de test)
+/*.mp4

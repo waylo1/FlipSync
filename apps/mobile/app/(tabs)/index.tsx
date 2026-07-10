@@ -57,6 +57,16 @@ const SKELETON_KEYS = ['s1', 's2', 's3', 's4'] as const
 // pour qu'aucun saut de layout ne se produise au passage skeleton → données.
 const SKELETON_TILE_WIDTH = (Dimensions.get('window').width - space[4] * 2 - space[3]) / 2
 
+// Sentinelle de fin de ligne : sans elle, une grille numColumns=2 avec un
+// nombre impair de lignes étire la dernière tuile (flex:1 seule dans sa ligne)
+// sur toute la largeur au lieu de rester à mi-largeur. Case invisible, non
+// interactive, qui occupe simplement la 2ᵉ colonne.
+const GRID_FILLER = { id: '__grid-filler__' } as const
+type GridItem = ListingRow | typeof GRID_FILLER
+function isFiller(item: GridItem): item is typeof GRID_FILLER {
+  return item.id === GRID_FILLER.id
+}
+
 export default function HomeScreen() {
   const router = useRouter()
   const email = useAuthStore(s => s.email)
@@ -86,6 +96,11 @@ export default function HomeScreen() {
       .filter(r => statuses === null || statuses.includes(r.status))
       .filter(r => q === '' || r.titre.toLowerCase().includes(q))
   }, [data, filter, query])
+
+  // Filler ajouté uniquement pour l'affichage (grille paire) — jamais pour les
+  // vérifications de vide/comptage, qui restent sur `rows`.
+  const gridData: GridItem[] | null =
+    rows === null ? null : rows.length % 2 === 1 ? [...rows, GRID_FILLER] : rows
 
   return (
     <View style={styles.screen}>
@@ -177,11 +192,13 @@ export default function HomeScreen() {
         </View>
       ) : (
         <FlatList
-          data={rows ?? []}
+          data={gridData ?? []}
           keyExtractor={item => item.id}
           numColumns={2}
           columnWrapperStyle={styles.gridRow}
-          renderItem={({ item, index }) => <ListingTile item={item} index={index} />}
+          renderItem={({ item, index }) =>
+            isFiller(item) ? <View style={styles.gridFiller} /> : <ListingTile item={item} index={index} />
+          }
           contentContainerStyle={styles.grid}
           refreshing={refreshing}
           onRefresh={() => void refresh()}
@@ -261,6 +278,7 @@ const styles = StyleSheet.create({
 
   grid: { paddingHorizontal: space[4], paddingBottom: space[6], gap: space[3] },
   gridRow: { gap: space[3] },
+  gridFiller: { flex: 1 },
   skeletonGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',

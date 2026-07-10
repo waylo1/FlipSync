@@ -39,6 +39,18 @@ const envSchema = z.object({
   MAGIC_LINK_REDIRECT_URL: z.string().optional(),
   /** CSV d'emails autorisés sur /admin — vide = aucun accès (fail-closed). */
   ADMIN_EMAILS: z.string().optional(),
+
+  /**
+   * Palier Premium « Commissaire-Priseur IA » (missions de vente automatisées).
+   * OFF par défaut, y compris en prod : tant que la négociation réelle n'est pas
+   * branchée (canal partenaire), on ne démarre aucune mission réelle ni encaisse
+   * de paiement Premium. Cf. COMMISSAIRE_PRISEUR_PLAN.md §1. Activer explicitement
+   * avec PREMIUM_MISSION_ENABLED=true (dev/démo via canal simulé).
+   */
+  PREMIUM_MISSION_ENABLED: z
+    .enum(['true', 'false'])
+    .optional()
+    .transform(v => v === 'true'),
 })
 
 const parsed = envSchema.safeParse(process.env)

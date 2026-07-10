@@ -200,6 +200,22 @@ enum ItemCondition {
   correct
 }
 
+// Cycle de vie d'une Mission de vente (palier Premium — Commissaire-Priseur IA).
+// Cf. COMMISSAIRE_PRISEUR_PLAN.md §6. Le modèle Mission arrive au Lot 3 ; l'enum
+// est déclaré dès le Lot 0 car il est la source de vérité des états côté TS
+// (généré dans packages/core/src/generated/enums.ts).
+enum MissionStatus {
+  BROUILLON_MANDAT      // Mandat en cours de configuration (S1→S3), non publié
+  EN_VENTE              // Annonce en ligne, l'IA veille
+  NEGOCIATION_ACTIVE    // Au moins un acheteur en discussion
+  EN_ATTENTE_VALIDATION // L'IA a besoin du feu vert humain (S5)
+  VENDU                 // Vente conclue (humain ou zéro-clic)
+  MISSION_TERMINEE      // Clôturée (après vente ou arrêt)
+  SUSPENDUE             // Mise en pause par le vendeur (réversible)
+  ARRETEE               // Vendeur a arrêté l'IA ; vente redevient manuelle
+  EXPIREE               // Délai plateforme atteint sans vente
+}
+
 // ─── DEV SESSIONS (Developer Control Center) ───────────────────────────────────
 // Capacité générique de diagnostic dev — aucune FK vers User/Listing, réutilisable
 // telle quelle hors FlipSync. Jamais actif en production (cf. routes dev-sessions).

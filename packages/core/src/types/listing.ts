@@ -20,20 +20,10 @@ export const TIER_PRICING: Record<ListingTier, number> = {
 }
 
 // ─── Différenciation des paliers ───────────────────────────────────────────────
-
-/**
- * Nombre de photos envoyées au modèle vision — SEUL levier de différenciation
- * réel entre paliers aujourd'hui : plus de photos = identification et prix plus
- * fiables. Coût : temps d'encodage/inférence proportionnel (négligeable en prod
- * GPU, notable en dev CPU — cf. CLAUDE.md Sprint 4). Le choix de palier a lieu
- * AVANT la rédaction (écran de capture) : c'est ce nombre qui est envoyé à
- * /ai/draft/start, pas modifiable après coup sans relancer l'analyse.
- */
-export const TIER_PHOTO_COUNT: Record<ListingTier, number> = {
-  [ListingTier.SIMPLE]:    1,
-  [ListingTier.OPTIMIZED]: 2,
-  [ListingTier.PREMIUM]:   3,
-}
+// Le nombre de photos ne différencie plus les paliers (toutes les offres
+// capturent autant de photos que l'utilisateur le souhaite). La différence
+// entre offres est désormais uniquement le niveau d'assistance IA — cf.
+// TIER_FEATURES ci-dessous.
 
 export interface TierOffer {
   label: string

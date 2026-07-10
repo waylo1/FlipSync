@@ -24,9 +24,15 @@ import {
 import { ConditionChips } from '../src/components/ConditionChips'
 import { PriceFlagAlert } from '../src/components/PriceFlagAlert'
 import { font, formatEur, line, radius, space, theme, tracking } from '../src/theme'
+import { AmountText } from '../src/ui/AmountText'
 import { Button } from '../src/ui/Button'
+import { Card } from '../src/ui/Card'
 import { Field } from '../src/ui/Field'
+import { Tappable } from '../src/ui/Tappable'
 import { ErrorBanner } from '../src/ui/ErrorBanner'
+
+/** Ordre d'affichage des offres — du plus autonome pour l'utilisateur au plus autonome pour l'IA. */
+const TIERS: readonly ListingTier[] = [ListingTier.SIMPLE, ListingTier.OPTIMIZED, ListingTier.PREMIUM]
 
 /** Messages utilisateur pour les codes d'erreur API les plus probables ici. */
 const ERROR_MESSAGES: Readonly<Record<string, string>> = {
@@ -41,15 +47,11 @@ const ERROR_MESSAGES: Readonly<Record<string, string>> = {
 
 export default function ValidateScreen() {
   const router = useRouter()
-  const { draft, photos, tier, clearSession } = useListingSession()
+  const { draft, photos, clearSession } = useListingSession()
   const pending = usePendingPublish(s => s.pending)
 
   // Reprise : sans session (restart), le brouillon persisté du pending fait foi.
   const effectiveDraft = draft ?? pending?.draft ?? null
-  // Le palier a été choisi À LA CAPTURE (avant rédaction) — verrouillé ici.
-  // Fallback OPTIMIZED : ne devrait survenir que sur un pending créé avant ce
-  // changement (aucun tel cas en pratique, l'app n'est pas encore publiée).
-  const effectiveTier = tier ?? pending?.tier ?? ListingTier.OPTIMIZED
 
   // Ni session ni publication interrompue → retour capture.
   if (!effectiveDraft) return <Redirect href="/(tabs)" />
@@ -58,7 +60,6 @@ export default function ValidateScreen() {
     <ValidateForm
       draft={effectiveDraft}
       photos={photos}
-      tier={effectiveTier}
       resume={pending}
       clearSession={clearSession}
       goHome={() => router.replace('/(tabs)')}
@@ -69,8 +70,6 @@ export default function ValidateScreen() {
 interface FormProps {
   draft: ListingDraft
   photos: readonly SessionPhoto[]
-  /** Palier choisi à la capture — verrouillé, non modifiable ici. */
-  tier: ListingTier
   /** Publication interrompue à reprendre — null pour une première tentative. */
   resume: PendingPublish | null
   clearSession: () => void
@@ -84,12 +83,15 @@ function ignoreAlreadyDone(err: unknown): void {
   throw err
 }
 
-function ValidateForm({ draft, photos, tier, resume, clearSession, goHome }: FormProps) {
+function ValidateForm({ draft, photos, resume, clearSession, goHome }: FormProps) {
   // Champs éditables — pré-remplis par l'IA, l'utilisateur a le dernier mot.
   const [titre, setTitre] = useState(draft.titre)
   const [description, setDescription] = useState(draft.description)
   const [marque, setMarque] = useState(draft.marque ?? '')
   const [etat, setEtat] = useState<ItemCondition>(draft.etat)
+  // Offre choisie ICI, au paiement — pas à la capture. En reprise, elle est
+  // déjà figée côté serveur (coût fixé à createListing) : non modifiable.
+  const [tier, setTier] = useState<ListingTier>(resume?.tier ?? ListingTier.OPTIMIZED)
   // Prix saisi en euros (affichage) — converti en centimes Int pour tout calcul.
   // En reprise : re-seed du prix saisi lors de l'essai interrompu.
   const [prixInput, setPrixInput] = useState(
@@ -259,10 +261,46 @@ function ValidateForm({ draft, photos, tier, resume, clearSession, goHome }: For
         <PriceFlagAlert prixPublie={prixPublie} prixHaut={draft.prixHaut} />
       )}
 
-      <Text style={styles.formuleInfo}>
-        ℹ️ Formule {TIER_FEATURES[tier].label} · {formatEur(TIER_PRICING[tier])} · verrouillée à
-        la capture
-      </Text>
+      {resume !== null ? (
+        <Text style={styles.formuleInfo}>
+          ℹ️ Offre {TIER_FEATURES[tier].label} · {formatEur(TIER_PRICING[tier])} — figée à la
+          création de cette annonce.
+        </Text>
+      ) : (
+        <View style={styles.offerSection}>
+          <Text style={styles.label}>Comment voulez-vous la vendre ?</Text>
+          <View style={styles.offerList} accessibilityRole="radiogroup">
+            {TIERS.map(t => {
+              const active = tier === t
+              const offer = TIER_FEATURES[t]
+              return (
+                <Tappable
+                  key={t}
+                  accessibilityRole="radio"
+                  accessibilityLabel={`${offer.label}, ${formatEur(TIER_PRICING[t])}, ${offer.tagline}`}
+                  accessibilityState={{ selected: active }}
+                  onPress={() => setTier(t)}
+                >
+                  <Card
+                    style={{
+                      ...styles.offerCard,
+                      ...(t === ListingTier.PREMIUM ? styles.offerCardPremium : undefined),
+                      ...(active ? styles.offerCardActive : undefined),
+                    }}
+                  >
+                    <View style={styles.offerHeader}>
+                      <Text style={styles.offerLabel}>{offer.label}</Text>
+                      <AmountText cents={TIER_PRICING[t]} size={font.body} />
+                    </View>
+                    <Text style={styles.offerTagline}>{offer.tagline}</Text>
+                    <Text style={styles.offerSupport}>{offer.support}</Text>
+                  </Card>
+                </Tappable>
+              )
+            })}
+          </View>
+        </View>
+      )}
 
       {errorMessage && <ErrorBanner message={errorMessage} />}
 
@@ -319,6 +357,30 @@ const styles = StyleSheet.create({
     borderColor: theme.border,
     borderRadius: radius.md,
     padding: space[3],
+  },
+
+  // 3 cartes premium — nom, prix, phrase d'autonomie, ligne de soutien. Rien
+  // d'autre : aucune liste de fonctionnalités (cf. TIER_FEATURES).
+  offerSection: { gap: space[2] },
+  offerList: { gap: space[2], marginTop: space[2] },
+  offerCard: { gap: space[1] },
+  // Accent léger et permanent — jamais un badge « Populaire » ou une couleur criarde.
+  offerCardPremium: { borderColor: theme.goldDark },
+  offerCardActive: { borderColor: theme.terracotta, borderWidth: 2, backgroundColor: theme.terracottaSoft },
+  offerHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  offerLabel: { fontSize: font.body, fontWeight: '700', color: theme.ink },
+  offerTagline: {
+    fontSize: font.lead,
+    lineHeight: line.lead,
+    fontWeight: '700',
+    color: theme.ink,
+    marginTop: space[1],
+  },
+  offerSupport: {
+    fontSize: font.caption,
+    lineHeight: line.caption,
+    color: theme.muted,
+    marginTop: space[1],
   },
 
   publishBtn: { marginTop: space[5] },

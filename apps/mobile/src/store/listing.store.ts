@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { MMKV } from 'react-native-mmkv'
 import { SaveFormat, manipulateAsync } from 'expo-image-manipulator'
-import { ListingStatus, ListingTier, TIER_PHOTO_COUNT } from '@flipsync/core'
+import { ListingStatus, ListingTier } from '@flipsync/core'
 import type { ListingDraft } from '@flipsync/core'
 import { ApiError, api } from '../services/api'
 
@@ -30,9 +30,7 @@ interface ListingSessionState {
   /** Brouillon issu de l'inférence serveur — base de l'écran de validation. */
   draft: ListingDraft | null
   photos: SessionPhoto[]
-  /** Palier choisi AVANT la rédaction (capture) — verrouillé à l'écran de validation. */
-  tier: ListingTier | null
-  setSession: (draft: ListingDraft, photos: SessionPhoto[], tier: ListingTier) => void
+  setSession: (draft: ListingDraft, photos: SessionPhoto[]) => void
   clearSession: () => void
 }
 
@@ -40,13 +38,14 @@ interface ListingSessionState {
  * Session de création en cours : porte le draft + photos entre l'écran de
  * capture et l'écran de validation. Volatile (pas de persistance) : une
  * session interrompue se recommence — l'inférence est gratuite et locale.
+ * L'offre (tier) n'est plus choisie à la capture : elle se choisit à l'écran
+ * de validation, juste avant le paiement (cf. validate.tsx).
  */
 export const useListingSession = create<ListingSessionState>(set => ({
   draft: null,
   photos: [],
-  tier: null,
-  setSession: (draft, photos, tier) => set({ draft, photos, tier }),
-  clearSession: () => set({ draft: null, photos: [], tier: null }),
+  setSession: (draft, photos) => set({ draft, photos }),
+  clearSession: () => set({ draft: null, photos: [] }),
 }))
 
 // ─── File d'analyses en tâche de fond (« enchaîner ») ────────────────────────
@@ -56,6 +55,9 @@ export const useListingSession = create<ListingSessionState>(set => ({
  * divise par ~2,3 le coût d'encodage image sans dégrader la compréhension.
  */
 const ANALYZE_WIDTH = 512
+
+/** Borne le coût d'inférence — indépendant de l'offre choisie par l'utilisateur. */
+const AI_PHOTO_CAP = 3
 
 /** Cadence du poll pendant qu'un job tourne côté serveur. */
 const POLL_INTERVAL_MS = 3_000
@@ -73,8 +75,6 @@ export interface AnalysisJob {
   id: string
   status: AnalysisJobStatus
   photos: SessionPhoto[]
-  /** Palier choisi à la capture — détermine TIER_PHOTO_COUNT photos envoyées à l'IA. */
-  tier: ListingTier
   /** Aperçu (1ʳᵉ photo) affiché sur la carte de la file. */
   coverUri: string
   /** Rempli quand `ready` — brouillon prêt à valider. */
@@ -85,9 +85,9 @@ export interface AnalysisJob {
 
 interface AnalysisQueueState {
   jobs: AnalysisJob[]
-  /** Lance une rédaction en fond (job serveur détaché) au palier choisi. */
-  enqueue: (photos: SessionPhoto[], tier: ListingTier) => void
-  /** Relance un job échoué avec les mêmes photos et le même palier (nouveau job serveur). */
+  /** Lance une rédaction en fond (job serveur détaché). */
+  enqueue: (photos: SessionPhoto[]) => void
+  /** Relance un job échoué avec les mêmes photos (nouveau job serveur). */
   retry: (id: string) => void
   remove: (id: string) => void
 }
@@ -158,9 +158,9 @@ export const useAnalysisQueue = create<AnalysisQueueState>((set, get) => {
   }
 
   /**
-   * Encode en 512 px les TIER_PHOTO_COUNT[tier] premières photos (SSOT
-   * différenciation des paliers — cf. packages/core), démarre le job serveur,
-   * puis poll.
+   * Encode en 512 px les AI_PHOTO_CAP premières photos, démarre le job
+   * serveur, puis poll. Le cap borne le coût d'inférence ; il est indépendant
+   * de l'offre choisie (les paliers ne différencient plus les photos).
    */
   async function start(job: AnalysisJob, photos: SessionPhoto[]): Promise<void> {
     if (photos.length === 0) {
@@ -168,7 +168,7 @@ export const useAnalysisQueue = create<AnalysisQueueState>((set, get) => {
       return
     }
     try {
-      const selected = photos.slice(0, TIER_PHOTO_COUNT[job.tier])
+      const selected = photos.slice(0, AI_PHOTO_CAP)
       const encoded = await Promise.all(
         selected.map(async photo => {
           const forModel = await manipulateAsync(
@@ -205,14 +205,13 @@ export const useAnalysisQueue = create<AnalysisQueueState>((set, get) => {
 
   return {
     jobs: initialJobs,
-    enqueue: (photos, tier) => {
+    enqueue: photos => {
       // id temporaire — remplacé par le jobId serveur dès que `start` le reçoit.
       const tempId = `pending_${photos[0]?.sha256 ?? Math.random().toString(36)}`
       const job: AnalysisJob = {
         id: tempId,
         status: 'running',
         photos,
-        tier,
         coverUri: photos[0]?.uri ?? '',
         draft: null,
         errorCode: null,

@@ -1,19 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { ListingTier } from '../generated/enums'
-import { TIER_PHOTO_COUNT, TIER_PRICING, TIER_FEATURES } from './listing'
-
-describe('TIER_PHOTO_COUNT', () => {
-  it('SIMPLE = 1, OPTIMIZED = 2, PREMIUM = 3 photo(s) analysée(s)', () => {
-    expect(TIER_PHOTO_COUNT[ListingTier.SIMPLE]).toBe(1)
-    expect(TIER_PHOTO_COUNT[ListingTier.OPTIMIZED]).toBe(2)
-    expect(TIER_PHOTO_COUNT[ListingTier.PREMIUM]).toBe(3)
-  })
-
-  it('progression strictement croissante — chaque palier analyse plus de photos que le précédent', () => {
-    expect(TIER_PHOTO_COUNT[ListingTier.OPTIMIZED]).toBeGreaterThan(TIER_PHOTO_COUNT[ListingTier.SIMPLE])
-    expect(TIER_PHOTO_COUNT[ListingTier.PREMIUM]).toBeGreaterThan(TIER_PHOTO_COUNT[ListingTier.OPTIMIZED])
-  })
-})
+import { TIER_PRICING, TIER_FEATURES } from './listing'
 
 describe('TIER_PRICING', () => {
   it('Essentiel 0,99 € / Optimisé 1,99 € / Premium 2,99 €', () => {

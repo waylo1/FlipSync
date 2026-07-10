@@ -15,25 +15,24 @@ import { Camera, useCameraDevice, useCameraPermission } from 'react-native-visio
 import { SaveFormat, manipulateAsync } from 'expo-image-manipulator'
 import * as Crypto from 'expo-crypto'
 import { CameraOff, Sparkles } from 'lucide-react-native'
-import { ListingTier, TIER_FEATURES, TIER_PHOTO_COUNT, TIER_PRICING } from '@flipsync/core'
 import { useAnalysisQueue } from '../../src/store/listing.store'
 import { dev } from '../../src/dev-session/recorder'
-import { font, formatEur, line, motion, radius, space, theme } from '../../src/theme'
+import { font, line, motion, radius, space, theme } from '../../src/theme'
 import { Button } from '../../src/ui/Button'
 import { EmptyState } from '../../src/ui/EmptyState'
 import { PhotoTray } from '../../src/components/PhotoTray'
 
-const TIERS: readonly ListingTier[] = [ListingTier.SIMPLE, ListingTier.OPTIMIZED, ListingTier.PREMIUM]
-
 const MAX_PHOTOS = 6
+/** Aucune restriction par offre : une photo suffit, les suivantes sont facultatives. */
+const MIN_PHOTOS = 1
 /** Largeur de capture : qualité conservée pour l'annonce publiée (~150-300 Ko/photo). */
 const CAPTURE_WIDTH = 768
 
 // Décalages relatifs au sommet de topOverlay / au bas de controls (safe-area déjà
-// ajoutée séparément) — évite le chevauchement avec la jauge, les formules et le
-// déclencheur, quelle que soit la hauteur de l'encoche/barre de gestes du device.
-const BANNER_TOP_OFFSET = space[8] + space[8] + space[6] - space[3]
-const THUMB_ROW_OFFSET = space[8] + space[8] + space[5] - space[4]
+// ajoutée séparément) — évite le chevauchement avec la jauge et le déclencheur,
+// quelle que soit la hauteur de l'encoche/barre de gestes du device.
+const BANNER_TOP_OFFSET = space[8] + space[6] - space[3] - space[2]
+const THUMB_ROW_OFFSET = space[8] + space[5] - space[4] - space[2]
 
 interface CapturedPhoto {
   uri: string // jpeg redimensionné (thumbnail + upload futur)
@@ -53,10 +52,6 @@ export default function VendreScreen() {
   const [photos, setPhotos] = useState<CapturedPhoto[]>([])
   const [capturing, setCapturing] = useState(false)
   const [cameraError, setCameraError] = useState<string | null>(null)
-  // Palier choisi AVANT la rédaction : détermine combien de photos l'IA analyse
-  // (TIER_PHOTO_COUNT — SSOT packages/core). Verrouillé à l'écran de validation.
-  const [tier, setTier] = useState<ListingTier>(ListingTier.OPTIMIZED)
-  const requiredPhotos = TIER_PHOTO_COUNT[tier]
 
   // Flash de capture : voile blanc bref (feedback immédiat, à la Instagram).
   const flash = useRef(new Animated.Value(0)).current
@@ -129,12 +124,12 @@ export default function VendreScreen() {
    * pendant que le modèle vision travaille — plus de blocage sur cet écran.
    */
   const startAnalysis = useCallback(() => {
-    if (photos.length < requiredPhotos) return
+    if (photos.length < MIN_PHOTOS) return
     dev.track('create_listing_started')
-    useAnalysisQueue.getState().enqueue(photos, tier)
+    useAnalysisQueue.getState().enqueue(photos)
     setPhotos([]) // objet suivant = capture vierge ; le job garde ces photos.
     router.push('/processing')
-  }, [photos, tier, requiredPhotos, router])
+  }, [photos, router])
 
   // ─── Branches d'état ──────────────────────────────────────────────────────
 
@@ -182,55 +177,18 @@ export default function VendreScreen() {
         {/* Jauge signature : l'IA "se nourrit" des photos — segments dorés remplis. */}
         <View style={styles.progressWrap} accessibilityLiveRegion="polite">
           <View style={styles.progressRow}>
-            <Sparkles size={font.small} color={photos.length >= requiredPhotos ? theme.gold : theme.onDarkMuted} />
+            <Sparkles size={font.small} color={photos.length >= MIN_PHOTOS ? theme.gold : theme.onDarkMuted} />
             <Text style={styles.progressText}>
               {photos.length === 0
                 ? 'Photographiez votre objet sous tous les angles'
-                : photos.length < requiredPhotos
-                  ? `${photos.length}/${requiredPhotos} photos pour lancer la rédaction`
-                  : 'FlipSync a de quoi rédiger — continuez ou lancez'}
+                : 'Prêt — ajoutez des photos ou lancez la rédaction'}
             </Text>
           </View>
           <View style={styles.segments}>
             {Array.from({ length: MAX_PHOTOS }, (_, i) => (
-              <View
-                key={i}
-                style={[
-                  styles.segment,
-                  i < photos.length && styles.segmentFilled,
-                  i === requiredPhotos - 1 && i >= photos.length && styles.segmentThreshold,
-                ]}
-              />
+              <View key={i} style={[styles.segment, i < photos.length && styles.segmentFilled]} />
             ))}
           </View>
-        </View>
-
-        {/* Formule — choisie AVANT la rédaction : détermine combien de photos l'IA analyse. */}
-        <View style={styles.tierWrap} accessibilityRole="radiogroup">
-          {TIERS.map(t => {
-            const active = tier === t
-            return (
-              <Pressable
-                key={t}
-                accessibilityRole="radio"
-                accessibilityLabel={`Formule ${TIER_FEATURES[t].label}, ${formatEur(TIER_PRICING[t])}, analyse ${TIER_PHOTO_COUNT[t]} photo${TIER_PHOTO_COUNT[t] > 1 ? 's' : ''}`}
-                accessibilityState={{ selected: active }}
-                style={({ pressed }) => [
-                  styles.tierChip,
-                  active && styles.tierChipActive,
-                  pressed && styles.pressed,
-                ]}
-                onPress={() => setTier(t)}
-              >
-                <Text style={[styles.tierChipLabel, active && styles.tierChipLabelActive]}>
-                  {TIER_FEATURES[t].label}
-                </Text>
-                <Text style={[styles.tierChipPrice, active && styles.tierChipLabelActive]}>
-                  {formatEur(TIER_PRICING[t])} · {TIER_PHOTO_COUNT[t]} photo{TIER_PHOTO_COUNT[t] > 1 ? 's' : ''}
-                </Text>
-              </Pressable>
-            )
-          })}
         </View>
       </View>
 
@@ -245,13 +203,9 @@ export default function VendreScreen() {
       <View style={[styles.controls, { bottom: insets.bottom + space[4] }]}>
         <View style={styles.controlsSide}>
           <Button
-            label={
-              photos.length < requiredPhotos
-                ? `Encore ${requiredPhotos - photos.length} photo${requiredPhotos - photos.length > 1 ? 's' : ''}`
-                : 'Rédiger'
-            }
+            label={photos.length < MIN_PHOTOS ? 'Ajoutez une photo' : 'Rédiger'}
             onPress={() => startAnalysis()}
-            disabled={photos.length < requiredPhotos}
+            disabled={photos.length < MIN_PHOTOS}
           />
         </View>
 
@@ -326,31 +280,6 @@ const styles = StyleSheet.create({
     backgroundColor: theme.onDarkTrack,
   },
   segmentFilled: { backgroundColor: theme.gold },
-  segmentThreshold: { backgroundColor: theme.goldGhost },
-
-  tierWrap: { flexDirection: 'row', gap: space[2] },
-  // minHeight + centrage plutôt que padding : padding sur ce Pressable répété
-  // corrompt le rendu du texte sur certains devices Android (glyphes tronqués)
-  // — même précaution que les chips filtres de l'accueil.
-  tierChip: {
-    flex: 1,
-    minHeight: space[8],
-    backgroundColor: theme.scrim,
-    borderRadius: radius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: space[1] / 2,
-  },
-  tierChipActive: { backgroundColor: theme.gold },
-  tierChipLabel: {
-    color: theme.onDark,
-    fontSize: font.small,
-    fontWeight: '700',
-    marginHorizontal: space[2],
-  },
-  tierChipLabelActive: { color: theme.ink },
-  tierChipPrice: { color: theme.onDarkMuted, fontSize: font.caption, marginHorizontal: space[2] },
-  pressed: { opacity: 0.7 },
 
   banner: {
     position: 'absolute',

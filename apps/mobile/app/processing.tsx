@@ -158,7 +158,7 @@ function ReadyCard({ job }: { job: AnalysisJob }) {
         // Déjà annulée/validée côté serveur — rien à rattraper.
       })
     }
-    useListingSession.getState().setSession(job.draft, job.photos, job.tier)
+    useListingSession.getState().setSession(job.draft, job.photos)
     useAnalysisQueue.getState().remove(job.id)
     router.push('/validate')
   }, [job, router])

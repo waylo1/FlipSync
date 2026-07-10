@@ -12,6 +12,7 @@ import type {
   TransactionType,
 } from '@flipsync/core'
 import { useAuthStore } from '../store/auth.store'
+import { trackApiCall } from '../dev-session/recorder'
 
 // 10.0.2.2 = localhost de la machine hôte vu depuis l'émulateur Android.
 export const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://10.0.2.2:3001'
@@ -46,10 +47,16 @@ async function fetchWithTimeout(
 ): Promise<Response> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
+  const method = init.method ?? 'GET'
+  const startedAt = Date.now()
   try {
-    return await fetch(url, { ...init, signal: controller.signal })
+    const res = await fetch(url, { ...init, signal: controller.signal })
+    trackApiCall(method, url, Date.now() - startedAt, res.status)
+    return res
   } catch {
-    throw new ApiError(controller.signal.aborted ? 'TIMEOUT' : 'NETWORK_ERROR', 0)
+    const code = controller.signal.aborted ? 'TIMEOUT' : 'NETWORK_ERROR'
+    trackApiCall(method, url, Date.now() - startedAt, 0, code)
+    throw new ApiError(code, 0)
   } finally {
     clearTimeout(timer)
   }

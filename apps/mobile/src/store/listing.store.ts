@@ -196,9 +196,11 @@ export const useAnalysisQueue = create<AnalysisQueueState>((set, get) => {
 
   // Reprise au (re)lancement du store : tout job encore « running » à la
   // dernière persistance reprend son poll (l'app a pu être tuée entre-temps).
+  // Différé (setTimeout 0) car `get()` n'est pas utilisable tant que
+  // l'initializer n'a pas fini de retourner l'état initial du store.
   const initialJobs = readJobs()
   for (const job of initialJobs) {
-    if (job.status === 'running') poll(job.id)
+    if (job.status === 'running') setTimeout(() => poll(job.id), 0)
   }
 
   return {

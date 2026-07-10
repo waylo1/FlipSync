@@ -53,7 +53,7 @@ describe.skipIf(!DB_URL)('ListingEngine — intégration Postgres', async () => 
     await prisma.$disconnect()
   })
 
-  describe('cycle nominal complet (WALLET, 2,50 €)', () => {
+  describe('cycle nominal complet (WALLET, 1,99 €)', () => {
     let listingId = ''
 
     beforeAll(async () => {
@@ -66,8 +66,8 @@ describe.skipIf(!DB_URL)('ListingEngine — intégration Postgres', async () => 
 
       expect(listing.status).toBe('AUTHORIZED')
       expect(listing.paymentSource).toBe('WALLET')
-      expect(listing.cost).toBe(250)
-      expect(auth.walletBalanceAfter).toBe(750) // projection seulement
+      expect(listing.cost).toBe(199)
+      expect(auth.walletBalanceAfter).toBe(801) // projection seulement
       expect(await getBalance()).toBe(1000) // AUCUN débit réel
     })
 
@@ -88,7 +88,7 @@ describe.skipIf(!DB_URL)('ListingEngine — intégration Postgres', async () => 
       expect(listing.status).toBe('USER_VALIDATED')
       expect(listing.prixPublie).toBe(15_000)
       expect(listing.isPriceFlagged).toBe(true)
-      expect(await getBalance()).toBe(750) // débit 250 dans la MÊME transaction
+      expect(await getBalance()).toBe(801) // débit 199 dans la MÊME transaction
     })
 
     it('queue → publish failed → remboursement automatique + failureReason', async () => {
@@ -103,7 +103,7 @@ describe.skipIf(!DB_URL)('ListingEngine — intégration Postgres', async () => 
         where: { listingId, type: 'REFUND' },
       })
       expect(refunds).toHaveLength(1)
-      expect(refunds[0]?.amount).toBe(250)
+      expect(refunds[0]?.amount).toBe(199)
     })
 
     it('PUBLISH_FAILED est terminal — aucune transition possible', async () => {
@@ -138,13 +138,13 @@ describe.skipIf(!DB_URL)('ListingEngine — intégration Postgres', async () => 
     })
 
     it('fonds insuffisants → PENDING_AUTH + BLOCKED + deficit, puis reauthorize après recharge', async () => {
-      await resetUser(100, 0) // 1,00 € pour un PREMIUM à 3,00 €
+      await resetUser(100, 0) // 1,00 € pour un PREMIUM à 2,99 €
       const { listing, auth } = await engine.createListing(userId, ListingTier.PREMIUM)
 
       expect(listing.status).toBe('PENDING_AUTH')
       expect(listing.paymentSource).toBe('BLOCKED')
       expect(auth.authorized).toBe(false)
-      expect(auth.deficit).toBe(200)
+      expect(auth.deficit).toBe(199)
 
       // Recharge simulée puis nouvelle tentative
       await prisma.userWallet.update({ where: { userId }, data: { balance: 1000 } })
@@ -174,7 +174,7 @@ describe.skipIf(!DB_URL)('ListingEngine — intégration Postgres', async () => 
       await engine.completeAiDraft(listing.id, DRAFT)
       await engine.validate(listing.id, 10_000)
       await engine.queue(listing.id)
-      expect(await getBalance()).toBe(750) // débité
+      expect(await getBalance()).toBe(801) // débité
 
       const cancelled = await engine.cancel(listing.id)
 
@@ -185,7 +185,7 @@ describe.skipIf(!DB_URL)('ListingEngine — intégration Postgres', async () => 
         where: { listingId: listing.id, type: 'REFUND' },
       })
       expect(refunds).toHaveLength(1)
-      expect(refunds[0]?.amount).toBe(250)
+      expect(refunds[0]?.amount).toBe(199)
     })
 
     it('annulation impossible depuis PUBLISHED (retrait marketplace hors scope)', async () => {
@@ -215,7 +215,7 @@ describe.skipIf(!DB_URL)('ListingEngine — intégration Postgres', async () => 
       expect(edited.titre).toBe('Veste cuir — révisée')
       expect(edited.prixPublie).toBe(20_000)
       expect(edited.isPriceFlagged).toBe(true)
-      expect(await getBalance()).toBe(750) // aucun mouvement d'argent
+      expect(await getBalance()).toBe(801) // aucun mouvement d'argent
     })
 
     it('editContent refusé sur un listing pré-validation (pas encore "vivant")', async () => {

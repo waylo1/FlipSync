@@ -14,9 +14,9 @@ export { ItemCondition, ListingStatus, ListingTier }
  * Source de vérité unique — ne jamais hardcoder les prix ailleurs.
  */
 export const TIER_PRICING: Record<ListingTier, number> = {
-  [ListingTier.SIMPLE]:     80,   // 0,80 €
-  [ListingTier.OPTIMIZED]: 250,   // 2,50 €
-  [ListingTier.PREMIUM]:   300,   // 3,00 €
+  [ListingTier.SIMPLE]:     99,   // 0,99 €
+  [ListingTier.OPTIMIZED]: 199,   // 1,99 €
+  [ListingTier.PREMIUM]:   299,   // 2,99 €
 }
 
 // ─── Différenciation des paliers ───────────────────────────────────────────────
@@ -35,38 +35,31 @@ export const TIER_PHOTO_COUNT: Record<ListingTier, number> = {
   [ListingTier.PREMIUM]:   3,
 }
 
-const TIER_ORDER: readonly ListingTier[] = [
-  ListingTier.SIMPLE,
-  ListingTier.OPTIMIZED,
-  ListingTier.PREMIUM,
-]
-
-export interface TierFeature {
+export interface TierOffer {
   label: string
-  /** Ce que CE palier ajoute par rapport au précédent — affiché de façon cumulative à l'écran. */
-  adds: readonly string[]
+  /** Phrase d'autonomie — le message principal de la carte, une seule ligne. */
+  tagline: string
+  /** Ligne de soutien discrète — jamais une liste de fonctionnalités. */
+  support: string
 }
 
-/** Descriptif produit des paliers — SSOT affichage (capture + validation). */
-export const TIER_FEATURES: Record<ListingTier, TierFeature> = {
+/** Descriptif produit des offres — SSOT affichage (écran de validation). */
+export const TIER_FEATURES: Record<ListingTier, TierOffer> = {
   [ListingTier.SIMPLE]: {
-    label: 'Simple',
-    adds: ['Rédaction IA à partir d’1 photo', 'Titre, description et estimation de prix'],
+    label: 'Essentiel',
+    tagline: 'Je publie.',
+    support: 'Vous menez votre vente.',
   },
   [ListingTier.OPTIMIZED]: {
-    label: 'Optimisée',
-    adds: ['Analyse de 2 photos (angles différents)', 'Identification et prix plus fiables'],
+    label: 'Optimisé',
+    tagline: 'L’IA m’aide.',
+    support: 'Elle rédige votre annonce avec vous.',
   },
   [ListingTier.PREMIUM]: {
     label: 'Premium',
-    adds: ['Analyse de 3 photos', 'La meilleure précision possible aujourd’hui'],
+    tagline: 'L’IA vend pour moi.',
+    support: 'Elle gère la vente à votre place.',
   },
-}
-
-/** Bullets cumulés du palier SIMPLE jusqu'à `tier` inclus (chaque palier inclut ceux du dessous). */
-export function cumulativeTierFeatures(tier: ListingTier): string[] {
-  const idx = TIER_ORDER.indexOf(tier)
-  return TIER_ORDER.slice(0, idx + 1).flatMap(t => TIER_FEATURES[t].adds)
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────

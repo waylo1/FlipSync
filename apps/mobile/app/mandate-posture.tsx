@@ -1,5 +1,5 @@
 import { StyleSheet, Text, View } from 'react-native'
-import { useRouter } from 'expo-router'
+import { useLocalSearchParams, useRouter } from 'expo-router'
 import { POSTURE_ORDER, POSTURE_PRESETS, SellPosture } from '@flipsync/core'
 import { dev } from '../src/dev-session/recorder'
 import { useMandateDraft } from '../src/store/mission.store'
@@ -23,6 +23,10 @@ import { Tappable } from '../src/ui/Tappable'
  */
 export default function MandatePostureScreen() {
   const router = useRouter()
+  const { prixAffiche, prixPlancher } = useLocalSearchParams<{
+    prixAffiche: string
+    prixPlancher: string
+  }>()
   const posture = useMandateDraft(s => s.posture)
   const setPosture = useMandateDraft(s => s.setPosture)
   const confirmPosture = useMandateDraft(s => s.confirmPosture)
@@ -32,6 +36,11 @@ export default function MandatePostureScreen() {
     dev.track(`mandate_posture_confirmed:${posture}`)
     confirmPosture()
     router.back()
+  }
+
+  const handleCustomize = () => {
+    dev.track('mandate_customize_opened')
+    router.push({ pathname: '/mandate-customize', params: { prixAffiche, prixPlancher } })
   }
 
   return (
@@ -75,6 +84,13 @@ export default function MandatePostureScreen() {
             )
           })}
         </View>
+
+        <Button
+          label="Personnaliser"
+          variant="ghost"
+          onPress={handleCustomize}
+          style={styles.customizeButton}
+        />
       </View>
 
       <View style={styles.footer}>
@@ -124,6 +140,8 @@ const styles = StyleSheet.create({
     color: theme.muted,
     marginTop: space[1],
   },
+
+  customizeButton: { marginTop: space[3], alignSelf: 'center' },
 
   footer: {
     padding: space[5],

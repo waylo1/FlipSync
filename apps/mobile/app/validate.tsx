@@ -242,11 +242,17 @@ function ValidateForm({ draft, photos, resume, clearSession, goHome }: FormProps
   const handlePrimaryPress = useCallback(() => {
     if (resume === null && tier === ListingTier.PREMIUM) {
       dev.track('mandate_posture_opened')
-      router.push('/mandate-posture')
+      router.push({
+        pathname: '/mandate-posture',
+        params: {
+          prixAffiche: String(prixPublie ?? draft.prixHaut),
+          prixPlancher: String(draft.prixPlancher),
+        },
+      })
       return
     }
     confirmPublish()
-  }, [resume, tier, confirmPublish, router])
+  }, [resume, tier, confirmPublish, router, prixPublie, draft.prixHaut, draft.prixPlancher])
 
   // Canal de retour S1 → validate.tsx (cf. mission.store.ts). Tant que S2/S3
   // n'existent pas (Lots 2-3), la posture confirmée enchaîne directement sur la

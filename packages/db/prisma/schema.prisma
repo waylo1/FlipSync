@@ -1,5 +1,5 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
   // native = dev local (Windows/macOS) ; debian = image Docker de prod (node:20-slim).
   binaryTargets = ["native", "debian-openssl-3.0.x"]
 }
@@ -21,6 +21,7 @@ model User {
   wallet    UserWallet?
   listings  Listing[]
   draftJobs DraftJob[]
+  missions  Mission[]
 }
 
 // ─── WALLET ───────────────────────────────────────────────────────────────────
@@ -28,13 +29,13 @@ model User {
 model UserWallet {
   id                    String   @id @default(cuid())
   userId                String   @unique
-  balance               Int      @default(0)     // centimes — ex: 1000 = 10,00 €
+  balance               Int      @default(0) // centimes — ex: 1000 = 10,00 €
   freeListingsRemaining Int      @default(3)
   freeListingsResetAt   DateTime @default(dbgenerated("NOW() + INTERVAL '1 month'"))
   autoRechargeEnabled   Boolean  @default(false)
-  autoRechargeThreshold Int      @default(100)   // centimes — ex: 100 = 1,00 €
-  autoRechargeAmount    Int      @default(1000)  // centimes — ex: 1000 = 10,00 €
-  lifetimeRecharged     Int      @default(0)     // centimes
+  autoRechargeThreshold Int      @default(100) // centimes — ex: 100 = 1,00 €
+  autoRechargeAmount    Int      @default(1000) // centimes — ex: 1000 = 10,00 €
+  lifetimeRecharged     Int      @default(0) // centimes
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 
@@ -46,10 +47,10 @@ model WalletTransaction {
   id          String          @id @default(cuid())
   walletId    String
   type        TransactionType
-  amount      Int                                 // centimes
+  amount      Int // centimes
   source      PaymentSource
   listingId   String?
-  stripeId    String? @unique // idempotence webhook : un event Stripe = max un crédit
+  stripeId    String?         @unique // idempotence webhook : un event Stripe = max un crédit
   description String?
   createdAt   DateTime        @default(now())
 
@@ -67,7 +68,7 @@ model Listing {
   tier          ListingTier
   status        ListingStatus @default(PENDING_AUTH)
   paymentSource PaymentSource
-  cost          Int                                // centimes
+  cost          Int // centimes
 
   // Données IA
   titre           String?
@@ -75,11 +76,11 @@ model Listing {
   categorieLbc    String?
   categorieVinted String?
   etat            ItemCondition?
-  prixPlancher    Int?                             // centimes
-  prixHaut        Int?                             // centimes
-  prixPublie      Int?                             // centimes — prix final choisi par l'utilisateur
+  prixPlancher    Int? // centimes
+  prixHaut        Int? // centimes
+  prixPublie      Int? // centimes — prix final choisi par l'utilisateur
   marque          String?
-  confidence      Float?                           // score 0–1, pas de l'argent → Float intentionnel
+  confidence      Float? // score 0–1, pas de l'argent → Float intentionnel
 
   // Plateformes
   publishedLbc    Boolean @default(false)
@@ -100,8 +101,41 @@ model Listing {
   user         User                @relation(fields: [userId], references: [id])
   photos       ListingPhoto[]
   transactions WalletTransaction[]
+  mission      Mission?
 
   @@index([status, updatedAt])
+}
+
+// ─── MISSION (Commissaire-Priseur IA) ──────────────────────────────────────────
+// Cf. COMMISSAIRE_PRISEUR_PLAN.md §5.3/§10 Lot 3. Le mandat (posture, objectif,
+// prix mini, livraison, cas complexes) est saisi côté mobile (S1→S3) puis
+// persisté ici tel quel à la confirmation — champs stockés en String, les enums
+// TS de @flipsync/core (SellPosture, SellObjective, DeliveryPreference,
+// ComplexCasePolicy) restent la SEULE source de vérité des valeurs valides
+// (validation Zod aux frontières API, pas de duplication en enum Prisma).
+model Mission {
+  id     String        @id @default(cuid())
+  userId String
+  status MissionStatus @default(BROUILLON_MANDAT)
+
+  listingId String @unique
+
+  posture                  String
+  objectif                 String
+  prixAffiche              Int // centimes
+  prixMini                 Int // centimes
+  livraison                String
+  casComplexes             String
+  autoAdjugeAuDessusDuMini Boolean @default(false)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  enVenteAt DateTime?
+
+  user    User    @relation(fields: [userId], references: [id])
+  listing Listing @relation(fields: [listingId], references: [id])
+
+  @@index([userId, status])
 }
 
 // ─── IA — brouillon en job détaché ─────────────────────────────────────────────
@@ -159,25 +193,25 @@ enum ListingTier {
 }
 
 enum ListingStatus {
-  PENDING_AUTH    // 1. Vérification des droits de paiement
-  AUTHORIZED      // 2. Autorisation accordée (pré-réservation, pas de débit)
-  AI_PROCESSING   // 3. Vision + rédaction SEO en cours
-  AI_FAILED       // 4. Échec du traitement IA (rollback, pas de débit)
-  DRAFT_READY     // 5. Brouillon prêt, en attente de validation utilisateur
-  USER_VALIDATED  // 6. Utilisateur a validé → commit() déclenché ici
-  USER_CANCELLED  // 7. Utilisateur a annulé (rollback, pas de débit)
-  QUEUED          // 8. En file d'attente pour publication
-  PUBLISH_FAILED  // 9. Échec de publication sur marketplace (remboursement)
-  PUBLISHED       // 10. Publié avec succès
-  EXPIRED         // 11. Annonce expirée sans vente
+  PENDING_AUTH // 1. Vérification des droits de paiement
+  AUTHORIZED // 2. Autorisation accordée (pré-réservation, pas de débit)
+  AI_PROCESSING // 3. Vision + rédaction SEO en cours
+  AI_FAILED // 4. Échec du traitement IA (rollback, pas de débit)
+  DRAFT_READY // 5. Brouillon prêt, en attente de validation utilisateur
+  USER_VALIDATED // 6. Utilisateur a validé → commit() déclenché ici
+  USER_CANCELLED // 7. Utilisateur a annulé (rollback, pas de débit)
+  QUEUED // 8. En file d'attente pour publication
+  PUBLISH_FAILED // 9. Échec de publication sur marketplace (remboursement)
+  PUBLISHED // 10. Publié avec succès
+  EXPIRED // 11. Annonce expirée sans vente
 }
 
 enum PaymentSource {
-  FREE_CREDIT     // Listing gratuit (crédit d'inscription ou promotion)
-  WALLET          // Débit depuis le wallet interne
-  BLOCKED         // Fonds insuffisants, publication bloquée
+  FREE_CREDIT // Listing gratuit (crédit d'inscription ou promotion)
+  WALLET // Débit depuis le wallet interne
+  BLOCKED // Fonds insuffisants, publication bloquée
   STRIPE_RECHARGE // Rechargement Stripe (crédit wallet, jamais débit listing direct)
-  BONUS           // Bonus fidélité (ex: +1,00 € première recharge)
+  BONUS // Bonus fidélité (ex: +1,00 € première recharge)
 }
 
 enum TransactionType {
@@ -205,15 +239,15 @@ enum ItemCondition {
 // est déclaré dès le Lot 0 car il est la source de vérité des états côté TS
 // (généré dans packages/core/src/generated/enums.ts).
 enum MissionStatus {
-  BROUILLON_MANDAT      // Mandat en cours de configuration (S1→S3), non publié
-  EN_VENTE              // Annonce en ligne, l'IA veille
-  NEGOCIATION_ACTIVE    // Au moins un acheteur en discussion
+  BROUILLON_MANDAT // Mandat en cours de configuration (S1→S3), non publié
+  EN_VENTE // Annonce en ligne, l'IA veille
+  NEGOCIATION_ACTIVE // Au moins un acheteur en discussion
   EN_ATTENTE_VALIDATION // L'IA a besoin du feu vert humain (S5)
-  VENDU                 // Vente conclue (humain ou zéro-clic)
-  MISSION_TERMINEE      // Clôturée (après vente ou arrêt)
-  SUSPENDUE             // Mise en pause par le vendeur (réversible)
-  ARRETEE               // Vendeur a arrêté l'IA ; vente redevient manuelle
-  EXPIREE               // Délai plateforme atteint sans vente
+  VENDU // Vente conclue (humain ou zéro-clic)
+  MISSION_TERMINEE // Clôturée (après vente ou arrêt)
+  SUSPENDUE // Mise en pause par le vendeur (réversible)
+  ARRETEE // Vendeur a arrêté l'IA ; vente redevient manuelle
+  EXPIREE // Délai plateforme atteint sans vente
 }
 
 // ─── DEV SESSIONS (Developer Control Center) ───────────────────────────────────

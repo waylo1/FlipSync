@@ -24,9 +24,8 @@ import { Tappable } from '../src/ui/Tappable'
  * S2 — Assistant « Personnaliser » (COMMISSAIRE_PRISEUR_PLAN.md §5.2).
  * Feuille 4 questions, une par vue : Objectif → Prix mini → Livraison →
  * Cas complexes. Chemin rapide = 4 taps (tout est pré-rempli). Ouvert depuis
- * S1 (« Personnaliser »). À la fin, comme S1, retombe directement sur
- * validate.tsx (S3 « Votre mandat » viendra au Lot 3) via le même canal
- * `postureConfirmed` — on saute donc deux écrans de la pile (S1 + S2).
+ * S1 (« Personnaliser »). À la fin, ouvre S3 « Votre mandat » (mandate-recap),
+ * terminal commun du flux — ce dernier saute S1+S2 au retour vers validate.tsx.
  */
 
 const OBJECTIVE_OPTIONS: readonly { value: SellObjective; label: string }[] = [
@@ -69,7 +68,6 @@ export default function MandateCustomizeScreen() {
   const setCasComplexes = useMandateDraft(s => s.setCasComplexes)
   const autoAdjuge = useMandateDraft(s => s.autoAdjugeAuDessusDuMini)
   const setAutoAdjuge = useMandateDraft(s => s.setAutoAdjuge)
-  const confirmPosture = useMandateDraft(s => s.confirmPosture)
 
   // Amorce unique au montage : si l'utilisateur revient sur cette vue, sa saisie prime.
   useEffect(() => {
@@ -110,8 +108,7 @@ export default function MandateCustomizeScreen() {
       return
     }
     dev.track('mandate_customize_confirmed')
-    confirmPosture()
-    router.dismiss(2)
+    router.push({ pathname: '/mandate-recap', params: { prixAffiche, dismissCount: '3' } })
   }
 
   return (

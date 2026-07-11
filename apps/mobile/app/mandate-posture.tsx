@@ -16,10 +16,9 @@ import { Tappable } from '../src/ui/Tappable'
  * exprimée en une phrase par carte — jamais une liste de réglages. Ouvert
  * depuis validate.tsx en tapant « Valider et publier » sur le palier Premium.
  *
- * Lot 1 : aucun appel réseau ici. « Continuer » confirme la posture choisie
- * (canal useMandateDraft) et revient à validate.tsx, qui enchaîne sur la
- * confirmation de publication existante — S2 « Personnaliser » et S3 « Votre
- * mandat » viendront s'insérer dans ce chemin aux lots suivants.
+ * Aucun appel réseau ici. « Continuer » amorce le prix mini (défaut =
+ * prixPlancher) et ouvre S3 « Votre mandat » (mandate-recap) — terminal commun
+ * à ce chemin (S1 seul) et à celui qui passe par S2 « Personnaliser ».
  */
 export default function MandatePostureScreen() {
   const router = useRouter()
@@ -29,13 +28,13 @@ export default function MandatePostureScreen() {
   }>()
   const posture = useMandateDraft(s => s.posture)
   const setPosture = useMandateDraft(s => s.setPosture)
-  const confirmPosture = useMandateDraft(s => s.confirmPosture)
+  const seedPrixMini = useMandateDraft(s => s.seedPrixMini)
 
   const handleContinue = () => {
     // Data produit : quelle posture les vendeurs choisissent réellement.
     dev.track(`mandate_posture_confirmed:${posture}`)
-    confirmPosture()
-    router.back()
+    seedPrixMini(Number(prixPlancher), Number(prixAffiche))
+    router.push({ pathname: '/mandate-recap', params: { prixAffiche, dismissCount: '2' } })
   }
 
   const handleCustomize = () => {

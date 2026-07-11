@@ -7,6 +7,7 @@ import { join } from 'node:path'
 import { MarketplaceClient, Marketplace, MockMarketplacePublisher } from '@flipsync/marketplace'
 import { PublicationService } from '../services/publication.service'
 import { MarketplaceAuthService } from '../services/marketplace-auth.service'
+import { MissionService } from '../services/mission.service'
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -15,6 +16,7 @@ declare module 'fastify' {
     publicationService: PublicationService
     visionService: VisionService
     marketplaceAuth: MarketplaceAuthService
+    missionService: MissionService
   }
 }
 
@@ -60,6 +62,7 @@ const servicesPlugin: FastifyPluginAsync = async app => {
     'publicationService',
     new PublicationService(prisma, listingEngine, marketplaceClient, publicBaseUrl, marketplaceAuth, app.log),
   )
+  app.decorate('missionService', new MissionService(prisma))
 
   app.addHook('onClose', async () => {
     await prisma.$disconnect()

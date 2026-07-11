@@ -10,6 +10,7 @@ import type {
   ListingStatus,
   ListingTier,
   MarketplaceStatusResponse,
+  SellMandate,
   TransactionType,
 } from '@flipsync/core'
 import { useAuthStore } from '../store/auth.store'
@@ -262,6 +263,10 @@ export const api = {
   /** LE point de débit : DRAFT_READY → USER_VALIDATED (commit) → QUEUED. */
   validate: (listingId: string, prixPublie: number) =>
     post<{ listing: ApiListing }>(`/listing/${listingId}/validate`, { prixPublie }),
+
+  /** Confirmation du mandat (S3) — crée la Mission, BROUILLON_MANDAT → EN_VENTE (stub, Lot 3). */
+  createMission: (listingId: string, mandate: SellMandate) =>
+    post<{ mission: { id: string; status: string } }>('/mission', { listingId, mandate }),
 
   /** Annulation — remboursement automatique si l'annonce était déjà validée. */
   cancel: (listingId: string) => post<{ listing: ApiListing }>(`/listing/${listingId}/cancel`),

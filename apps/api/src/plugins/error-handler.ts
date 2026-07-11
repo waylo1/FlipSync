@@ -3,6 +3,7 @@ import { FastifyPluginAsync } from 'fastify'
 import { WalletError } from '@flipsync/wallet'
 import { EngineError } from '@flipsync/ai'
 import { PublicationError } from '../services/publication.service'
+import { MissionError } from '../services/mission.service'
 
 /** Mapping code métier SNAKE_CASE → statut HTTP. Défaut domaine : 400. */
 const HTTP_BY_CODE: Readonly<Record<string, number>> = {
@@ -17,6 +18,7 @@ const HTTP_BY_CODE: Readonly<Record<string, number>> = {
   INVALID_AMOUNT: 400,
   INVALID_PAYMENT_SOURCE: 400,
   MISSING_FAILURE_REASON: 400,
+  INVALID_MANDATE: 400,
   // Vision serveur : le modèle amont a échoué — pas la requête du client.
   AI_TIMEOUT: 504,
   AI_INVALID_OUTPUT: 502,
@@ -32,7 +34,8 @@ const errorHandlerPlugin: FastifyPluginAsync = async app => {
     if (
       err instanceof WalletError ||
       err instanceof EngineError ||
-      err instanceof PublicationError
+      err instanceof PublicationError ||
+      err instanceof MissionError
     ) {
       return reply.code(HTTP_BY_CODE[err.code] ?? 400).send({ error: err.code })
     }

@@ -14,6 +14,7 @@ import aiRoutes from './routes/ai'
 import adminRoutes from './routes/admin'
 import devSessionsRoutes from './routes/dev-sessions'
 import marketplaceRoutes from './routes/marketplace'
+import missionRoutes from './routes/mission'
 
 /** Construit l'app complète — utilisé par index.ts (listen) et les tests (inject). */
 export async function buildApp(): Promise<FastifyInstance> {
@@ -65,6 +66,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(adminRoutes, { prefix: '/admin' })
   await app.register(devSessionsRoutes, { prefix: '/dev-sessions' })
   await app.register(marketplaceRoutes, { prefix: '/marketplace' })
+  await app.register(missionRoutes, { prefix: '/mission' })
 
   return app
 }

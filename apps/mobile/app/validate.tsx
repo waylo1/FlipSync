@@ -6,6 +6,7 @@ import {
   ItemCondition,
   ListingDraft,
   ListingTier,
+  SellMandate,
   TIER_FEATURES,
   TIER_PRICING,
   centsToEur,
@@ -199,6 +200,31 @@ function ValidateForm({ draft, photos, resume, clearSession, goHome }: FormProps
         await api.validate(listingId, prixPublie)
       } catch (err) {
         if (!(err instanceof ApiError) || err.code !== 'INVALID_TRANSITION') throw err
+      }
+
+      // Mandat IA (Premium uniquement) — le listingId n'existe qu'à cette étape
+      // du flux (créé avant le mandat, cf. handlePrimaryPress) : c'est ici, pas
+      // dans mandate-recap.tsx, que la Mission est réellement créée côté
+      // serveur (BROUILLON_MANDAT → EN_VENTE, stub Lot 3). ALREADY_COMMITTED =
+      // déjà créée côté serveur (reprise) → on continue, comme les autres étapes.
+      if (tier === ListingTier.PREMIUM) {
+        const mandateState = useMandateDraft.getState()
+        if (mandateState.prixMini !== null) {
+          const mandate: SellMandate = {
+            posture: mandateState.posture,
+            objectif: mandateState.objectif,
+            prixAffiche: prixPublie,
+            prixMini: mandateState.prixMini,
+            livraison: mandateState.livraison,
+            casComplexes: mandateState.casComplexes,
+            autoAdjugeAuDessusDuMini: mandateState.autoAdjugeAuDessusDuMini,
+          }
+          try {
+            await api.createMission(listingId, mandate)
+          } catch (err) {
+            if (!(err instanceof ApiError) || err.code !== 'ALREADY_COMMITTED') throw err
+          }
+        }
       }
 
       clearPending()

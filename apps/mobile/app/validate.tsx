@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { Redirect, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -21,6 +21,7 @@ import {
   useListingSession,
   usePendingPublish,
 } from '../src/store/listing.store'
+import { useMandateDraft } from '../src/store/mission.store'
 import { ConditionChips } from '../src/components/ConditionChips'
 import { PriceFlagAlert } from '../src/components/PriceFlagAlert'
 import { font, formatEur, line, radius, space, theme, tracking } from '../src/theme'
@@ -84,6 +85,7 @@ function ignoreAlreadyDone(err: unknown): void {
 }
 
 function ValidateForm({ draft, photos, resume, clearSession, goHome }: FormProps) {
+  const router = useRouter()
   // Champs éditables — pré-remplis par l'IA, l'utilisateur a le dernier mot.
   const [titre, setTitre] = useState(draft.titre)
   const [description, setDescription] = useState(draft.description)
@@ -190,6 +192,7 @@ function ValidateForm({ draft, photos, resume, clearSession, goHome }: FormProps
 
       clearPending()
       clearSession()
+      useMandateDraft.getState().reset()
       dev.track('publish_success')
       goHome()
     } catch (err) {
@@ -218,6 +221,32 @@ function ValidateForm({ draft, photos, resume, clearSession, goHome }: FormProps
       ],
     )
   }, [tier, publish, resume])
+
+  /**
+   * Palier Premium, première tentative : on configure le mandat IA (S1
+   * « Configurez votre IA ») avant de payer — cf. COMMISSAIRE_PRISEUR_PLAN.md §5.1.
+   * Autres paliers, ou reprise d'une publication interrompue (offre déjà figée
+   * côté serveur) : comportement inchangé, confirmation immédiate.
+   */
+  const handlePrimaryPress = useCallback(() => {
+    if (resume === null && tier === ListingTier.PREMIUM) {
+      dev.track('mandate_posture_opened')
+      router.push('/mandate-posture')
+      return
+    }
+    confirmPublish()
+  }, [resume, tier, confirmPublish, router])
+
+  // Canal de retour S1 → validate.tsx (cf. mission.store.ts). Tant que S2/S3
+  // n'existent pas (Lots 2-3), la posture confirmée enchaîne directement sur la
+  // confirmation de publication existante.
+  const postureConfirmed = useMandateDraft(s => s.postureConfirmed)
+  const consumeConfirmation = useMandateDraft(s => s.consumeConfirmation)
+  useEffect(() => {
+    if (!postureConfirmed) return
+    consumeConfirmation()
+    confirmPublish()
+  }, [postureConfirmed, consumeConfirmation, confirmPublish])
 
   const insets = useSafeAreaInsets()
 
@@ -310,7 +339,7 @@ function ValidateForm({ draft, photos, resume, clearSession, goHome }: FormProps
             ? `Reprendre la publication — ${formatEur(TIER_PRICING[tier])}`
             : `Valider et publier — ${formatEur(TIER_PRICING[tier])}`
         }
-        onPress={() => confirmPublish()}
+        onPress={() => handlePrimaryPress()}
         loading={publishing}
         disabled={!formValid}
         style={styles.publishBtn}

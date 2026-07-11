@@ -1,6 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native'
 import { useRouter } from 'expo-router'
 import { POSTURE_ORDER, POSTURE_PRESETS, SellPosture } from '@flipsync/core'
+import { dev } from '../src/dev-session/recorder'
 import { useMandateDraft } from '../src/store/mission.store'
 import { font, line, space, theme, tracking } from '../src/theme'
 import { Button } from '../src/ui/Button'
@@ -27,6 +28,8 @@ export default function MandatePostureScreen() {
   const confirmPosture = useMandateDraft(s => s.confirmPosture)
 
   const handleContinue = () => {
+    // Data produit : quelle posture les vendeurs choisissent réellement.
+    dev.track(`mandate_posture_confirmed:${posture}`)
     confirmPosture()
     router.back()
   }

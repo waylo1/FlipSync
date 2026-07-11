@@ -103,6 +103,17 @@ function ValidateForm({ draft, photos, resume, clearSession, goHome }: FormProps
   const [publishing, setPublishing] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
+  // Chaque NOUVELLE annonce démarre sur un mandat propre (posture = défaut
+  // Équilibré, cf. plan §5.1). Effet au montage uniquement : un aller-retour
+  // S1 → « Continuer » ne remonte pas cet écran (S1 est empilé par-dessus), la
+  // posture choisie survit donc dans le flux (Q2). Une annonce abandonnée ne
+  // « salit » plus la suivante. En reprise, l'offre est déjà figée : on n'y touche pas.
+  useEffect(() => {
+    if (resume === null) useMandateDraft.getState().reset()
+    // Montage seul — deps volontairement vides.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   /** Centimes Int ou null si saisie invalide. */
   const prixPublie = useMemo(() => {
     const eur = Number(prixInput.replace(',', '.'))
@@ -244,9 +255,13 @@ function ValidateForm({ draft, photos, resume, clearSession, goHome }: FormProps
   const consumeConfirmation = useMandateDraft(s => s.consumeConfirmation)
   useEffect(() => {
     if (!postureConfirmed) return
+    // On consomme le drapeau dans tous les cas (jamais de résidu qui ré-ouvrirait
+    // une confirmation-fantôme). L'auto-confirmation ne vaut QUE pour Premium :
+    // le mandat n'a de sens que là — invariant verrouillé ici, pas seulement par
+    // le flux d'ouverture de S1.
     consumeConfirmation()
-    confirmPublish()
-  }, [postureConfirmed, consumeConfirmation, confirmPublish])
+    if (tier === ListingTier.PREMIUM) confirmPublish()
+  }, [postureConfirmed, consumeConfirmation, confirmPublish, tier])
 
   const insets = useSafeAreaInsets()
 

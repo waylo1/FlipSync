@@ -10,6 +10,7 @@ import type {
   ListingStatus,
   ListingTier,
   MarketplaceStatusResponse,
+  MissionStatus,
   SellMandate,
   TransactionType,
 } from '@flipsync/core'
@@ -126,6 +127,40 @@ export interface UploadPhoto {
   /** sha256 de la CHAÎNE base64 — convention partagée avec l'API (HASH_MISMATCH sinon). */
   sha256: string
   order: number
+}
+
+/** Mission (réponse GET /mission/*) — tableau de bord S4 (COMMISSAIRE_PRISEUR_PLAN.md §5.4). */
+export interface ApiMission {
+  id: string
+  listingId: string
+  status: MissionStatus
+  posture: string
+  objectif: string
+  prixAffiche: number // centimes
+  prixMini: number // centimes
+  livraison: string
+  casComplexes: string
+  autoAdjugeAuDessusDuMini: boolean
+  activeBuyerCount: number
+  bestOfferAmount: number | null // centimes
+  pendingReason: string | null
+  pendingOfferAmount: number | null // centimes
+  pendingBuyerName: string | null
+  soldAmount: number | null // centimes
+  soldAt: string | null
+  createdAt: string
+  updatedAt: string
+  enVenteAt: string | null
+}
+
+/** Ligne de timeline (réponse GET /mission/*, la plus récente en premier). */
+export interface ApiMissionEvent {
+  id: string
+  kind: string
+  summary: string
+  amount: number | null // centimes
+  buyerName: string | null
+  createdAt: string
 }
 
 export interface ApiWallet {
@@ -266,7 +301,18 @@ export const api = {
 
   /** Confirmation du mandat (S3) — crée la Mission, BROUILLON_MANDAT → EN_VENTE (stub, Lot 3). */
   createMission: (listingId: string, mandate: SellMandate) =>
-    post<{ mission: { id: string; status: string } }>('/mission', { listingId, mandate }),
+    post<{ mission: ApiMission }>('/mission', { listingId, mandate }),
+
+  /** Tableau de bord S4 (Lot 5) — état + timeline, alimenté par le canal simulé. */
+  getMissionByListing: (listingId: string) =>
+    request<{ mission: ApiMission; events: ApiMissionEvent[] }>(`/mission/by-listing/${listingId}`),
+  getMission: (missionId: string) =>
+    request<{ mission: ApiMission; events: ApiMissionEvent[] }>(`/mission/${missionId}`),
+
+  /** Menu ⋯ du tableau de bord (S4). */
+  suspendMission: (missionId: string) => post<{ mission: ApiMission }>(`/mission/${missionId}/suspend`),
+  resumeMission: (missionId: string) => post<{ mission: ApiMission }>(`/mission/${missionId}/resume`),
+  stopMission: (missionId: string) => post<{ mission: ApiMission }>(`/mission/${missionId}/stop`),
 
   /** Annulation — remboursement automatique si l'annonce était déjà validée. */
   cancel: (listingId: string) => post<{ listing: ApiListing }>(`/listing/${listingId}/cancel`),

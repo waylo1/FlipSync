@@ -25,6 +25,7 @@ function toRow(listing: ApiListing): ListingRow {
     titre: listing.titre ?? 'Annonce en préparation',
     prixCents: listing.prixPublie ?? listing.prixHaut,
     status: listing.status,
+    tier: listing.tier,
     failureReason: listing.failureReason,
     publishedLbc: listing.publishedLbc,
     publishedVinted: listing.publishedVinted,

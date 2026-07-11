@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Dimensions, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { Redirect, useLocalSearchParams, useRouter } from 'expo-router'
 import { AlertTriangle, Pencil, RotateCcw } from 'lucide-react-native'
-import { ItemCondition, ListingStatus } from '@flipsync/core'
+import { ItemCondition, ListingStatus, ListingTier } from '@flipsync/core'
 import { API_BASE, ApiError, ApiListing, api } from '../src/services/api'
 import { LISTING_EDITABLE_STATUSES } from '../src/store/listing.store'
 import { font, formatEur, line, radius, space, theme } from '../src/theme'
@@ -56,6 +56,11 @@ export default function ListingViewScreen() {
   useEffect(() => load(), [load])
 
   if (!id) return <Redirect href="/(tabs)" />
+
+  // Premium publiée → tableau de bord Mission (S4), jamais la fiche détail (§5.4).
+  if (listing !== null && listing.tier === ListingTier.PREMIUM && listing.status === ListingStatus.PUBLISHED) {
+    return <Redirect href={{ pathname: '/mission', params: { listingId: id } }} />
+  }
 
   return (
     <View style={styles.screen}>

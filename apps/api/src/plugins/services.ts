@@ -8,6 +8,7 @@ import { MarketplaceClient, Marketplace, MockMarketplacePublisher } from '@flips
 import { PublicationService } from '../services/publication.service'
 import { MarketplaceAuthService } from '../services/marketplace-auth.service'
 import { MissionService } from '../services/mission.service'
+import { MissionNegotiationService } from '../services/negotiation.service'
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -17,6 +18,7 @@ declare module 'fastify' {
     visionService: VisionService
     marketplaceAuth: MarketplaceAuthService
     missionService: MissionService
+    missionNegotiationService: MissionNegotiationService
   }
 }
 
@@ -63,6 +65,7 @@ const servicesPlugin: FastifyPluginAsync = async app => {
     new PublicationService(prisma, listingEngine, marketplaceClient, publicBaseUrl, marketplaceAuth, app.log),
   )
   app.decorate('missionService', new MissionService(prisma))
+  app.decorate('missionNegotiationService', new MissionNegotiationService(prisma))
 
   app.addHook('onClose', async () => {
     await prisma.$disconnect()

@@ -131,11 +131,43 @@ model Mission {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   enVenteAt DateTime?
+  soldAt    DateTime?
 
-  user    User    @relation(fields: [userId], references: [id])
-  listing Listing @relation(fields: [listingId], references: [id])
+  // ─── Ardoise vivante du canal simulé (Lot 4/5) — dérivée des MissionEvent, ─────
+  // jamais réécrite hors de MissionNegotiationService. Alimente le bandeau
+  // d'état et la carte « en attente de vous » (S4) sans recalcul par requête.
+  activeBuyerCount   Int            @default(0)
+  bestOfferAmount    Int? // centimes — meilleure offre en cours, tous acheteurs confondus
+  pendingReason      String? // 'OFFER' | 'OFFER_AT_FLOOR' | 'COMPLEX_CASE' | 'SECURITY_ALERT' (NegotiationAction)
+  pendingOfferAmount Int? // centimes — présent si pendingReason ∈ {OFFER, OFFER_AT_FLOOR}
+  pendingBuyerName   String?
+  soldAmount         Int? // centimes
+  preSuspendStatus   MissionStatus? // statut à restaurer par RESUMED, écrit en entrant dans SUSPENDUE
+
+  user    User           @relation(fields: [userId], references: [id])
+  listing Listing        @relation(fields: [listingId], references: [id])
+  events  MissionEvent[]
 
   @@index([userId, status])
+}
+
+// ─── TIMELINE DE LA MISSION (S4, §5.4) ─────────────────────────────────────────
+// 1 ligne par événement du canal simulé (Lot 4) — jamais réécrite, purement
+// additive. kind reprend les types NegotiationAction / MissionEvent (core) en
+// String (même décision SSOT que Mission : validation Zod à la frontière, pas
+// de duplication en enum Prisma).
+model MissionEvent {
+  id        String   @id @default(cuid())
+  missionId String
+  kind      String
+  summary   String
+  amount    Int? // centimes, si l'événement porte un montant
+  buyerName String?
+  createdAt DateTime @default(now())
+
+  mission Mission @relation(fields: [missionId], references: [id], onDelete: Cascade)
+
+  @@index([missionId, createdAt])
 }
 
 // ─── IA — brouillon en job détaché ─────────────────────────────────────────────

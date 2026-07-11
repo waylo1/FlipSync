@@ -1,7 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native'
 import { useRouter } from 'expo-router'
 import { AlertTriangle } from 'lucide-react-native'
-import { ListingStatus } from '@flipsync/core'
+import { ListingStatus, ListingTier } from '@flipsync/core'
 import { STATUS_META, font, line, radius, shadow, space, theme } from '../theme'
 import { AmountText } from '../ui/AmountText'
 import { Badge } from '../ui/Badge'
@@ -15,6 +15,7 @@ export interface ListingRow {
   /** Centimes Int — null tant qu'aucun prix n'existe (avant brouillon IA). */
   prixCents: number | null
   status: ListingStatus
+  tier: ListingTier
   failureReason: string | null
   publishedLbc: boolean
   publishedVinted: boolean
@@ -22,6 +23,10 @@ export interface ListingRow {
   /** URL absolue de la première photo — vignette lettre si absente. */
   thumbUri: string | null
 }
+
+/** Premium + publiée → tableau de bord Mission (S4) plutôt que la fiche détail (§5.4). */
+const isInMission = (item: Pick<ListingRow, 'tier' | 'status'>): boolean =>
+  item.tier === ListingTier.PREMIUM && item.status === ListingStatus.PUBLISHED
 
 /**
  * Tuile de grille (accueil) — vignette + prix + statut. Tap → fiche détail.
@@ -36,7 +41,11 @@ export function ListingTile({ item, index = 0 }: { item: ListingRow; index?: num
     <FadeInUp delay={Math.min(index * 40, 240)} style={styles.wrap}>
       <Tappable
         accessibilityLabel={`${item.titre}, ${meta.label}`}
-        onPress={() => router.push({ pathname: '/listing-view', params: { id: item.id } })}
+        onPress={() =>
+          isInMission(item)
+            ? router.push({ pathname: '/mission', params: { listingId: item.id } })
+            : router.push({ pathname: '/listing-view', params: { id: item.id } })
+        }
         style={styles.tile}
       >
       <View style={styles.thumbWrap}>

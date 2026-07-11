@@ -98,12 +98,38 @@ model Listing {
   updatedAt   DateTime  @updatedAt
   publishedAt DateTime?
 
-  user         User                @relation(fields: [userId], references: [id])
+  user         User                 @relation(fields: [userId], references: [id])
   photos       ListingPhoto[]
   transactions WalletTransaction[]
   mission      Mission?
+  publications ChannelPublication[]
 
   @@index([status, updatedAt])
+}
+
+// ─── PUBLICATION MULTI-CANAL (pivot API-first, Lot 1) ──────────────────────────
+// 1 ligne par couple listing×canal — remplace à terme publishedLbc/vintedUrl/etc.
+// (colonnes Listing conservées le temps de migrer les consommateurs, cf. ADR).
+// status/externalId non-autoritatifs tant que le code n'écrit pas encore ici :
+// backfillés en lecture seule depuis Listing à la création de cette migration.
+
+model ChannelPublication {
+  id            String       @id @default(cuid())
+  listingId     String
+  channel       SalesChannel
+  status        String // 'QUEUED'|'PUBLISHED'|'FAILED'|'RETRACTED' — Zod SSOT, pas d'enum DB
+  externalId    String?
+  url           String?
+  failureReason String?
+  attempts      Int          @default(0)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@unique([listingId, channel])
+  @@unique([channel, externalId])
+  @@index([channel, status])
 }
 
 // ─── MISSION (Commissaire-Priseur IA) ──────────────────────────────────────────
@@ -190,6 +216,16 @@ enum ListingTier {
   SIMPLE
   OPTIMIZED
   PREMIUM
+}
+
+// Canaux de vente — vraie évolution produit (ajout = migration acceptée).
+// Storefronts (Shopify) et marketplaces (eBay/Rakuten) partagent l'enum ;
+// ChannelKind (marketplace/storefront) est une propriété du connecteur en
+// mémoire, jamais stockée ici. Phase 2 : += VINTED, LEBONCOIN (agrégateur B2B).
+enum SalesChannel {
+  EBAY
+  SHOPIFY
+  RAKUTEN
 }
 
 enum ListingStatus {

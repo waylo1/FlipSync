@@ -3,7 +3,6 @@ import { prisma, ListingStatus, TransactionType } from '@flipsync/db'
 import { Marketplace } from '@flipsync/marketplace'
 import type {
   AdminOverview,
-  ConnectorState,
   DevActionsState,
   DevSessionDetail,
   DevSessionSummary,
@@ -47,19 +46,6 @@ async function requireAdmin(req: FastifyRequest, reply: FastifyReply): Promise<v
   if (!user || !adminEmails().has(user.email.toLowerCase())) {
     return reply.code(403).send({ error: 'NOT_ADMIN' })
   }
-}
-
-/** Mode mock global (cf. plugins/services.ts) — jamais actif en production. */
-const marketplaceMockEnabled = () =>
-  process.env.MARKETPLACE_MOCK === '1' && process.env.NODE_ENV !== 'production'
-
-function connectorState(marketplace: Marketplace): ConnectorState {
-  if (marketplaceMockEnabled()) return 'MOCK'
-  const token =
-    marketplace === Marketplace.VINTED
-      ? process.env.VINTED_ACCESS_TOKEN
-      : process.env.LEBONCOIN_ACCESS_TOKEN
-  return token ? 'LIVE' : 'MISSING'
 }
 
 /**
@@ -108,8 +94,9 @@ const adminRoutes: FastifyPluginAsync = async app => {
         failed24h: aiFailed24h,
       },
       marketplace: {
-        vinted: connectorState(Marketplace.VINTED),
-        leboncoin: connectorState(Marketplace.LEBONCOIN),
+        // SSOT credentials/états : marketplaceAuth (plus de lecture env locale).
+        vinted: app.marketplaceAuth.connectorState(Marketplace.VINTED),
+        leboncoin: app.marketplaceAuth.connectorState(Marketplace.LEBONCOIN),
         publishFailed24h,
       },
       wallet: {

@@ -9,6 +9,7 @@ import type {
   ListingDraft,
   ListingStatus,
   ListingTier,
+  MarketplaceStatusResponse,
   TransactionType,
 } from '@flipsync/core'
 import { useAuthStore } from '../store/auth.store'
@@ -231,6 +232,9 @@ export const api = {
     post<{ jobId: string }>('/ai/draft/start', { photos: photosBase64 }),
   /** Poll léger — à appeler toutes les 3-5 s tant que status === 'running'. */
   getDraftJob: (jobId: string) => request<DraftJobStatus>(`/ai/draft/${jobId}`),
+
+  // ─── Marketplace — états de connexion aux plateformes (écran profil) ───────
+  getMarketplaceStatus: () => request<MarketplaceStatusResponse>('/marketplace/status'),
 
   // ─── Wallet ────────────────────────────────────────────────────────────────
   getWallet: () => request<ApiWallet>('/wallet'),

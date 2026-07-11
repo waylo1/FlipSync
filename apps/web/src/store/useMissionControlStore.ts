@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import type { ConnectorState } from "@flipsync/core";
 import {
   api,
   ApiError,
@@ -46,6 +47,23 @@ export interface AlertP1 {
 const AI_PROCESSING_WATCH_THRESHOLD = 5;
 const AI_FAILED_WATCH_THRESHOLD = 3;
 
+/** Message d'alerte P1 par état connecteur bloquant — null si publication possible. */
+function connectorAlertMessage(platform: string, state: ConnectorState): string | null {
+  switch (state) {
+    case "MISSING":
+      return `Credentials ${platform} manquants — publication bloquée`;
+    case "EXPIRED":
+      return `Credentials ${platform} expirés — publication bloquée`;
+    case "AUTH_ERROR":
+      return `Authentification ${platform} refusée par la plateforme — publication bloquée`;
+    default:
+      return null;
+  }
+}
+
+const connectorBlocked = (state: ConnectorState): boolean =>
+  connectorAlertMessage("", state) !== null;
+
 function timeLabel(iso: string): string {
   return new Date(iso).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
@@ -59,7 +77,7 @@ function buildAgents(overview: AdminOverview): Agent[] {
       ? "WATCH"
       : "NOMINAL";
 
-  const novaHasIssue = marketplace.vinted === "MISSING" || marketplace.leboncoin === "MISSING";
+  const novaHasIssue = connectorBlocked(marketplace.vinted) || connectorBlocked(marketplace.leboncoin);
   const novaStatus: AgentStatus = novaHasIssue
     ? "ALERT"
     : marketplace.vinted === "MOCK" || marketplace.leboncoin === "MOCK"
@@ -199,11 +217,13 @@ function buildAlerts(overview: AdminOverview): AlertP1[] {
   const alerts: AlertP1[] = [];
   const now = timeLabel(overview.health.ts);
 
-  if (marketplace.vinted === "MISSING") {
-    alerts.push({ id: "P1-vinted", agent: "Nova", message: "Credentials Vinted manquants — publication bloquée", time: now });
+  const vintedAlert = connectorAlertMessage("Vinted", marketplace.vinted);
+  if (vintedAlert) {
+    alerts.push({ id: "P1-vinted", agent: "Nova", message: vintedAlert, time: now });
   }
-  if (marketplace.leboncoin === "MISSING") {
-    alerts.push({ id: "P1-lbc", agent: "Nova", message: "Credentials Leboncoin manquants — publication bloquée", time: now });
+  const lbcAlert = connectorAlertMessage("Leboncoin", marketplace.leboncoin);
+  if (lbcAlert) {
+    alerts.push({ id: "P1-lbc", agent: "Nova", message: lbcAlert, time: now });
   }
   if (ai.failed24h >= AI_FAILED_WATCH_THRESHOLD) {
     alerts.push({ id: "P1-ai", agent: "Orion", message: `Taux d'échec IA élevé (${ai.failed24h} sur 24h)`, time: now });

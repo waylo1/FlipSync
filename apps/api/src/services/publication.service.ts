@@ -1,18 +1,9 @@
+import type { FastifyBaseLogger } from 'fastify'
 import { ListingStatus, PrismaClient } from '@flipsync/db'
 import { ItemCondition } from '@flipsync/core'
 import { ListingEngine } from '@flipsync/ai'
-import {
-  ListingPayload,
-  Marketplace,
-  MarketplaceClient,
-  MarketplaceCredentials,
-} from '@flipsync/marketplace'
-
-/** Résout les identifiants partenaire du vendeur pour une plateforme donnée. */
-export type CredentialsResolver = (
-  userId: string,
-  marketplace: Marketplace,
-) => Promise<MarketplaceCredentials | null>
+import { ListingPayload, Marketplace, MarketplaceClient } from '@flipsync/marketplace'
+import { MarketplaceAuthService } from './marketplace-auth.service'
 
 export interface PublicationOutcome {
   status: ListingStatus
@@ -53,7 +44,8 @@ export class PublicationService {
     private readonly engine: ListingEngine,
     private readonly client: MarketplaceClient,
     private readonly publicBaseUrl: string,
-    private readonly resolveCredentials: CredentialsResolver,
+    private readonly auth: MarketplaceAuthService,
+    private readonly log?: FastifyBaseLogger,
   ) {}
 
   async publish(listingId: string, marketplace: Marketplace): Promise<PublicationOutcome> {
@@ -75,9 +67,15 @@ export class PublicationService {
       return this.fail(listingId, marketplace, 'MISSING_PUBLISHED_PRICE')
     }
 
-    const credentials = await this.resolveCredentials(listing.userId, marketplace)
-    if (!credentials) {
-      return this.fail(listingId, marketplace, 'MARKETPLACE_CREDENTIALS_MISSING')
+    const resolution = this.auth.resolve(listing.userId, marketplace)
+    if (!resolution.ok) {
+      return this.fail(
+        listingId,
+        marketplace,
+        resolution.reason === 'EXPIRED'
+          ? 'MARKETPLACE_CREDENTIALS_EXPIRED'
+          : 'MARKETPLACE_CREDENTIALS_MISSING',
+      )
     }
 
     const payload: ListingPayload = {
@@ -90,7 +88,10 @@ export class PublicationService {
       photoUrls: listing.photos.map(p => `${this.publicBaseUrl}${p.url}`),
     }
 
-    const result = await this.client.publish(marketplace, payload, credentials)
+    const result = await this.client.publish(marketplace, payload, resolution.credentials)
+    // Un 401/403 plateforme bascule le connecteur en AUTH_ERROR (visible au
+    // GET /marketplace/status) ; un succès efface l'erreur.
+    this.auth.reportPublishOutcome(marketplace, result)
     if (!result.ok) {
       return this.fail(listingId, marketplace, result.code)
     }
@@ -98,6 +99,7 @@ export class PublicationService {
     await this.engine.markPublished(listingId, {
       [fields.urlKey]: result.url,
     })
+    this.log?.info({ listingId, marketplace, mock: resolution.mock }, 'publication réussie')
     return { status: ListingStatus.PUBLISHED, marketplace, url: result.url }
   }
 
@@ -107,6 +109,7 @@ export class PublicationService {
     marketplace: Marketplace,
     reason: string,
   ): Promise<PublicationOutcome> {
+    this.log?.warn({ listingId, marketplace, reason }, 'publication échouée — remboursement auto')
     await this.engine.failPublish(listingId, `${marketplace}:${reason}`)
     return { status: ListingStatus.PUBLISH_FAILED, marketplace, failureReason: reason }
   }

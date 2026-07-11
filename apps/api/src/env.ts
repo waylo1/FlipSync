@@ -41,6 +41,19 @@ const envSchema = z.object({
   ADMIN_EMAILS: z.string().optional(),
 
   /**
+   * Publication marketplace — credentials partenaires officiels (fournis à
+   * l'onboarding Vinted Integrations / LBC Partenaire, cf. Sprint 3). Absents
+   * ou expirés → PUBLISH_FAILED + remboursement auto, état visible sur
+   * GET /marketplace/status. *_TOKEN_EXPIRES_AT : date ISO optionnelle
+   * (validée à l'usage par MarketplaceAuthService, pas au boot).
+   */
+  VINTED_ACCESS_TOKEN: z.string().optional(),
+  VINTED_TOKEN_EXPIRES_AT: z.string().optional(),
+  LEBONCOIN_ACCESS_TOKEN: z.string().optional(),
+  LEBONCOIN_TOKEN_EXPIRES_AT: z.string().optional(),
+  MARKETPLACE_SELLER_ID: z.string().optional(),
+
+  /**
    * Palier Premium « Commissaire-Priseur IA » (missions de vente automatisées).
    * OFF par défaut, y compris en prod : tant que la négociation réelle n'est pas
    * branchée (canal partenaire), on ne démarre aucune mission réelle ni encaisse

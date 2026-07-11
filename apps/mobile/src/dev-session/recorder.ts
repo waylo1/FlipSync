@@ -158,6 +158,15 @@ export function trackAction(screen: string, component: string, action: string): 
 }
 
 /**
+ * Événement de type libre (accepté tel quel par l'ingestion — cf. packages/core
+ * dev-sessions.ts) : diagnostic métier ponctuel (ex: 'marketplace_status')
+ * sans étendre le registre de types connus ni coupler ce module au domaine.
+ */
+export function trackEvent(type: string, payload: Record<string, unknown>): void {
+  push(type, payload)
+}
+
+/**
  * Helper à appeler aux points d'intention métier de l'app — pas d'instrumentation
  * automatique par bouton. Écran courant déduit de la dernière navigation, pas
  * besoin de le préciser à l'appel.

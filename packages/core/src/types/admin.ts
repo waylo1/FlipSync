@@ -4,7 +4,11 @@
  * plutôt que retaper le payload à la main (cf. TECH_GOVERNANCE.md §1/§3).
  */
 
-export type ConnectorState = 'MISSING' | 'MOCK' | 'LIVE'
+/**
+ * État connecteur côté admin — MISSING/EXPIRED/AUTH_ERROR bloquent la
+ * publication (alerte P1 Mission Control), MOCK = simulé (dev), LIVE = opérationnel.
+ */
+export type ConnectorState = 'MISSING' | 'MOCK' | 'LIVE' | 'EXPIRED' | 'AUTH_ERROR'
 
 export interface AdminOverview {
   health: { status: 'ok'; ts: string }

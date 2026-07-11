@@ -135,11 +135,19 @@ export default function MissionScreen() {
           error={error}
           onRetry={retry}
           onOpenValidation={() => router.push({ pathname: '/mission-validate', params: { missionId: data.mission.id } })}
+          onOpenRecap={() => router.push({ pathname: '/mission-recap', params: { missionId: data.mission.id } })}
         />
       )}
     </View>
   )
 }
+
+/** Statuts avec un compte-rendu S6 consultable (§5.6) — bandeau tappable. */
+const RECAP_STATUSES: readonly MissionStatus[] = [
+  MissionStatus.VENDU,
+  MissionStatus.MISSION_TERMINEE,
+  MissionStatus.ARRETEE,
+]
 
 function Dashboard({
   mission,
@@ -149,6 +157,7 @@ function Dashboard({
   error,
   onRetry,
   onOpenValidation,
+  onOpenRecap,
 }: {
   mission: ApiMission
   events: ApiMissionEvent[]
@@ -157,11 +166,13 @@ function Dashboard({
   error: string | null
   onRetry: () => void
   onOpenValidation: () => void
+  onOpenRecap: () => void
 }) {
   const bandeau = missionBandeau(mission)
   const tone = TONE_STYLES[bandeau.tone]
   const pending = pendingValidationSummary(mission)
   const calm = isDashboardCalm(mission, events.length)
+  const hasRecap = RECAP_STATUSES.includes(mission.status)
 
   return (
     <ScrollView
@@ -174,15 +185,19 @@ function Dashboard({
       )}
 
       <FadeInUp>
-        <View
+        <Pressable
+          disabled={!hasRecap}
+          accessibilityRole={hasRecap ? 'button' : undefined}
+          accessibilityLabel={hasRecap ? `${bandeau.title} — voir le compte-rendu` : undefined}
           accessibilityLiveRegion="polite"
+          onPress={onOpenRecap}
           style={[styles.bandeau, { backgroundColor: tone.bg }]}
         >
           <Text style={[styles.bandeauTitle, { color: tone.fg }]}>{bandeau.title}</Text>
           {bandeau.subtitle !== null && (
             <Text style={[styles.bandeauSubtitle, { color: tone.fg }]}>{bandeau.subtitle}</Text>
           )}
-        </View>
+        </Pressable>
       </FadeInUp>
 
       {pending !== null && (

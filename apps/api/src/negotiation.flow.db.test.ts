@@ -356,6 +356,78 @@ describe.skipIf(!DB_URL)('Flux mobile /mission — tableau de bord + canal simul
     expect(res.json()).toEqual({ error: 'VALIDATION_NOT_PENDING' })
   })
 
+  it('§7 : une validation requise fixe lastNotifiedAt (anti-spam, Lot 8)', async () => {
+    const { prisma } = await import('@flipsync/db')
+    const { missionId } = await freshMission(prisma)
+
+    await app.inject({
+      method: 'POST',
+      url: `/mission/${missionId}/simulate`,
+      headers: authed(token),
+      payload: {
+        kind: 'OFFER',
+        offer: { buyerId: 'b1', buyerName: 'Julien M.', amount: 9_000, signals: { verified: true } },
+      },
+    })
+
+    const mission = await prisma.mission.findUniqueOrThrow({ where: { id: missionId } })
+    expect(mission.lastNotifiedAt).not.toBeNull()
+  })
+
+  it('§7 : une 2ᵉ validation dans l’heure ne redéclenche pas la notif (anti-spam)', async () => {
+    const { prisma } = await import('@flipsync/db')
+    const { missionId } = await freshMission(prisma)
+
+    await app.inject({
+      method: 'POST',
+      url: `/mission/${missionId}/simulate`,
+      headers: authed(token),
+      payload: {
+        kind: 'OFFER',
+        offer: { buyerId: 'b1', buyerName: 'Julien M.', amount: 9_000, signals: { verified: true } },
+      },
+    })
+    const first = await prisma.mission.findUniqueOrThrow({ where: { id: missionId } })
+
+    await app.inject({
+      method: 'POST',
+      url: `/mission/${missionId}/resolve-validation`,
+      headers: authed(token),
+      payload: { action: 'CONTINUE' },
+    })
+    await app.inject({
+      method: 'POST',
+      url: `/mission/${missionId}/simulate`,
+      headers: authed(token),
+      payload: {
+        kind: 'OFFER',
+        offer: { buyerId: 'b2', buyerName: 'Amina K.', amount: 9_200, signals: { verified: true } },
+      },
+    })
+
+    const second = await prisma.mission.findUniqueOrThrow({ where: { id: missionId } })
+    expect(second.lastNotifiedAt?.getTime()).toBe(first.lastNotifiedAt?.getTime())
+  })
+
+  it('§7 : une vente (SOLD) ne touche jamais lastNotifiedAt — pas de quota consommé', async () => {
+    const { prisma } = await import('@flipsync/db')
+    const { missionId } = await freshMission(prisma, { ...MANDATE, autoAdjugeAuDessusDuMini: true })
+
+    await app.inject({
+      method: 'POST',
+      url: `/mission/${missionId}/simulate`,
+      headers: authed(token),
+      payload: {
+        kind: 'OFFER',
+        offer: { buyerId: 'b1', buyerName: 'Julien M.', amount: 9_500, signals: { verified: true } },
+      },
+    })
+
+    const mission = await prisma.mission.findUniqueOrThrow({ where: { id: missionId } })
+    expect(mission.status).toBe('VENDU')
+    expect(mission.lastNotifiedAt).toBeNull()
+  })
+
   it('menu ⋯ : arrêter — irréversible, aucun RESUMED possible ensuite', async () => {
     const { prisma } = await import('@flipsync/db')
     const { missionId } = await freshMission(prisma)

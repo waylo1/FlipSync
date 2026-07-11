@@ -6,13 +6,17 @@ import {
   MissionEvent as CoreMissionEvent,
   MissionStatus as CoreMissionStatus,
   NegotiationAction,
+  NotificationKind,
   SellMandate,
   SellObjective,
   SellPosture,
   applyMissionEvent,
   decideNegotiation,
+  isThrottledKind,
   redactOutboundMessage,
+  shouldNotify,
 } from '@flipsync/core'
+import { NotificationService, buildNotification } from './notification.service'
 
 /**
  * @flipsync/db génère son propre enum MissionStatus (Prisma Client) — même
@@ -67,7 +71,10 @@ interface EventDraft {
  * même frontière `NegotiationChannel`, cf. @flipsync/core).
  */
 export class MissionNegotiationService {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(
+    private readonly prisma: PrismaClient,
+    private readonly notificationService: NotificationService,
+  ) {}
 
   async getDashboard(userId: string, missionId: string) {
     const mission = await this.findOwned(userId, missionId)
@@ -155,6 +162,7 @@ export class MissionNegotiationService {
       if (amount === null) throw new NegotiationError('VALIDATION_NOT_PENDING')
 
       const status = transition(mission.status, { type: 'SALE_CONFIRMED' })
+      await this.notifyIfDue(mission, 'SOLD', amount)
       return this.commit(
         mission.id,
         {
@@ -198,6 +206,20 @@ export class MissionNegotiationService {
     return mission
   }
 
+  /**
+   * §7 + anti-spam : envoie (ou pas) une notification pour `kind`, et renvoie
+   * la nouvelle valeur de `lastNotifiedAt` à écrire — uniquement pour les kinds
+   * régulés (`isThrottledKind`) et uniquement si l'envoi a eu lieu. `SOLD`
+   * n'écrit jamais `lastNotifiedAt` : il ne consomme pas le quota (§7, core).
+   */
+  private async notifyIfDue(mission: Mission, kind: NotificationKind, amountCents: number | undefined): Promise<Date | undefined> {
+    if (!shouldNotify(kind, mission.lastNotifiedAt, new Date())) return undefined
+
+    const listing = await this.prisma.listing.findUnique({ where: { id: mission.listingId }, select: { titre: true } })
+    await this.notificationService.send(mission.userId, buildNotification(kind, listing?.titre ?? 'votre annonce', amountCents))
+    return isThrottledKind(kind) ? new Date() : undefined
+  }
+
   private async applyAction(
     mission: Mission,
     message: IncomingMessage,
@@ -229,6 +251,7 @@ export class MissionNegotiationService {
         data.bestOfferAmount = Math.max(mission.bestOfferAmount ?? 0, action.amount)
         draft.summary = `Vendu ${eur(action.amount)} — adjugé seule selon le mandat`
         draft.amount = action.amount
+        await this.notifyIfDue(mission, 'SOLD', action.amount)
         break
 
       case 'REQUIRE_VALIDATION': {
@@ -242,6 +265,9 @@ export class MissionNegotiationService {
         }
         draft.summary = requireValidationSummary(action.reason, buyerName, offerAmount)
         draft.amount = offerAmount
+        const kind: NotificationKind = action.reason === 'SECURITY_ALERT' ? 'SECURITY_ALERT' : 'VALIDATION_REQUIRED'
+        const lastNotifiedAt = await this.notifyIfDue(mission, kind, offerAmount)
+        if (lastNotifiedAt !== undefined) data.lastNotifiedAt = lastNotifiedAt
         break
       }
 

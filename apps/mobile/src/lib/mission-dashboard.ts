@@ -130,3 +130,82 @@ export function validationVariant(mission: DashboardMission): ValidationVariant 
       return null
   }
 }
+
+// ─── S6 — « Mission terminée » (§5.6, Lot 7) ───────────────────────────────────
+
+/** Sous-ensemble de Mission requis pour le compte-rendu S6 (au-delà de DashboardMission). */
+export interface RecapMission extends DashboardMission {
+  enVenteAt: string | null
+  soldAt: string | null
+}
+
+export interface RecapEvent {
+  kind: string
+  amount: number | null
+  createdAt: string
+}
+
+export interface MissionRecap {
+  readonly kind: 'SOLD_BY_HUMAN' | 'SOLD_ZERO_CLICK' | 'STOPPED_NO_SALE'
+  readonly soldAmount: number | null
+  readonly messagesHandled: number
+  readonly offersNegotiated: number
+  readonly durationLabel: string | null
+  readonly deltaVsFirstOfferCents: number | null
+}
+
+const MINUTE_MS = 60_000
+const HOUR_MS = 60 * MINUTE_MS
+const DAY_MS = 24 * HOUR_MS
+
+function formatDuration(ms: number): string {
+  const days = Math.floor(ms / DAY_MS)
+  const hours = Math.floor((ms % DAY_MS) / HOUR_MS)
+  const minutes = Math.floor((ms % HOUR_MS) / MINUTE_MS)
+  if (days > 0) return `${days} j ${hours} h`
+  if (hours > 0) return `${hours} h ${minutes} min`
+  return `${minutes} min`
+}
+
+const STATUSES_WITH_RECAP: readonly MissionStatus[] = [
+  MissionStatus.VENDU,
+  MissionStatus.MISSION_TERMINEE,
+  MissionStatus.ARRETEE,
+]
+
+/**
+ * Compte-rendu S6 — `null` si la mission n'a pas de récap à montrer (statut non
+ * terminal). `ARRETEE` sans vente affiche la variante neutre du plan ; `ARRETEE`
+ * avec `soldAmount` (vente humaine conclue puis mission arrêtée) reste une vente.
+ */
+export function missionRecap(mission: RecapMission, events: readonly RecapEvent[]): MissionRecap | null {
+  if (!STATUSES_WITH_RECAP.includes(mission.status)) return null
+
+  if (mission.soldAmount === null) {
+    return {
+      kind: 'STOPPED_NO_SALE',
+      soldAmount: null,
+      messagesHandled: events.filter(e => e.kind === 'AUTO_REPLY').length,
+      offersNegotiated: events.filter(e => e.amount !== null).length,
+      durationLabel: null,
+      deltaVsFirstOfferCents: null,
+    }
+  }
+
+  const sorted = [...events].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+  const firstOffer = sorted.find(e => e.amount !== null)
+  const saleEvent = [...sorted].reverse().find(e => e.kind === 'AUTO_ACCEPT' || e.kind === 'SALE_CONFIRMED')
+
+  return {
+    kind: saleEvent?.kind === 'AUTO_ACCEPT' ? 'SOLD_ZERO_CLICK' : 'SOLD_BY_HUMAN',
+    soldAmount: mission.soldAmount,
+    messagesHandled: events.filter(e => e.kind === 'AUTO_REPLY').length,
+    offersNegotiated: events.filter(e => e.amount !== null).length,
+    durationLabel:
+      mission.enVenteAt !== null && mission.soldAt !== null
+        ? formatDuration(new Date(mission.soldAt).getTime() - new Date(mission.enVenteAt).getTime())
+        : null,
+    deltaVsFirstOfferCents:
+      firstOffer?.amount !== undefined && firstOffer.amount !== null ? mission.soldAmount - firstOffer.amount : null,
+  }
+}

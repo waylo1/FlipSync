@@ -143,6 +143,7 @@ model Mission {
   pendingBuyerName   String?
   soldAmount         Int? // centimes
   preSuspendStatus   MissionStatus? // statut à restaurer par RESUMED, écrit en entrant dans SUSPENDUE
+  lastNotifiedAt     DateTime? // anti-spam §7 : dernière notif de négociation envoyée (VALIDATION_REQUIRED/SECURITY_ALERT)
 
   user    User           @relation(fields: [userId], references: [id])
   listing Listing        @relation(fields: [listingId], references: [id])

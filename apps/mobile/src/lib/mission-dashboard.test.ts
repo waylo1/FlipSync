@@ -2,8 +2,11 @@ import { describe, expect, it } from 'vitest'
 import { MissionStatus } from '@flipsync/core'
 import {
   DashboardMission,
+  RecapEvent,
+  RecapMission,
   isDashboardCalm,
   missionBandeau,
+  missionRecap,
   pendingValidationSummary,
   validationVariant,
 } from './mission-dashboard'
@@ -187,5 +190,66 @@ describe('validationVariant — les 3 variantes de la feuille S5 (§5.5)', () =>
       pendingBuyerName: 'Julien M.',
     }
     expect(validationVariant(m)).toBeNull()
+  })
+})
+
+const recapBase: RecapMission = { ...base, status: MissionStatus.VENDU, enVenteAt: null, soldAt: null }
+
+describe('missionRecap — le compte-rendu S6 (§5.6, Lot 7)', () => {
+  it('null hors statut terminal', () => {
+    expect(missionRecap({ ...recapBase, status: MissionStatus.EN_VENTE }, [])).toBeNull()
+    expect(missionRecap({ ...recapBase, status: MissionStatus.NEGOCIATION_ACTIVE }, [])).toBeNull()
+  })
+
+  it('vendu par validation humaine — stats + delta vs première offre', () => {
+    const mission: RecapMission = {
+      ...recapBase,
+      soldAmount: 79_000,
+      enVenteAt: '2026-07-10T08:00:00.000Z',
+      soldAt: '2026-07-11T12:00:00.000Z',
+    }
+    const events: RecapEvent[] = [
+      { kind: 'SALE_CONFIRMED', amount: 79_000, createdAt: '2026-07-11T12:00:00.000Z' },
+      { kind: 'REQUIRE_VALIDATION', amount: 79_000, createdAt: '2026-07-11T11:00:00.000Z' },
+      { kind: 'AUTO_REPLY', amount: null, createdAt: '2026-07-10T09:00:00.000Z' },
+      { kind: 'REQUIRE_VALIDATION', amount: 75_000, createdAt: '2026-07-10T08:30:00.000Z' },
+    ]
+    expect(missionRecap(mission, events)).toEqual({
+      kind: 'SOLD_BY_HUMAN',
+      soldAmount: 79_000,
+      messagesHandled: 1,
+      offersNegotiated: 3,
+      durationLabel: '1 j 4 h',
+      deltaVsFirstOfferCents: 4_000,
+    })
+  })
+
+  it('vendu en zéro-clic — kind dédié, pas de confusion avec une validation humaine', () => {
+    const mission: RecapMission = {
+      ...recapBase,
+      soldAmount: 95_000,
+      enVenteAt: '2026-07-11T10:00:00.000Z',
+      soldAt: '2026-07-11T10:30:00.000Z',
+    }
+    const events: RecapEvent[] = [{ kind: 'AUTO_ACCEPT', amount: 95_000, createdAt: '2026-07-11T10:30:00.000Z' }]
+    expect(missionRecap(mission, events)?.kind).toBe('SOLD_ZERO_CLICK')
+    expect(missionRecap(mission, events)?.durationLabel).toBe('30 min')
+  })
+
+  it('mission arrêtée sans vente — variante neutre, jamais culpabilisante', () => {
+    const mission: RecapMission = { ...recapBase, status: MissionStatus.ARRETEE, soldAmount: null }
+    expect(missionRecap(mission, [])).toEqual({
+      kind: 'STOPPED_NO_SALE',
+      soldAmount: null,
+      messagesHandled: 0,
+      offersNegotiated: 0,
+      durationLabel: null,
+      deltaVsFirstOfferCents: null,
+    })
+  })
+
+  it('durée sans enVenteAt/soldAt — pas de calcul fantaisiste', () => {
+    const mission: RecapMission = { ...recapBase, soldAmount: 50_000 }
+    expect(missionRecap(mission, [])?.durationLabel).toBeNull()
   })
 })

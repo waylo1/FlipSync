@@ -40,7 +40,9 @@ export default function MissionValidateScreen() {
     setBusy(true)
     try {
       await api.resolveValidation(missionId, action)
-      router.back()
+      // Accepter → vente confirmée : la récompense S6, pas juste une fermeture de feuille (§5.5/§5.6).
+      if (action === 'ACCEPT') router.replace({ pathname: '/mission-recap', params: { missionId } })
+      else router.back()
     } catch (err) {
       const code = err instanceof ApiError ? err.code : 'UNKNOWN'
       if (code === 'VALIDATION_NOT_PENDING') {

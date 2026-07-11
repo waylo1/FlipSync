@@ -45,7 +45,13 @@
           "enableMicrophonePermission": false
         }
       ],
-      "expo-updates"
+      "expo-updates",
+      [
+        "expo-notifications",
+        {
+          "color": "#B8542F"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

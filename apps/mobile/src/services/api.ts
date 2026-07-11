@@ -318,6 +318,10 @@ export const api = {
   resolveValidation: (missionId: string, action: 'ACCEPT' | 'CONTINUE' | 'DECLINE') =>
     post<{ mission: ApiMission }>(`/mission/${missionId}/resolve-validation`, { action }),
 
+  /** Notifications push (§7, Lot 9) — enregistre/désenregistre le token Expo de cet appareil. */
+  registerDeviceToken: (token: string) => post<{}>('/notifications/device-token', { token }),
+  unregisterDeviceToken: (token: string) => post<{}>('/notifications/device-token/unregister', { token }),
+
   /** Annulation — remboursement automatique si l'annonce était déjà validée. */
   cancel: (listingId: string) => post<{ listing: ApiListing }>(`/listing/${listingId}/cancel`),
 

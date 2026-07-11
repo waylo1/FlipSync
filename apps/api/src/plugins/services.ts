@@ -9,7 +9,7 @@ import { PublicationService } from '../services/publication.service'
 import { MarketplaceAuthService } from '../services/marketplace-auth.service'
 import { MissionService } from '../services/mission.service'
 import { MissionNegotiationService } from '../services/negotiation.service'
-import { ConsoleNotificationService } from '../services/notification.service'
+import { ConsoleNotificationService, ExpoNotificationService, NotificationService } from '../services/notification.service'
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -66,12 +66,16 @@ const servicesPlugin: FastifyPluginAsync = async app => {
     new PublicationService(prisma, listingEngine, marketplaceClient, publicBaseUrl, marketplaceAuth, app.log),
   )
   app.decorate('missionService', new MissionService(prisma))
-  // Notifications §7 : ConsoleNotificationService partout pour l'instant — aucun
-  // provider push réel n'est branché (pas de device token, pas de SDK Expo Push
-  // installé). L'anti-spam (shouldNotify, @flipsync/core) et les textes exacts
-  // sont en place et testés ; brancher un vrai provider derrière la même
-  // interface NotificationService n'affectera pas MissionNegotiationService.
-  app.decorate('missionNegotiationService', new MissionNegotiationService(prisma, new ConsoleNotificationService(app.log.info.bind(app.log))))
+  // Notifications §7 (Lot 9) : ExpoNotificationService envoie un vrai push aux
+  // devices enregistrés (table DeviceToken, cf. routes/notification.ts) — no-op
+  // silencieux tant qu'aucun device n'est enregistré, donc sûr en dev/test sans
+  // rien de plus à configurer. PUSH_LOG_ONLY=1 revient au logging console pur
+  // (utile en CI/offline pour éviter tout appel réseau vers l'API Expo Push).
+  const notificationService: NotificationService =
+    process.env.PUSH_LOG_ONLY === '1'
+      ? new ConsoleNotificationService(app.log.info.bind(app.log))
+      : new ExpoNotificationService(prisma, app.log.warn.bind(app.log))
+  app.decorate('missionNegotiationService', new MissionNegotiationService(prisma, notificationService))
 
   app.addHook('onClose', async () => {
     await prisma.$disconnect()

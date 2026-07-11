@@ -204,6 +204,20 @@ model MagicLinkToken {
   @@index([email])
 }
 
+// ─── NOTIFICATIONS PUSH (§7) ────────────────────────────────────────────────────
+// 1 ligne par device Expo enregistré — un user peut avoir plusieurs appareils.
+// Pas de relation Prisma vers User (cohérent avec MagicLinkToken) : userId brut,
+// suffisant pour le seul usage (lookup en envoi de notification).
+
+model DeviceToken {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique // ExponentPushToken[...]
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
 // ─── LISTING ──────────────────────────────────────────────────────────────────
 
 model ListingPhoto {

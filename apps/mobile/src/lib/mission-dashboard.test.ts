@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { MissionStatus } from '@flipsync/core'
-import { DashboardMission, isDashboardCalm, missionBandeau, pendingValidationSummary } from './mission-dashboard'
+import {
+  DashboardMission,
+  isDashboardCalm,
+  missionBandeau,
+  pendingValidationSummary,
+  validationVariant,
+} from './mission-dashboard'
 
 const base: DashboardMission = {
   status: MissionStatus.EN_VENTE,
@@ -122,5 +128,64 @@ describe('isDashboardCalm — écran serein quand rien n’attend le vendeur', (
 
   it('pas serein hors état de veille', () => {
     expect(isDashboardCalm({ ...base, status: MissionStatus.NEGOCIATION_ACTIVE }, 0)).toBe(false)
+  })
+})
+
+describe('validationVariant — les 3 variantes de la feuille S5 (§5.5)', () => {
+  it('null hors EN_ATTENTE_VALIDATION', () => {
+    expect(validationVariant(base)).toBeNull()
+  })
+
+  it('offre standard', () => {
+    const m = {
+      ...base,
+      status: MissionStatus.EN_ATTENTE_VALIDATION,
+      pendingReason: 'OFFER',
+      pendingOfferAmount: 79_000,
+      pendingBuyerName: 'Julien M.',
+    }
+    expect(validationVariant(m)).toEqual({ kind: 'OFFER', atFloor: false, amount: 79_000, buyerName: 'Julien M.' })
+  })
+
+  it('offre au prix mini exact — atFloor', () => {
+    const m = {
+      ...base,
+      status: MissionStatus.EN_ATTENTE_VALIDATION,
+      pendingReason: 'OFFER_AT_FLOOR',
+      pendingOfferAmount: 78_000,
+      pendingBuyerName: 'Julien M.',
+    }
+    expect(validationVariant(m)).toEqual({ kind: 'OFFER', atFloor: true, amount: 78_000, buyerName: 'Julien M.' })
+  })
+
+  it('alerte sécurité', () => {
+    const m = {
+      ...base,
+      status: MissionStatus.EN_ATTENTE_VALIDATION,
+      pendingReason: 'SECURITY_ALERT',
+      pendingBuyerName: 'Julien M.',
+    }
+    expect(validationVariant(m)).toEqual({ kind: 'SECURITY_ALERT', buyerName: 'Julien M.' })
+  })
+
+  it('cas complexe', () => {
+    const m = {
+      ...base,
+      status: MissionStatus.EN_ATTENTE_VALIDATION,
+      pendingReason: 'COMPLEX_CASE',
+      pendingBuyerName: 'Julien M.',
+    }
+    expect(validationVariant(m)).toEqual({ kind: 'COMPLEX_CASE', buyerName: 'Julien M.' })
+  })
+
+  it('offre retirée : reason OFFER mais montant absent — null (DoD Lot 6)', () => {
+    const m = {
+      ...base,
+      status: MissionStatus.EN_ATTENTE_VALIDATION,
+      pendingReason: 'OFFER',
+      pendingOfferAmount: null,
+      pendingBuyerName: 'Julien M.',
+    }
+    expect(validationVariant(m)).toBeNull()
   })
 })

@@ -1,7 +1,7 @@
 import { useCallback } from 'react'
 import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { Redirect, useLocalSearchParams, useRouter } from 'expo-router'
-import { EllipsisVertical, MessageCircle, ShieldAlert, Sparkles } from 'lucide-react-native'
+import { ChevronRight, EllipsisVertical, MessageCircle, ShieldAlert, Sparkles } from 'lucide-react-native'
 import { MissionStatus, centsToEur } from '@flipsync/core'
 import { ApiError, ApiMission, ApiMissionEvent, api } from '../src/services/api'
 import { useApiResource } from '../src/hooks/useApiResource'
@@ -134,6 +134,7 @@ export default function MissionScreen() {
           onRefresh={refresh}
           error={error}
           onRetry={retry}
+          onOpenValidation={() => router.push({ pathname: '/mission-validate', params: { missionId: data.mission.id } })}
         />
       )}
     </View>
@@ -147,6 +148,7 @@ function Dashboard({
   onRefresh,
   error,
   onRetry,
+  onOpenValidation,
 }: {
   mission: ApiMission
   events: ApiMissionEvent[]
@@ -154,6 +156,7 @@ function Dashboard({
   onRefresh: () => Promise<void>
   error: string | null
   onRetry: () => void
+  onOpenValidation: () => void
 }) {
   const bandeau = missionBandeau(mission)
   const tone = TONE_STYLES[bandeau.tone]
@@ -184,14 +187,19 @@ function Dashboard({
 
       {pending !== null && (
         <FadeInUp>
-          <View
+          <Pressable
             accessibilityRole="button"
             accessibilityLabel={`Validation requise : ${pending}`}
+            onPress={onOpenValidation}
             style={styles.pendingCard}
           >
             <ShieldAlert size={space[5]} color={theme.moutarde} />
-            <Text style={styles.pendingText}>{pending}</Text>
-          </View>
+            <View style={styles.pendingBody}>
+              <Text style={styles.pendingText}>{pending}</Text>
+              <Text style={styles.pendingLink}>Répondre</Text>
+            </View>
+            <ChevronRight size={space[5]} color={theme.moutarde} />
+          </Pressable>
         </FadeInUp>
       )}
 
@@ -253,7 +261,9 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     padding: space[3],
   },
-  pendingText: { flex: 1, fontSize: font.small, fontWeight: '700', color: theme.moutarde },
+  pendingBody: { flex: 1, gap: space[1] / 2 },
+  pendingText: { fontSize: font.small, fontWeight: '700', color: theme.moutarde },
+  pendingLink: { fontSize: font.caption, fontWeight: '600', color: theme.moutarde },
 
   timeline: { gap: space[2] },
   sectionLabel: { fontSize: font.caption, fontWeight: '700', color: theme.muted },

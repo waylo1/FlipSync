@@ -97,3 +97,36 @@ export function pendingValidationSummary(mission: DashboardMission): string | nu
 export function isDashboardCalm(mission: DashboardMission, eventCount: number): boolean {
   return mission.status === MissionStatus.EN_VENTE && eventCount === 0
 }
+
+/** Variante de la feuille S5 (§5.5) — dérivée de l'ardoise vivante, jamais recalculée par l'écran. */
+export type ValidationVariant =
+  | { kind: 'OFFER'; atFloor: boolean; amount: number; buyerName: string }
+  | { kind: 'SECURITY_ALERT'; buyerName: string }
+  | { kind: 'COMPLEX_CASE'; buyerName: string }
+
+/**
+ * Détermine la variante à afficher en S5, ou `null` si rien n'est (plus) en
+ * attente — couvre le cas « offre retirée » : la feuille peut être ouverte
+ * sur une mission dont l'état a changé entre-temps (DoD Lot 6).
+ */
+export function validationVariant(mission: DashboardMission): ValidationVariant | null {
+  if (mission.status !== MissionStatus.EN_ATTENTE_VALIDATION) return null
+  const buyerName = mission.pendingBuyerName ?? 'L’acheteur'
+
+  switch (mission.pendingReason) {
+    case 'OFFER':
+      return mission.pendingOfferAmount === null
+        ? null
+        : { kind: 'OFFER', atFloor: false, amount: mission.pendingOfferAmount, buyerName }
+    case 'OFFER_AT_FLOOR':
+      return mission.pendingOfferAmount === null
+        ? null
+        : { kind: 'OFFER', atFloor: true, amount: mission.pendingOfferAmount, buyerName }
+    case 'SECURITY_ALERT':
+      return { kind: 'SECURITY_ALERT', buyerName }
+    case 'COMPLEX_CASE':
+      return { kind: 'COMPLEX_CASE', buyerName }
+    default:
+      return null
+  }
+}

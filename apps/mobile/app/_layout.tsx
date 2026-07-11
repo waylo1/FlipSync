@@ -28,7 +28,10 @@ export default function RootLayout() {
     <SafeAreaProvider>
       {/* Fond papier clair partout → contenu de la barre système en sombre. */}
       <StatusBar style="dark" />
-      <Stack screenOptions={{ headerShown: false }} />
+      <Stack screenOptions={{ headerShown: false }}>
+        {/* S5 — feuille modale (§5.5) : entrée par le bas, au-dessus du dashboard S4. */}
+        <Stack.Screen name="mission-validate" options={{ presentation: 'modal' }} />
+      </Stack>
     </SafeAreaProvider>
   )
 }

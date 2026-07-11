@@ -314,6 +314,10 @@ export const api = {
   resumeMission: (missionId: string) => post<{ mission: ApiMission }>(`/mission/${missionId}/resume`),
   stopMission: (missionId: string) => post<{ mission: ApiMission }>(`/mission/${missionId}/stop`),
 
+  /** S5 — le coup de marteau (Lot 6) : accepter/laisser continuer/refuser une validation en attente. */
+  resolveValidation: (missionId: string, action: 'ACCEPT' | 'CONTINUE' | 'DECLINE') =>
+    post<{ mission: ApiMission }>(`/mission/${missionId}/resolve-validation`, { action }),
+
   /** Annulation — remboursement automatique si l'annonce était déjà validée. */
   cancel: (listingId: string) => post<{ listing: ApiListing }>(`/listing/${listingId}/cancel`),
 

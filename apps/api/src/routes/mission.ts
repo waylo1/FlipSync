@@ -18,6 +18,10 @@ const mandateBody = z.object({
 
 const buyerSignals = z.object({ verified: z.boolean() })
 
+const resolveValidationBody = z.object({
+  action: z.enum(['ACCEPT', 'CONTINUE', 'DECLINE']),
+})
+
 /** Miroir zod de `IncomingMessage` (@flipsync/core) — frontière de validation du canal simulé. */
 const simulateBody = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('QUESTION'), buyerId: z.string().min(1), buyerName: z.string().min(1), text: z.string().min(1) }),
@@ -87,6 +91,19 @@ const missionRoutes: FastifyPluginAsync = async app => {
   app.post('/:missionId/stop', async req => {
     const { missionId } = req.params as { missionId: string }
     const mission = await app.missionNegotiationService.stop(req.userId, missionId)
+    return { mission }
+  })
+
+  app.post('/:missionId/resolve-validation', async (req, reply) => {
+    const body = resolveValidationBody.safeParse(req.body)
+    if (!body.success) return reply.code(400).send({ error: 'INVALID_BODY' })
+
+    const { missionId } = req.params as { missionId: string }
+    const mission = await app.missionNegotiationService.resolveValidation(
+      req.userId,
+      missionId,
+      body.data.action,
+    )
     return { mission }
   })
 

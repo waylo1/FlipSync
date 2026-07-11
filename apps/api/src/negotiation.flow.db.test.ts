@@ -237,6 +237,125 @@ describe.skipIf(!DB_URL)('Flux mobile /mission — tableau de bord + canal simul
     expect((resume.json() as { mission: { status: string } }).mission.status).toBe('NEGOCIATION_ACTIVE')
   })
 
+  it('S5 : accepter une offre au-dessus du mini → VENDU (Lot 6)', async () => {
+    const { prisma } = await import('@flipsync/db')
+    const { missionId } = await freshMission(prisma)
+
+    await app.inject({
+      method: 'POST',
+      url: `/mission/${missionId}/simulate`,
+      headers: authed(token),
+      payload: {
+        kind: 'OFFER',
+        offer: { buyerId: 'b1', buyerName: 'Julien M.', amount: 9_000, signals: { verified: true } },
+      },
+    })
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/mission/${missionId}/resolve-validation`,
+      headers: authed(token),
+      payload: { action: 'ACCEPT' },
+    })
+    expect(res.statusCode).toBe(200)
+    const mission = (
+      res.json() as {
+        mission: {
+          status: string
+          soldAmount: number | null
+          pendingReason: string | null
+          pendingOfferAmount: number | null
+        }
+      }
+    ).mission
+    expect(mission.status).toBe('VENDU')
+    expect(mission.soldAmount).toBe(9_000)
+    expect(mission.pendingReason).toBeNull()
+    expect(mission.pendingOfferAmount).toBeNull()
+  })
+
+  it('S5 : laisser l’IA continuer → retour en négociation, rien engagé', async () => {
+    const { prisma } = await import('@flipsync/db')
+    const { missionId } = await freshMission(prisma)
+
+    await app.inject({
+      method: 'POST',
+      url: `/mission/${missionId}/simulate`,
+      headers: authed(token),
+      payload: {
+        kind: 'OFFER',
+        offer: { buyerId: 'b1', buyerName: 'Julien M.', amount: 9_000, signals: { verified: true } },
+      },
+    })
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/mission/${missionId}/resolve-validation`,
+      headers: authed(token),
+      payload: { action: 'CONTINUE' },
+    })
+    const mission = (res.json() as { mission: { status: string; soldAmount: number | null } }).mission
+    expect(mission.status).toBe('NEGOCIATION_ACTIVE')
+    expect(mission.soldAmount).toBeNull()
+  })
+
+  it('S5 : refuser une offre → retour en négociation, jamais vendu', async () => {
+    const { prisma } = await import('@flipsync/db')
+    const { missionId } = await freshMission(prisma)
+
+    await app.inject({
+      method: 'POST',
+      url: `/mission/${missionId}/simulate`,
+      headers: authed(token),
+      payload: {
+        kind: 'OFFER',
+        offer: { buyerId: 'b1', buyerName: 'Julien M.', amount: 9_000, signals: { verified: true } },
+      },
+    })
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/mission/${missionId}/resolve-validation`,
+      headers: authed(token),
+      payload: { action: 'DECLINE' },
+    })
+    const mission = (res.json() as { mission: { status: string; soldAmount: number | null } }).mission
+    expect(mission.status).toBe('NEGOCIATION_ACTIVE')
+    expect(mission.soldAmount).toBeNull()
+  })
+
+  it('S5 : offre retirée — résoudre une validation déjà tranchée renvoie une erreur propre (Lot 6)', async () => {
+    const { prisma } = await import('@flipsync/db')
+    const { missionId } = await freshMission(prisma)
+
+    await app.inject({
+      method: 'POST',
+      url: `/mission/${missionId}/simulate`,
+      headers: authed(token),
+      payload: {
+        kind: 'OFFER',
+        offer: { buyerId: 'b1', buyerName: 'Julien M.', amount: 9_000, signals: { verified: true } },
+      },
+    })
+
+    // Première résolution : vend l'offre — la validation n'est plus en attente.
+    await app.inject({
+      method: 'POST',
+      url: `/mission/${missionId}/resolve-validation`,
+      headers: authed(token),
+      payload: { action: 'ACCEPT' },
+    })
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/mission/${missionId}/resolve-validation`,
+      headers: authed(token),
+      payload: { action: 'ACCEPT' },
+    })
+    expect(res.statusCode).toBe(409)
+    expect(res.json()).toEqual({ error: 'VALIDATION_NOT_PENDING' })
+  })
+
   it('menu ⋯ : arrêter — irréversible, aucun RESUMED possible ensuite', async () => {
     const { prisma } = await import('@flipsync/db')
     const { missionId } = await freshMission(prisma)

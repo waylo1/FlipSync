@@ -127,6 +127,71 @@ export class MissionNegotiationService {
     return this.applyAction(mission, message, action)
   }
 
+  /**
+   * S5 — le coup de marteau (§5.5, R4). Résout la validation en attente :
+   * ACCEPT (offre/prix mini uniquement) confirme la vente, CONTINUE relance la
+   * négociation sans engager, DECLINE refuse (offre, sortie de circuit, cas
+   * hors mandat). `VALIDATION_NOT_PENDING` couvre le cas « offre retirée » :
+   * si la feuille S5 est restée ouverte pendant que l'état a changé ailleurs,
+   * on ne laisse jamais accepter une offre qui n'est plus là.
+   */
+  async resolveValidation(
+    userId: string,
+    missionId: string,
+    action: 'ACCEPT' | 'CONTINUE' | 'DECLINE',
+  ): Promise<Mission> {
+    const mission = await this.findOwned(userId, missionId)
+    if (mission.status !== MissionStatus.EN_ATTENTE_VALIDATION) {
+      throw new NegotiationError('VALIDATION_NOT_PENDING')
+    }
+    const reason = mission.pendingReason
+    const buyerName = mission.pendingBuyerName ?? 'l’acheteur'
+    const amount = mission.pendingOfferAmount
+
+    if (action === 'ACCEPT') {
+      if (reason !== 'OFFER' && reason !== 'OFFER_AT_FLOOR') {
+        throw new NegotiationError('ACTION_NOT_ALLOWED')
+      }
+      if (amount === null) throw new NegotiationError('VALIDATION_NOT_PENDING')
+
+      const status = transition(mission.status, { type: 'SALE_CONFIRMED' })
+      return this.commit(
+        mission.id,
+        {
+          status,
+          soldAmount: amount,
+          soldAt: new Date(),
+          bestOfferAmount: Math.max(mission.bestOfferAmount ?? 0, amount),
+          pendingReason: null,
+          pendingOfferAmount: null,
+          pendingBuyerName: null,
+        },
+        { kind: 'SALE_CONFIRMED', summary: `Vendu ${eur(amount)} — validé par vous`, amount, buyerName },
+      )
+    }
+
+    const status = transition(mission.status, { type: 'VALIDATION_RESOLVED' })
+    const summary =
+      action === 'CONTINUE'
+        ? `Négociation reprise avec ${buyerName}`
+        : declineResolutionSummary(reason, buyerName)
+    return this.commit(
+      mission.id,
+      { status, pendingReason: null, pendingOfferAmount: null, pendingBuyerName: null },
+      { kind: action, summary, buyerName },
+    )
+  }
+
+  private async commit(missionId: string, data: Prisma.MissionUpdateInput, draft: EventDraft): Promise<Mission> {
+    const [updated] = await this.prisma.$transaction([
+      this.prisma.mission.update({ where: { id: missionId }, data }),
+      this.prisma.missionEvent.create({
+        data: { missionId, kind: draft.kind, summary: draft.summary, amount: draft.amount, buyerName: draft.buyerName },
+      }),
+    ])
+    return updated
+  }
+
   private async findOwned(userId: string, missionId: string): Promise<Mission> {
     const mission = await this.prisma.mission.findFirst({ where: { id: missionId, userId } })
     if (!mission) throw new NegotiationError('MISSION_NOT_FOUND')
@@ -229,6 +294,21 @@ function requireValidationSummary(
       return `Cas hors mandat signalé par ${buyerName}`
     case 'SECURITY_ALERT':
       return `${buyerName} tente de sortir du circuit sécurisé`
+  }
+}
+
+/** S5 — libellé de la ligne timeline quand le vendeur refuse/bloque en résolvant une validation. */
+function declineResolutionSummary(reason: string | null, buyerName: string): string {
+  switch (reason) {
+    case 'OFFER':
+    case 'OFFER_AT_FLOOR':
+      return `Offre de ${buyerName} refusée par vous`
+    case 'SECURITY_ALERT':
+      return `${buyerName} bloqué — sortie du circuit sécurisé refusée`
+    case 'COMPLEX_CASE':
+      return `Demande de ${buyerName} refusée par vous`
+    default:
+      return `Demande de ${buyerName} refusée par vous`
   }
 }
 

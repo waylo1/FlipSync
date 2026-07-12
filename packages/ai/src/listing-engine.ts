@@ -153,8 +153,11 @@ export class ListingEngine {
   }
 
   /**
-   * DRAFT_READY → USER_VALIDATED — LE point de débit.
-   * Statut, prixPublie, flag diplomatie et commit() wallet : une seule transaction.
+   * DRAFT_READY → USER_VALIDATED → QUEUED — LE point de débit.
+   * Statut, prixPublie, flag diplomatie, commit() wallet ET mise en file :
+   * une seule transaction — l'argent ne bouge jamais sans que le listing
+   * atteigne QUEUED, ni l'inverse (fix F1 : plus de débit orphelin bloqué
+   * en USER_VALIDATED si la mise en file échoue après le débit).
    */
   async validate(listingId: string, prixPublie: number): Promise<ListingModel> {
     assertCents(prixPublie)
@@ -166,13 +169,13 @@ export class ListingEngine {
       const flagged =
         current.prixHaut !== null && isPriceFlagged(prixPublie, current.prixHaut)
 
-      const listing = await this.move(tx, listingId, DbListingStatus.USER_VALIDATED, {
+      await this.move(tx, listingId, DbListingStatus.USER_VALIDATED, {
         prixPublie,
         isPriceFlagged: flagged,
       })
 
       await this.wallet.commit(listingId, tx)
-      return listing
+      return this.move(tx, listingId, DbListingStatus.QUEUED)
     })
   }
 
@@ -221,7 +224,11 @@ export class ListingEngine {
     })
   }
 
-  /** USER_VALIDATED → QUEUED (file de publication marketplace). */
+  /**
+   * USER_VALIDATED → QUEUED. Le flux nominal passe désormais par validate()
+   * (transition atomique jusqu'à QUEUED) — conservé comme chemin de
+   * récupération pour les lignes historiques restées USER_VALIDATED (pré-F1).
+   */
   async queue(listingId: string): Promise<ListingModel> {
     return this.db.$transaction(async tx => this.move(tx, listingId, DbListingStatus.QUEUED))
   }

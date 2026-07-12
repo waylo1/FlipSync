@@ -164,7 +164,8 @@ const listingRoutes: FastifyPluginAsync = async app => {
 
   /**
    * Validation utilisateur — LE point de débit.
-   * DRAFT_READY → USER_VALIDATED (commit wallet atomique) → QUEUED.
+   * DRAFT_READY → USER_VALIDATED → QUEUED + commit wallet : UNE transaction
+   * (fix F1 — plus de débit orphelin si la mise en file échoue).
    */
   app.post('/:id/validate', async (req, reply) => {
     const params = idParams.safeParse(req.params)
@@ -174,8 +175,7 @@ const listingRoutes: FastifyPluginAsync = async app => {
     const owned = await ownedListing(params.data.id, req.userId)
     if (!owned) return reply.code(404).send({ error: 'LISTING_NOT_FOUND' })
 
-    await app.listingEngine.validate(params.data.id, body.data.prixPublie)
-    const listing = await app.listingEngine.queue(params.data.id)
+    const listing = await app.listingEngine.validate(params.data.id, body.data.prixPublie)
     return { listing }
   })
 

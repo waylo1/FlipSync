@@ -7,7 +7,7 @@
 
 | id | sév | statut | route | commit |
 |---|---|---|---|---|
-| F1 | S2 | **EN COURS** | Fix direct (session courante) | `fix(listing): … [F1]` |
+| F1 | S2 | **[OK] CORRIGÉ** | Fix direct (session courante) | `fix(listing): … [F1]` — tests ai 31/31, api 91/91, wallet 25/25 |
 | F4 | S3 | **EN COURS** | Fix direct (session courante) | `refactor(db): … [F4]` |
 | F5 | S3 | **EN COURS** | Fix direct (session courante) | `refactor(core): … [F5]` |
 | F2 | S2 | À ROUTER | **Décision Maxime requise** (implémenter vs retirer) puis Sonnet | — |

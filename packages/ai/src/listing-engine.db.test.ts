@@ -81,18 +81,17 @@ describe.skipIf(!DB_URL)('ListingEngine — intégration Postgres', async () => 
       expect(await getBalance()).toBe(1000) // toujours 0 débit avant validation
     })
 
-    it('validate → USER_VALIDATED + débit atomique + flag diplomatie', async () => {
+    it('validate → QUEUED en UNE transaction : débit atomique + flag diplomatie (F1)', async () => {
       // prixPublie 15000 > 12000 * 1.2 = 14400 → flag
       const listing = await engine.validate(listingId, 15_000)
 
-      expect(listing.status).toBe('USER_VALIDATED')
+      expect(listing.status).toBe('QUEUED') // plus d'état intermédiaire exposé
       expect(listing.prixPublie).toBe(15_000)
       expect(listing.isPriceFlagged).toBe(true)
       expect(await getBalance()).toBe(801) // débit 199 dans la MÊME transaction
     })
 
-    it('queue → publish failed → remboursement automatique + failureReason', async () => {
-      await engine.queue(listingId)
+    it('publish failed → remboursement automatique + failureReason', async () => {
       const listing = await engine.failPublish(listingId, 'MARKETPLACE_TIMEOUT')
 
       expect(listing.status).toBe('PUBLISH_FAILED')
@@ -172,8 +171,7 @@ describe.skipIf(!DB_URL)('ListingEngine — intégration Postgres', async () => 
       const { listing } = await engine.createListing(userId, ListingTier.OPTIMIZED)
       await engine.startAiProcessing(listing.id)
       await engine.completeAiDraft(listing.id, DRAFT)
-      await engine.validate(listing.id, 10_000)
-      await engine.queue(listing.id)
+      await engine.validate(listing.id, 10_000) // → QUEUED
       expect(await getBalance()).toBe(801) // débité
 
       const cancelled = await engine.cancel(listing.id)
@@ -193,8 +191,7 @@ describe.skipIf(!DB_URL)('ListingEngine — intégration Postgres', async () => 
       const { listing } = await engine.createListing(userId, ListingTier.OPTIMIZED)
       await engine.startAiProcessing(listing.id)
       await engine.completeAiDraft(listing.id, DRAFT)
-      await engine.validate(listing.id, 10_000)
-      await engine.queue(listing.id)
+      await engine.validate(listing.id, 10_000) // → QUEUED
       await engine.markPublished(listing.id, { lbcUrl: 'https://leboncoin.fr/x/999' })
 
       await expect(engine.cancel(listing.id)).rejects.toMatchObject({ code: 'INVALID_TRANSITION' })
@@ -216,6 +213,23 @@ describe.skipIf(!DB_URL)('ListingEngine — intégration Postgres', async () => 
       expect(edited.prixPublie).toBe(20_000)
       expect(edited.isPriceFlagged).toBe(true)
       expect(await getBalance()).toBe(801) // aucun mouvement d'argent
+    })
+
+    it('queue() reste un chemin de récupération pour une ligne historique USER_VALIDATED (pré-F1)', async () => {
+      await resetUser(1000, 0)
+      const { listing } = await engine.createListing(userId, ListingTier.OPTIMIZED)
+      await engine.startAiProcessing(listing.id)
+      await engine.completeAiDraft(listing.id, DRAFT)
+      await engine.validate(listing.id, 10_000) // → QUEUED (flux nominal)
+
+      // Simule une ligne bloquée USER_VALIDATED datant d'avant le fix F1.
+      await prisma.listing.update({
+        where: { id: listing.id },
+        data: { status: 'USER_VALIDATED' },
+      })
+
+      const queued = await engine.queue(listing.id)
+      expect(queued.status).toBe('QUEUED')
     })
 
     it('editContent refusé sur un listing pré-validation (pas encore "vivant")', async () => {
@@ -248,8 +262,7 @@ describe.skipIf(!DB_URL)('ListingEngine — intégration Postgres', async () => 
       const { listing } = await engine.createListing(userId, ListingTier.OPTIMIZED)
       await engine.startAiProcessing(listing.id)
       await engine.completeAiDraft(listing.id, DRAFT)
-      await engine.validate(listing.id, 10_000)
-      await engine.queue(listing.id)
+      await engine.validate(listing.id, 10_000) // → QUEUED
 
       const published = await engine.markPublished(listing.id, {
         lbcUrl: 'https://leboncoin.fr/x/123',

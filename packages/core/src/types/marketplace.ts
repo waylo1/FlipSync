@@ -1,12 +1,19 @@
 /**
- * Contrat GET /marketplace/status — SSOT partagée api ↔ mobile.
+ * Contrat marketplace — SSOT partagée api ↔ mobile ↔ @flipsync/marketplace.
  *
- * Identifiants plateforme en littéraux (pas d'import de l'enum Marketplace :
- * @flipsync/marketplace dépend de core, l'inverse créerait un cycle). Les
- * valeurs sont le miroir exact de l'enum Marketplace du package marketplace.
+ * L'enum Marketplace vit ICI (core, zéro dépendance runtime) et
+ * @flipsync/marketplace la ré-exporte — une seule définition des plateformes,
+ * plus de miroir manuel (fix F5, FLIPSYNC-AUDIT.md).
  */
 
-export type MarketplaceId = 'VINTED' | 'LEBONCOIN'
+/** Plateformes de revente supportées par les connecteurs officiels. */
+export enum Marketplace {
+  LEBONCOIN = 'LEBONCOIN',
+  VINTED = 'VINTED',
+}
+
+/** Union littérale dérivée de l'enum — comparaisons de chaînes côté mobile. */
+export type MarketplaceId = `${Marketplace}`
 
 /**
  * État de connexion d'une plateforme, dérivé de mesures réelles :

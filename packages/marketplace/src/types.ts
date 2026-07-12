@@ -1,10 +1,7 @@
-import { ItemCondition } from '@flipsync/core'
+import { ItemCondition, Marketplace } from '@flipsync/core'
 
-/** Plateformes de revente supportées par les connecteurs officiels. */
-export enum Marketplace {
-  LEBONCOIN = 'LEBONCOIN',
-  VINTED = 'VINTED',
-}
+/** Ré-export — la SSOT de l'enum Marketplace vit dans @flipsync/core (fix F5). */
+export { Marketplace }
 
 /**
  * Données d'une annonce prêtes à publier — issues du brouillon Moondream2

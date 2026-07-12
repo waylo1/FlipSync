@@ -9,7 +9,7 @@
 |---|---|---|---|---|
 | F1 | S2 | **[OK] CORRIGÉ** | Fix direct (session courante) | `fix(listing): … [F1]` — tests ai 31/31, api 91/91, wallet 25/25 |
 | F4 | S3 | **[OK] CORRIGÉ** | Fix direct (session courante) | `refactor(db): … [F4]` — delta jamais commité : nettoyage working tree + DB, aucun delta code vs HEAD |
-| F5 | S3 | **EN COURS** | Fix direct (session courante) | `refactor(core): … [F5]` |
+| F5 | S3 | **[OK] CORRIGÉ** | Fix direct (session courante) | `refactor(core): … [F5]` — tests core 56/56, marketplace 6/6, api 91/91 |
 | F2 | S2 | À ROUTER | **Décision Maxime requise** (implémenter vs retirer) puis Sonnet | — |
 | F3 | S3 | À ROUTER | Sonnet | — |
 | F6 | S3 | À ROUTER | Sonnet | — |

@@ -40,6 +40,19 @@ export class NegotiationError extends Error {
 const eur = (cents: number): string =>
   new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(cents / 100)
 
+/**
+ * Délai au-delà duquel une mission sans vente est considérée expirée (fix F6,
+ * FLIPSYNC-AUDIT.md) — la transition EXPIRED n'était jamais émise. Vérification
+ * paresseuse à la lecture (même pattern que le reset free-tier du wallet ou la
+ * staleness des DraftJob) : pas de cron, un accès au dashboard suffit à la
+ * détecter et la persister.
+ */
+const MISSION_EXPIRY_MS = 30 * 24 * 60 * 60 * 1000
+const EXPIRABLE_STATUSES: readonly MissionStatus[] = [
+  MissionStatus.EN_VENTE,
+  MissionStatus.NEGOCIATION_ACTIVE,
+]
+
 /** Mission (colonnes String, cf. schema.prisma) → SellMandate typé — la SEULE conversion autorisée. */
 const toMandate = (mission: Mission): SellMandate => ({
   posture: mission.posture as SellPosture,
@@ -203,7 +216,29 @@ export class MissionNegotiationService {
   private async findOwned(userId: string, missionId: string): Promise<Mission> {
     const mission = await this.prisma.mission.findFirst({ where: { id: missionId, userId } })
     if (!mission) throw new NegotiationError('MISSION_NOT_FOUND')
-    return mission
+    return this.maybeExpire(mission)
+  }
+
+  /** Transition paresseuse EN_VENTE/NEGOCIATION_ACTIVE → EXPIREE (fix F6). */
+  private async maybeExpire(mission: Mission): Promise<Mission> {
+    if (!EXPIRABLE_STATUSES.includes(mission.status)) return mission
+    if (mission.enVenteAt === null) return mission
+    if (Date.now() - mission.enVenteAt.getTime() < MISSION_EXPIRY_MS) return mission
+
+    const status = transition(mission.status, { type: 'EXPIRED' })
+    return this.commit(mission.id, { status }, { kind: 'EXPIRED', summary: 'Mission expirée — délai plateforme atteint sans vente' })
+  }
+
+  /**
+   * S6 (clôture) — VENDU → MISSION_TERMINEE (fix F6). Appelé par le mobile à
+   * l'ouverture du compte-rendu de vente (mission-recap.tsx) ; idempotent côté
+   * appelant (le mobile ne l'appelle que si status === VENDU) — un second appel
+   * lève INVALID_MISSION_TRANSITION (409), sans effet de bord.
+   */
+  async finalize(userId: string, missionId: string): Promise<Mission> {
+    const mission = await this.findOwned(userId, missionId)
+    const status = transition(mission.status, { type: 'MISSION_FINALIZED' })
+    return this.commit(mission.id, { status }, { kind: 'MISSION_FINALIZED', summary: 'Mission clôturée' })
   }
 
   /**

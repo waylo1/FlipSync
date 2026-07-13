@@ -314,6 +314,9 @@ export const api = {
   resumeMission: (missionId: string) => post<{ mission: ApiMission }>(`/mission/${missionId}/resume`),
   stopMission: (missionId: string) => post<{ mission: ApiMission }>(`/mission/${missionId}/stop`),
 
+  /** S6 — clôture après vente : VENDU → MISSION_TERMINEE. */
+  finalizeMission: (missionId: string) => post<{ mission: ApiMission }>(`/mission/${missionId}/finalize`),
+
   /** S5 — le coup de marteau (Lot 6) : accepter/laisser continuer/refuser une validation en attente. */
   resolveValidation: (missionId: string, action: 'ACCEPT' | 'CONTINUE' | 'DECLINE') =>
     post<{ mission: ApiMission }>(`/mission/${missionId}/resolve-validation`, { action }),

@@ -1,7 +1,8 @@
-import { ReactNode, useCallback } from 'react'
+import { ReactNode, useCallback, useEffect, useRef } from 'react'
 import { ScrollView, StyleSheet, Text, View } from 'react-native'
 import { Redirect, useLocalSearchParams, useRouter } from 'expo-router'
 import { Camera, MessageCircle, PartyPopper, TrendingUp } from 'lucide-react-native'
+import { MissionStatus } from '@flipsync/core'
 import { api } from '../src/services/api'
 import { useApiResource } from '../src/hooks/useApiResource'
 import { MissionRecap, missionRecap } from '../src/lib/mission-dashboard'
@@ -32,6 +33,17 @@ export default function MissionRecapScreen() {
 
   const fetchMission = useCallback(() => api.getMission(missionId), [missionId])
   const { data, loading, error, retry } = useApiResource(fetchMission)
+
+  // Clôture S6 (fix F6) : VENDU → MISSION_TERMINEE dès l'ouverture du
+  // compte-rendu. Fire-and-forget — purement archival, n'affecte pas
+  // l'affichage (missionRecap couvre VENDU et MISSION_TERMINEE identiquement).
+  const finalized = useRef(false)
+  useEffect(() => {
+    if (data?.mission.status === MissionStatus.VENDU && !finalized.current) {
+      finalized.current = true
+      void api.finalizeMission(data.mission.id).catch(() => {})
+    }
+  }, [data])
 
   if (!missionId) return <Redirect href="/(tabs)" />
 

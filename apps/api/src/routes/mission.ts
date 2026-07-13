@@ -94,6 +94,13 @@ const missionRoutes: FastifyPluginAsync = async app => {
     return { mission }
   })
 
+  /** S6 — clôture après vente (fix F6) : VENDU → MISSION_TERMINEE. */
+  app.post('/:missionId/finalize', async req => {
+    const { missionId } = req.params as { missionId: string }
+    const mission = await app.missionNegotiationService.finalize(req.userId, missionId)
+    return { mission }
+  })
+
   app.post('/:missionId/resolve-validation', async (req, reply) => {
     const body = resolveValidationBody.safeParse(req.body)
     if (!body.success) return reply.code(400).send({ error: 'INVALID_BODY' })

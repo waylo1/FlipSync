@@ -211,6 +211,38 @@ describe.skipIf(!DB_URL)('Flux mobile /mission — tableau de bord + canal simul
     expect(mission.soldAt).not.toBeNull()
   })
 
+  it('S6 : finalize() clôture VENDU → MISSION_TERMINEE (fix F6)', async () => {
+    const { prisma } = await import('@flipsync/db')
+    const { missionId } = await freshMission(prisma, { ...MANDATE, autoAdjugeAuDessusDuMini: true })
+
+    await app.inject({
+      method: 'POST',
+      url: `/mission/${missionId}/simulate`,
+      headers: authed(token),
+      payload: {
+        kind: 'OFFER',
+        offer: { buyerId: 'b1', buyerName: 'Julien M.', amount: 9_500, signals: { verified: true } },
+      },
+    })
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/mission/${missionId}/finalize`,
+      headers: authed(token),
+    })
+    expect(res.statusCode).toBe(200)
+    expect((res.json() as { mission: { status: string } }).mission.status).toBe('MISSION_TERMINEE')
+
+    // Un second appel échoue proprement (409) — MISSION_TERMINEE est terminal.
+    const retry = await app.inject({
+      method: 'POST',
+      url: `/mission/${missionId}/finalize`,
+      headers: authed(token),
+    })
+    expect(retry.statusCode).toBe(409)
+    expect(retry.json()).toEqual({ error: 'INVALID_MISSION_TRANSITION' })
+  })
+
   it('menu ⋯ : suspendre puis reprendre restaure exactement l’état précédent', async () => {
     const { prisma } = await import('@flipsync/db')
     const { missionId } = await freshMission(prisma)

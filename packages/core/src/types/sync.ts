@@ -176,3 +176,97 @@ export const isUnifiedListingValid = (l: UnifiedListing): boolean => {
     l.dureeJours <= AUCTION_DURATION_MAX_DAYS
   )
 }
+
+// ─── Mappers (fonctions pures — production du pivot) ──────────────────────────
+
+const HTML_TAG_RE  = /<[^>]+>/g
+const URL_RE       = /(?:https?:\/\/|www\.)\S+/gi
+/** Numéros FR : 0X ou +33, séparateurs espace/point/tiret optionnels. */
+const PHONE_FR_RE  = /(?:\+33|0)\s*[1-9](?:[\s.-]?\d{2}){4}/g
+
+/**
+ * Nettoyage du texte pour publication marketplace : retire HTML, URLs et
+ * numéros de téléphone (interdits par les CGU des plateformes), décode les
+ * entités courantes, normalise les espaces. C'est l'UNIQUE point de nettoyage —
+ * le pivot transporte le résultat tel quel (cf. UnifiedListingBase.description).
+ */
+export const sanitizeDescription = (raw: string): string =>
+  raw
+    .replace(HTML_TAG_RE, ' ')
+    // Entités décodées APRÈS le strip des balises — l'inverse fabriquerait de
+    // faux tags (&lt;b&gt; → <b> → strippé) et perdrait du texte légitime.
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#0?39;/g, "'")
+    .replace(URL_RE, ' ')
+    .replace(PHONE_FR_RE, ' ')
+    .replace(/\r\n?/g, '\n')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/ ?\n ?/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+
+/**
+ * Projection STRUCTURELLE du Listing DB nécessaire au pivot — core ne dépend
+ * pas de @flipsync/db : le modèle Prisma (+ photos) satisfait ce type par
+ * structure. `categorie` = décision du producteur (Run 3 — ex. categorieLbc
+ * en attendant une taxonomie interne).
+ */
+export interface ListingSyncSource {
+  id:          string
+  titre:       string | null
+  description: string | null
+  marque:      string | null
+  etat:        ItemCondition | null
+  prixPublie:  number | null // centimes
+  categorie:   string | null
+  photos:      readonly UnifiedPhoto[]
+}
+
+export type ListingToUnifiedResult =
+  | { ok: true;  listing: FixedPriceListing }
+  | { ok: false; missing: readonly string[] }
+
+/**
+ * Listing DB → pivot. Mode `fixed` uniquement : aucune donnée d'enchère en DB
+ * aujourd'hui — AuctionListing arrivera avec le connecteur eBay réel.
+ * Échec = champs obligatoires absents (→ INVALID_PAYLOAD côté producteur,
+ * `missing` alimente SyncFailure.detail). Applique sanitizeDescription ici :
+ * cette fonction EST l'amont du pivot.
+ */
+export const listingToUnified = (src: ListingSyncSource): ListingToUnifiedResult => {
+  const titre = src.titre?.trim() ?? ''
+  const description = sanitizeDescription(src.description ?? '')
+  const categorie = src.categorie?.trim() ?? ''
+  const missing: string[] = []
+  if (titre === '') missing.push('titre')
+  if (description === '') missing.push('description')
+  if (src.etat === null) missing.push('etat')
+  if (src.prixPublie === null || !Number.isInteger(src.prixPublie) || src.prixPublie <= 0) {
+    missing.push('prixPublie')
+  }
+  if (categorie === '') missing.push('categorie')
+  if (src.photos.length === 0) missing.push('photos')
+  // Les re-tests null sont redondants avec `missing` mais donnent le narrowing.
+  if (missing.length > 0 || src.etat === null || src.prixPublie === null) {
+    return { ok: false, missing }
+  }
+  return {
+    ok: true,
+    listing: {
+      mode:        'fixed',
+      listingId:   src.id,
+      titre,
+      description,
+      etat:        src.etat,
+      devise:      'EUR',
+      marque:      src.marque?.trim() || null,
+      categorie,
+      prix:        src.prixPublie,
+      photos:      src.photos,
+    },
+  }
+}

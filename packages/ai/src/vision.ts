@@ -3,16 +3,15 @@ import { ItemCondition, ListingDraft } from '@flipsync/core'
 import { VisionBackendError, VisionParseError, VisionTimeoutError } from './errors'
 
 /**
- * Inférence IA — TOUJOURS on-device en production (llama.rn + Moondream2 Q4 GGUF).
- * Jamais d'appel cloud pour l'analyse vision (cf. rules.md).
- * Timeout modèle : 15 s max, sinon le listing bascule en AI_FAILED.
+ * Inférence IA — pivot serveur (ADR-003, CLAUDE.md Sprint 4) : la rédaction du
+ * brouillon tourne côté API (Ollama en dev, instance dédiée en prod), jamais
+ * sur le mobile. Timeout large : modèle vision sur CPU en dev (30-90 s réalistes).
  */
-export const AI_INFERENCE_TIMEOUT_MS = 15_000
+export const AI_INFERENCE_TIMEOUT_MS = 120_000
 
 /**
- * Backend d'inférence interchangeable :
- *   - Production mobile : LlamaRnBackend (llama.rn, vit dans apps/mobile — runtime RN requis).
- *   - Dev local API     : OllamaVisionBackend ci-dessous (localhost uniquement, jamais cloud).
+ * Backend d'inférence interchangeable — aujourd'hui un seul : OllamaVisionBackend
+ * ci-dessous (dev local ; instance dédiée en prod derrière la même interface).
  */
 export interface VisionBackend {
   /** Retourne la sortie brute du modèle (attendue : JSON ListingDraft). */
@@ -112,17 +111,17 @@ export class VisionService {
   }
 }
 
-// ─── Backend dev local (Ollama) ───────────────────────────────────────────────
+// ─── Backend Ollama (dev local ; instance dédiée en prod, cf. ADR-008) ────────
 
 /**
- * DEV UNIQUEMENT — Ollama sur localhost (cf. env.md). N'est PAS un appel cloud :
- * le modèle tourne sur la machine du développeur. En production mobile,
- * le backend llama.rn vit dans apps/mobile (nécessite le runtime React Native).
+ * Backend d'inférence serveur — Ollama en dev (localhost). Le modèle tourne
+ * côté API, jamais sur le mobile (cf. ADR-003). Prod : instance dédiée
+ * derrière la même interface (décision hébergement en attente, ADR-008).
  */
 export class OllamaVisionBackend implements VisionBackend {
   constructor(
     private readonly baseUrl: string = process.env.OLLAMA_BASE_URL ?? 'http://localhost:11434',
-    private readonly model: string = process.env.OLLAMA_MODEL ?? 'moondream2',
+    private readonly model: string = process.env.OLLAMA_MODEL ?? 'qwen2.5vl:3b',
   ) {}
 
   async generate(prompt: string, imagesBase64: readonly string[]): Promise<string> {

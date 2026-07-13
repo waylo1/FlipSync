@@ -51,16 +51,15 @@ PENDING_AUTH → AUTHORIZED → AI_PROCESSING → DRAFT_READY → USER_VALIDATED
 - JWT payload : `{ sub: userId }` uniquement.
 - Ne JAMAIS logger de données financières en clair. Ne jamais exposer le solde wallet dans une liste publique.
 
-## 6. IA — on-device uniquement
+## 6. IA — côté serveur uniquement (pivot ADR-003)
 
-- Inférence vision TOUJOURS on-device (llama.rn + Moondream2 Q4 GGUF). JAMAIS d'appel cloud.
-- Timeout modèle : 15 s max, sinon bascule en `AI_FAILED`.
+- Inférence vision TOUJOURS côté API (POST /ai/draft/start + poll, Ollama en dev). JAMAIS sur le mobile.
+- Timeout modèle : 120 s (CPU dev), sinon bascule en `AI_FAILED`.
 
 ## 7. Mobile
 
 - Images listées avec `sha256` (intégrité).
 - MMKV pour le storage local (pas AsyncStorage). Zustand pour le state global.
-- `expo prebuild` obligatoire avant `run:android` (modules natifs llama.rn).
 
 ## 8. Publication marketplace — APIs partenaires officielles UNIQUEMENT
 

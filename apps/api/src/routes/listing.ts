@@ -45,8 +45,9 @@ const listQuery = z.object({
 })
 
 /**
- * Brouillon poussé par le mobile après inférence ON-DEVICE (l'API ne fait
- * jamais d'IA). Mêmes règles que la sortie modèle : centimes Int, plancher<=haut.
+ * Brouillon poussé par le mobile après inférence côté serveur (POST /ai/draft/start
+ * + poll, cf. routes/ai.ts) — persisté ici, jamais recalculé. Mêmes règles que
+ * la sortie modèle : centimes Int, plancher<=haut.
  */
 const draftBody = z
   .object({
@@ -191,8 +192,9 @@ const listingRoutes: FastifyPluginAsync = async app => {
   })
 
   /**
-   * Pipeline IA piloté par le mobile (inférence on-device) :
-   * ai-start → AI_PROCESSING ; draft → DRAFT_READY ; ai-failed → AI_FAILED.
+   * Transitions de statut pilotées par le mobile — l'inférence elle-même tourne
+   * côté serveur (routes/ai.ts) : ai-start → AI_PROCESSING ; draft → DRAFT_READY
+   * (persiste le résultat) ; ai-failed → AI_FAILED.
    */
   app.post('/:id/ai-start', async (req, reply) => {
     const params = idParams.safeParse(req.params)

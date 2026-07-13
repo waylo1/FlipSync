@@ -1,7 +1,7 @@
 # FlipSync
 
 Conciergerie de revente automatisée multi-plateformes (**Leboncoin**, **Vinted**).
-L'utilisateur photographie un objet : l'IA **on-device** (Moondream2) rédige l'annonce,
+L'utilisateur photographie un objet : l'IA **côté serveur** rédige l'annonce,
 il valide le prix, et la publication part vers les marketplaces via leurs **APIs
 partenaires officielles**. Paiement à l'usage via un wallet interne (centimes).
 
@@ -13,7 +13,7 @@ partenaires officielles**. Paiement à l'usage via un wallet interne (centimes).
 
 ```
 ┌─────────────────────────── apps/mobile (Expo / React Native) ───────────────────────────┐
-│  Capture photo ─► Moondream2 on-device (llama.rn) ─► brouillon                            │
+│  Capture photo ─► envoi API (POST /ai/draft/start) ─► poll ─► brouillon                    │
 │       │                                                  │                                │
 │       ▼                                                  ▼                                │
 │  upload photos (sha256)                       Écran validation (édition + diplomatie 120%)│
@@ -111,4 +111,4 @@ complet : voir **[DISTRIBUTION.md](DISTRIBUTION.md)**.
 ## Stack
 
 React Native + Expo Router · Fastify 4 · Prisma 5 / PostgreSQL · Zustand + MMKV ·
-Zod · Stripe · llama.rn (Moondream2 GGUF) · Turborepo · Vitest.
+Zod · Stripe · Ollama (qwen2.5vl, serveur) · Turborepo · Vitest.

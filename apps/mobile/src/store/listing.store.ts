@@ -8,16 +8,15 @@ import { ApiError, api } from '../services/api'
 const storage = new MMKV({ id: 'flipsync-session' })
 
 /**
- * États "vivants" post-validation où le contenu reste modifiable/annulable
- * (miroir d'EDITABLE_STATUSES / LISTING_TRANSITIONS côté serveur — cf.
- * packages/ai/src/listing-engine.ts). Annuler depuis QUEUED rembourse
- * intégralement ; PUBLISHED n'est éditable que sur le contenu, pas annulable
- * (retirer une annonce déjà en ligne est un cas serveur distinct, hors scope).
+ * États "vivants" post-validation où le contenu reste modifiable (miroir
+ * d'EDITABLE_STATUSES côté serveur — cf. packages/ai/src/listing-engine.ts).
+ * PUBLISHED exclu (fix F3, FLIPSYNC-AUDIT.md) : une édition locale post-
+ * publication ne se propage à aucun connecteur marketplace — elle ferait
+ * diverger silencieusement le prix/titre local de l'annonce déjà en ligne.
  */
 export const LISTING_EDITABLE_STATUSES: readonly ListingStatus[] = [
   ListingStatus.USER_VALIDATED,
   ListingStatus.QUEUED,
-  ListingStatus.PUBLISHED,
 ]
 
 export interface SessionPhoto {

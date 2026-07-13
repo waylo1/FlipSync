@@ -11,7 +11,7 @@
 | F4 | S3 | **[OK] CORRIGÉ** | Fix direct (session courante) | `refactor(db): … [F4]` — delta jamais commité : nettoyage working tree + DB, aucun delta code vs HEAD |
 | F5 | S3 | **[OK] CORRIGÉ** | Fix direct (session courante) | `refactor(core): … [F5]` — tests core 56/56, marketplace 6/6, api 91/91 |
 | F2 | S2 | **[OK] CORRIGÉ** | Décision Maxime : retrait (recharge manuelle MVP) | `fix(wallet): … [F2]` — tests wallet 24/24, ai 31/31, api 91/91 |
-| F3 | S3 | À ROUTER | Sonnet | — |
+| F3 | S3 | **[OK] CORRIGÉ** | Sonnet (fix direct) | `fix(listing): … [F3]` — tests ai 31/31, api 91/91, mobile 39/39 |
 | F6 | S3 | À ROUTER | Sonnet | — |
 | F7 | S3 | À ROUTER | Sonnet | — |
 | F8 | S3 | **[OK] CORRIGÉ** | Fix direct (session courante) | `docs(ai): … [F8]` — tests ai 31/31, api 91/91 |

@@ -42,11 +42,15 @@ export interface ListingEditPatch {
   prixPublie?: number
 }
 
-/** États "vivants" post-commit où le contenu reste modifiable par l'utilisateur. */
+/**
+ * États "vivants" post-commit où le contenu reste modifiable par l'utilisateur.
+ * PUBLISHED exclu (fix F3, FLIPSYNC-AUDIT.md) : une fois en ligne, une édition
+ * locale ne se propage à aucun connecteur marketplace — elle ferait diverger
+ * silencieusement le prix/titre affiché localement de l'annonce publiée.
+ */
 const EDITABLE_STATUSES: readonly DbListingStatus[] = [
   DbListingStatus.USER_VALIDATED,
   DbListingStatus.QUEUED,
-  DbListingStatus.PUBLISHED,
 ]
 
 /**

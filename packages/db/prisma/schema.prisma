@@ -98,12 +98,33 @@ model Listing {
   updatedAt   DateTime  @updatedAt
   publishedAt DateTime?
 
-  user         User                @relation(fields: [userId], references: [id])
+  user         User                 @relation(fields: [userId], references: [id])
   photos       ListingPhoto[]
   transactions WalletTransaction[]
   mission      Mission?
+  publications ListingPublication[]
 
   @@index([status, updatedAt])
+}
+
+// ─── PUBLICATION PAR PLATEFORME (Core Sync Engine, ADR-009) ───────────────────
+// 1 ligne par annonce réellement créée chez une plateforme — l'externalId est
+// la clé de toute opération ultérieure (update/withdraw/checkStatus). Créée
+// UNIQUEMENT sur succès connecteur (Jeton Global : ≥1 ligne ⇒ PUBLISHED).
+// Remplace à terme les colonnes legacy publishedLbc/publishedVinted/lbcUrl/vintedUrl.
+
+model ListingPublication {
+  id          String      @id @default(cuid())
+  listingId   String
+  marketplace Marketplace
+  externalId  String
+  url         String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@unique([listingId, marketplace])
 }
 
 // ─── MISSION (Commissaire-Priseur IA) ──────────────────────────────────────────
@@ -272,6 +293,17 @@ enum DraftJobStatus {
   RUNNING
   READY
   FAILED
+}
+
+// Plateformes de revente (Core Sync Engine, ADR-009). SSOT Prisma (ADR-007) :
+// générée dans packages/core/src/generated/enums.ts, ré-exportée par
+// core/types/marketplace.ts — l'ancienne définition manuelle core disparaît.
+// EBAY/SHOPIFY : connecteurs bouchonnés tant que les credentials manquent.
+enum Marketplace {
+  LEBONCOIN
+  VINTED
+  EBAY
+  SHOPIFY
 }
 
 enum ItemCondition {

@@ -1,22 +1,15 @@
+import { Marketplace } from '../generated/enums'
+
 /**
  * Contrat marketplace — SSOT partagée api ↔ mobile ↔ @flipsync/marketplace.
  *
- * L'enum Marketplace vit ICI (core, zéro dépendance runtime) et
- * @flipsync/marketplace la ré-exporte — une seule définition des plateformes,
- * plus de miroir manuel (fix F5, FLIPSYNC-AUDIT.md).
+ * L'enum Marketplace est GÉNÉRÉE depuis schema.prisma (SSOT Prisma, ADR-007) :
+ * la colonne ListingPublication.marketplace la référence en DB — plus de
+ * définition manuelle ici (fix F5, puis pivot Run 3 / ADR-009). EBAY/SHOPIFY :
+ * connecteurs bouchonnés (CREDENTIALS_MISSING) tant que les accès partenaires
+ * ne sont pas configurés.
  */
-
-/**
- * Plateformes de revente supportées par les connecteurs officiels.
- * EBAY/SHOPIFY : Core Sync Engine (ADR-009) — connecteurs bouchonnés
- * (CREDENTIALS_MISSING) tant que les accès partenaires ne sont pas configurés.
- */
-export enum Marketplace {
-  LEBONCOIN = 'LEBONCOIN',
-  VINTED = 'VINTED',
-  EBAY = 'EBAY',
-  SHOPIFY = 'SHOPIFY',
-}
+export { Marketplace }
 
 /** Union littérale dérivée de l'enum — comparaisons de chaînes côté mobile. */
 export type MarketplaceId = `${Marketplace}`

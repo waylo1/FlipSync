@@ -229,15 +229,17 @@ describe.skipIf(!DB_URL)('Flux mobile /listing — e2e JWT', () => {
     })
 
     expect(res.statusCode).toBe(200)
+    // Contrat v2 (Core Sync Engine) : un résultat par plateforme ciblée,
+    // codes normalisés SyncErrorCode. Jeton Global : 0 succès ⇒ PUBLISH_FAILED.
     expect(res.json()).toMatchObject({
       status: 'PUBLISH_FAILED',
-      marketplace: 'VINTED',
-      failureReason: 'MARKETPLACE_CREDENTIALS_MISSING',
+      results: [{ marketplace: 'VINTED', ok: false, code: 'CREDENTIALS_MISSING' }],
+      failureReason: 'VINTED:CREDENTIALS_MISSING',
     })
 
     const listing = await prismaRef.listing.findUniqueOrThrow({ where: { id: listingId } })
     expect(listing.status).toBe('PUBLISH_FAILED')
-    expect(listing.failureReason).toBe('VINTED:MARKETPLACE_CREDENTIALS_MISSING')
+    expect(listing.failureReason).toBe('VINTED:CREDENTIALS_MISSING')
 
     // Remboursement automatique : le débit de 199 est restitué.
     const after = await prismaRef.userWallet.findUniqueOrThrow({ where: { userId } })

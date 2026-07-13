@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -70,7 +71,8 @@ describe.skipIf(!DB_URL)('Publish mock e2e — QUEUED → PUBLISHED', () => {
     ])
   })
 
-  it('flux complet create → draft → validate → publish VINTED → PUBLISHED + URL', async () => {
+  /** create → ai-start → draft → validate : retourne l'id d'un listing QUEUED. */
+  async function createQueuedListing(): Promise<string> {
     const created = await app.inject({
       method: 'POST',
       url: '/listing',
@@ -78,12 +80,24 @@ describe.skipIf(!DB_URL)('Publish mock e2e — QUEUED → PUBLISHED', () => {
       payload: { tier: 'SIMPLE' },
     })
     expect(created.statusCode).toBe(201)
-    listingId = (created.json() as { listing: { id: string } }).listing.id
+    const id = (created.json() as { listing: { id: string } }).listing.id
 
-    await app.inject({ method: 'POST', url: `/listing/${listingId}/ai-start`, headers: authed() })
+    // Le pivot UnifiedListing exige ≥1 photo (isUnifiedListingValid) —
+    // sha256 de la CHAÎNE base64, convention partagée avec le mobile.
+    const base64 = Buffer.from(`fake-jpeg-${id}`).toString('base64')
+    const sha256 = createHash('sha256').update(base64).digest('hex')
+    const photos = await app.inject({
+      method: 'POST',
+      url: `/listing/${id}/photos`,
+      headers: authed(),
+      payload: { photos: [{ base64, sha256, order: 0 }] },
+    })
+    expect(photos.statusCode).toBe(201)
+
+    await app.inject({ method: 'POST', url: `/listing/${id}/ai-start`, headers: authed() })
     const drafted = await app.inject({
       method: 'POST',
-      url: `/listing/${listingId}/draft`,
+      url: `/listing/${id}/draft`,
       headers: authed(),
       payload: {
         titre: 'Lampe opaline vintage',
@@ -101,29 +115,77 @@ describe.skipIf(!DB_URL)('Publish mock e2e — QUEUED → PUBLISHED', () => {
 
     const validated = await app.inject({
       method: 'POST',
-      url: `/listing/${listingId}/validate`,
+      url: `/listing/${id}/validate`,
       headers: authed(),
       payload: { prixPublie: 3000 },
     })
     expect(validated.statusCode).toBe(200)
     expect((validated.json() as { listing: { status: string } }).listing.status).toBe('QUEUED')
+    return id
+  }
 
+  it('flux complet → publish (défaut multi-plateformes) → PUBLISHED + externalIds persistés', async () => {
+    listingId = await createQueuedListing()
+
+    // Sans body : cibles par défaut VINTED + LEBONCOIN (Core Sync Engine).
     const published = await app.inject({
       method: 'POST',
       url: `/listing/${listingId}/publish`,
       headers: authed(),
-      payload: { marketplace: 'VINTED' },
+      payload: {},
     })
     expect(published.statusCode).toBe(200)
-    expect(published.json()).toMatchObject({ status: 'PUBLISHED', marketplace: 'VINTED' })
+    expect(published.json()).toMatchObject({
+      status: 'PUBLISHED',
+      results: [
+        { marketplace: 'VINTED', ok: true },
+        { marketplace: 'LEBONCOIN', ok: true },
+      ],
+    })
 
     const listing = await prismaRef.listing.findUniqueOrThrow({ where: { id: listingId } })
     expect(listing.status).toBe('PUBLISHED')
     expect(listing.vintedUrl).toMatch(/^https:\/\/mock\.flipsync\.local\/vinted\//)
+    expect(listing.lbcUrl).toMatch(/^https:\/\/mock\.flipsync\.local\/leboncoin\//)
+
+    // externalIds persistés — 1 ligne ListingPublication par plateforme publiée.
+    const publications = await prismaRef.listingPublication.findMany({
+      where: { listingId },
+      orderBy: { marketplace: 'asc' },
+    })
+    expect(publications.map(p => p.marketplace)).toEqual(['LEBONCOIN', 'VINTED'])
+    expect(publications.every(p => p.externalId.startsWith('mock-'))).toBe(true)
 
     // Publication réussie = pas de remboursement : le débit du palier reste acquis.
     const refunds = await prismaRef.walletTransaction.findMany({
       where: { listingId, type: 'REFUND' },
+    })
+    expect(refunds).toHaveLength(0)
+  })
+
+  it('Jeton Global — succès partiel (VINTED ok, EBAY sans connecteur) → PUBLISHED, zéro refund', async () => {
+    const id = await createQueuedListing()
+
+    const published = await app.inject({
+      method: 'POST',
+      url: `/listing/${id}/publish`,
+      headers: authed(),
+      payload: { marketplaces: ['VINTED', 'EBAY'] },
+    })
+    expect(published.statusCode).toBe(200)
+    expect(published.json()).toMatchObject({
+      status: 'PUBLISHED',
+      results: [
+        { marketplace: 'VINTED', ok: true },
+        { marketplace: 'EBAY', ok: false, code: 'CONNECTOR_UNAVAILABLE' },
+      ],
+    })
+
+    // ≥1 succès : une seule ListingPublication (VINTED), aucun remboursement.
+    const publications = await prismaRef.listingPublication.findMany({ where: { listingId: id } })
+    expect(publications.map(p => p.marketplace)).toEqual(['VINTED'])
+    const refunds = await prismaRef.walletTransaction.findMany({
+      where: { listingId: id, type: 'REFUND' },
     })
     expect(refunds).toHaveLength(0)
   })

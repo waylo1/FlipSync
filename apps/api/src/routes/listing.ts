@@ -81,8 +81,14 @@ const editBody = z
   })
   .refine(b => Object.keys(b).length > 0, { message: 'Au moins un champ requis' })
 
+/**
+ * Corps optionnel : sans body (ou {}), publication vers toutes les plateformes
+ * par défaut (DEFAULT_PUBLISH_TARGETS). `marketplace` (singulier) conservé
+ * pour compat outillage v1 ; `marketplaces` cible un sous-ensemble explicite.
+ */
 const publishBody = z.object({
-  marketplace: z.nativeEnum(Marketplace),
+  marketplace: z.nativeEnum(Marketplace).optional(),
+  marketplaces: z.array(z.nativeEnum(Marketplace)).nonempty().optional(),
 })
 
 /**
@@ -293,18 +299,22 @@ const listingRoutes: FastifyPluginAsync = async app => {
   })
 
   /**
-   * Publication marketplace via API partenaire officielle (QUEUED → PUBLISHED).
-   * Échec connecteur → PUBLISH_FAILED + remboursement automatique.
+   * Publication multi-plateformes via APIs partenaires officielles
+   * (QUEUED → PUBLISHED|PUBLISH_FAILED) — Core Sync Engine, ADR-009.
+   * Règle du Jeton Global : ≥1 plateforme publiée ⇒ PUBLISHED sans
+   * remboursement ; 100% d'échec ⇒ PUBLISH_FAILED + remboursement total.
    */
   app.post('/:id/publish', async (req, reply) => {
     const params = idParams.safeParse(req.params)
-    const body = publishBody.safeParse(req.body)
+    const body = publishBody.safeParse(req.body ?? {})
     if (!params.success || !body.success) return reply.code(400).send({ error: 'INVALID_BODY' })
 
     const owned = await ownedListing(params.data.id, req.userId)
     if (!owned) return reply.code(404).send({ error: 'LISTING_NOT_FOUND' })
 
-    const outcome = await app.publicationService.publish(params.data.id, body.data.marketplace)
+    const targets =
+      body.data.marketplaces ?? (body.data.marketplace ? [body.data.marketplace] : undefined)
+    const outcome = await app.publicationService.publish(params.data.id, targets)
     return outcome
   })
 

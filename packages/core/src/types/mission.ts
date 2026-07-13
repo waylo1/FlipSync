@@ -137,6 +137,43 @@ export interface SellMandate {
   autoAdjugeAuDessusDuMini: boolean
 }
 
+// ─── Contrat GET /mission/* — SSOT api ↔ mobile ────────────────────────────────
+// Dates en ISO string (forme JSON réelle) — jamais Date (fix F7,
+// FLIPSYNC-AUDIT.md : remplace ApiMission/ApiMissionEvent recopiés à la main
+// dans apps/mobile).
+
+export interface MissionDTO {
+  id:                        string
+  listingId:                 string
+  status:                    MissionStatus
+  posture:                   string
+  objectif:                  string
+  prixAffiche:               number       // centimes
+  prixMini:                  number       // centimes
+  livraison:                 string
+  casComplexes:              string
+  autoAdjugeAuDessusDuMini:  boolean
+  activeBuyerCount:          number
+  bestOfferAmount:           number | null // centimes
+  pendingReason:             string | null
+  pendingOfferAmount:        number | null // centimes
+  pendingBuyerName:          string | null
+  soldAmount:                number | null // centimes
+  soldAt:                    string | null // ISO
+  createdAt:                 string        // ISO
+  updatedAt:                 string        // ISO
+  enVenteAt:                 string | null // ISO
+}
+
+export interface MissionEventDTO {
+  id:        string
+  kind:      string
+  summary:   string
+  amount:    number | null // centimes
+  buyerName: string | null
+  createdAt: string        // ISO
+}
+
 // ─── Dérivations d'affichage (fonctions pures — SSOT des libellés calculés) ────
 
 /**

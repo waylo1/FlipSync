@@ -7,12 +7,15 @@ import type {
   ItemCondition,
   ListingAuthResult,
   ListingDraft,
-  ListingStatus,
+  ListingDTO,
+  ListingPhotoDTO,
   ListingTier,
   MarketplaceStatusResponse,
-  MissionStatus,
+  MissionDTO,
+  MissionEventDTO,
   SellMandate,
-  TransactionType,
+  WalletDTO,
+  WalletTransactionDTO,
 } from '@flipsync/core'
 import { useAuthStore } from '../store/auth.store'
 import { trackApiCall } from '../dev-session/recorder'
@@ -65,46 +68,14 @@ async function fetchWithTimeout(
   }
 }
 
-/** Photo telle que renvoyée par GET /listing (sans sha256). */
-export interface ApiListingPhoto {
-  id: string
-  url: string // chemin relatif /uploads/... — préfixer par API_BASE pour l'affichage
-  order: number
-}
+/** Photo telle que renvoyée par GET /listing (sans sha256) — SSOT @flipsync/core. */
+export type ApiListingPhoto = ListingPhotoDTO
 
-/** Sous-ensemble du modèle Listing utilisé par le mobile (réponse GET /listing). */
-export interface ApiListing {
-  id: string
-  status: ListingStatus
-  tier: ListingTier
-  paymentSource: string
-  cost: number // centimes
-  titre: string | null
-  description: string | null
-  marque: string | null
-  etat: ItemCondition | null
-  prixPlancher: number | null // centimes
-  prixHaut: number | null // centimes
-  prixPublie: number | null // centimes
-  isPriceFlagged: boolean
-  failureReason: string | null
-  publishedLbc: boolean
-  publishedVinted: boolean
-  photos: ApiListingPhoto[]
-  createdAt: string
-  updatedAt: string
-}
+/** Sous-ensemble du modèle Listing utilisé par le mobile — SSOT @flipsync/core. */
+export type ApiListing = ListingDTO
 
-/** Mouvement wallet (réponse GET /wallet/transactions, 50 derniers). */
-export interface ApiTransaction {
-  id: string
-  type: TransactionType
-  amount: number // centimes
-  source: string
-  listingId: string | null
-  description: string | null
-  createdAt: string
-}
+/** Mouvement wallet (réponse GET /wallet/transactions, 50 derniers) — SSOT @flipsync/core. */
+export type ApiTransaction = WalletTransactionDTO
 
 export interface ApiPhoto {
   id: string
@@ -129,49 +100,14 @@ export interface UploadPhoto {
   order: number
 }
 
-/** Mission (réponse GET /mission/*) — tableau de bord S4 (COMMISSAIRE_PRISEUR_PLAN.md §5.4). */
-export interface ApiMission {
-  id: string
-  listingId: string
-  status: MissionStatus
-  posture: string
-  objectif: string
-  prixAffiche: number // centimes
-  prixMini: number // centimes
-  livraison: string
-  casComplexes: string
-  autoAdjugeAuDessusDuMini: boolean
-  activeBuyerCount: number
-  bestOfferAmount: number | null // centimes
-  pendingReason: string | null
-  pendingOfferAmount: number | null // centimes
-  pendingBuyerName: string | null
-  soldAmount: number | null // centimes
-  soldAt: string | null
-  createdAt: string
-  updatedAt: string
-  enVenteAt: string | null
-}
+/** Mission (réponse GET /mission/*) — tableau de bord S4 — SSOT @flipsync/core. */
+export type ApiMission = MissionDTO
 
-/** Ligne de timeline (réponse GET /mission/*, la plus récente en premier). */
-export interface ApiMissionEvent {
-  id: string
-  kind: string
-  summary: string
-  amount: number | null // centimes
-  buyerName: string | null
-  createdAt: string
-}
+/** Ligne de timeline (réponse GET /mission/*, la plus récente en premier) — SSOT @flipsync/core. */
+export type ApiMissionEvent = MissionEventDTO
 
-export interface ApiWallet {
-  balance: number // centimes
-  freeListingsRemaining: number
-  freeListingsResetAt: string
-  autoRechargeEnabled: boolean
-  autoRechargeThreshold: number // centimes
-  autoRechargeAmount: number // centimes
-  lifetimeRecharged: number // centimes
-}
+/** SSOT @flipsync/core. */
+export type ApiWallet = WalletDTO
 
 async function request<T>(path: string, init?: RequestInit, timeoutMs?: number): Promise<T> {
   const token = useAuthStore.getState().token

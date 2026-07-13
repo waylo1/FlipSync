@@ -13,7 +13,7 @@
 | F2 | S2 | **[OK] CORRIGÉ** | Décision Maxime : retrait (recharge manuelle MVP) | `fix(wallet): … [F2]` — tests wallet 24/24, ai 31/31, api 91/91 |
 | F3 | S3 | **[OK] CORRIGÉ** | Sonnet (fix direct) | `fix(listing): … [F3]` — tests ai 31/31, api 91/91, mobile 39/39 |
 | F6 | S3 | **[OK] CORRIGÉ** | Sonnet (fix direct) | `feat(mission): … [F6]` — tests api 92/92 (dont finalize dédié), core 56/56, mobile 39/39 |
-| F7 | S3 | À ROUTER | Sonnet | — |
+| F7 | S3 | **[OK] CORRIGÉ** | Sonnet (fix direct) | `refactor(core): … [F7]` — tsc mobile 0 erreur, 249 tests verts |
 | F8 | S3 | **[OK] CORRIGÉ** | Fix direct (session courante) | `docs(ai): … [F8]` — tests ai 31/31, api 91/91 |
 | F9 | S3 | **[OK] CORRIGÉ** | Fix direct (session courante) | `fix(wallet): … [F9]` — tests wallet 25/25 |
 

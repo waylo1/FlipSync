@@ -10,26 +10,29 @@ export { PaymentSource, TransactionType }
  * Toutes les valeurs monétaires sont stockées en centimes (Int).
  * Utiliser centsToEur() uniquement pour l'affichage.
  */
-export interface WalletState {
+// ─── Contrat GET /wallet, GET /wallet/transactions — SSOT api ↔ mobile ─────────
+// Dates en ISO string (forme JSON réelle du transport) — jamais Date, qui ne
+// survit pas à JSON.stringify. Miroir exact du select de routes/wallet.ts
+// (fix F7, FLIPSYNC-AUDIT.md : remplace le recopié manuel côté mobile).
+
+export interface WalletDTO {
   balance:               number  // centimes
   freeListingsRemaining: number
-  freeListingsResetAt:   Date
+  freeListingsResetAt:   string  // ISO
   autoRechargeEnabled:   boolean
   autoRechargeThreshold: number  // centimes
   autoRechargeAmount:    number  // centimes
   lifetimeRecharged:     number  // centimes
 }
 
-export interface WalletTransaction {
+export interface WalletTransactionDTO {
   id:          string
-  walletId:    string
   type:        TransactionType
   amount:      number           // centimes
   source:      PaymentSource
-  listingId?:  string
-  stripeId?:   string
+  listingId:   string | null
   description: string | null
-  createdAt:   Date
+  createdAt:   string           // ISO
 }
 
 // ─── Modèle économique (centimes Int — cf. CLAUDE.md) ────────────────────────

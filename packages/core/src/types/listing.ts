@@ -98,6 +98,39 @@ export interface ListingContext {
   createdAt: Date
 }
 
+// ─── Contrat GET /listing, GET /listing/:id — SSOT api ↔ mobile ────────────────
+// Dates en ISO string (forme JSON réelle) — jamais Date. Sous-ensemble du
+// modèle Listing effectivement utilisé côté mobile (fix F7, FLIPSYNC-AUDIT.md :
+// remplace ApiListing/ApiListingPhoto recopiés à la main dans apps/mobile).
+
+export interface ListingPhotoDTO {
+  id:    string
+  url:   string
+  order: number
+}
+
+export interface ListingDTO {
+  id:              string
+  status:          ListingStatus
+  tier:            ListingTier
+  paymentSource:   PaymentSource
+  cost:            number             // centimes
+  titre:           string | null
+  description:     string | null
+  marque:          string | null
+  etat:            ItemCondition | null
+  prixPlancher:    number | null      // centimes
+  prixHaut:        number | null      // centimes
+  prixPublie:      number | null      // centimes
+  isPriceFlagged:  boolean
+  failureReason:   string | null
+  publishedLbc:    boolean
+  publishedVinted: boolean
+  photos:          ListingPhotoDTO[]
+  createdAt:       string             // ISO
+  updatedAt:       string             // ISO
+}
+
 // ─── Guard diplomatie ─────────────────────────────────────────────────────────
 
 /**

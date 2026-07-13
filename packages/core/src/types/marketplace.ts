@@ -6,10 +6,16 @@
  * plus de miroir manuel (fix F5, FLIPSYNC-AUDIT.md).
  */
 
-/** Plateformes de revente supportées par les connecteurs officiels. */
+/**
+ * Plateformes de revente supportées par les connecteurs officiels.
+ * EBAY/SHOPIFY : Core Sync Engine (ADR-009) — connecteurs bouchonnés
+ * (CREDENTIALS_MISSING) tant que les accès partenaires ne sont pas configurés.
+ */
 export enum Marketplace {
   LEBONCOIN = 'LEBONCOIN',
   VINTED = 'VINTED',
+  EBAY = 'EBAY',
+  SHOPIFY = 'SHOPIFY',
 }
 
 /** Union littérale dérivée de l'enum — comparaisons de chaînes côté mobile. */

@@ -10,7 +10,11 @@ export type CredentialResolution =
   | { ok: true; credentials: MarketplaceCredentials; mock: boolean }
   | { ok: false; reason: 'MISSING' | 'EXPIRED' }
 
-/** Variables d'env par plateforme (compte partenaire global — cf. note classe). */
+/**
+ * Variables d'env par plateforme (compte partenaire global — cf. note classe).
+ * Couvre le flux v1 (LBC/Vinted) uniquement : EBAY/SHOPIFY (ADR-009) passeront
+ * par le Core Sync Engine — ici ils résolvent MISSING / DISCONNECTED.
+ */
 const ENV_KEYS = {
   [Marketplace.VINTED]: { token: 'VINTED_ACCESS_TOKEN', expiresAt: 'VINTED_TOKEN_EXPIRES_AT' },
   [Marketplace.LEBONCOIN]: {
@@ -18,6 +22,9 @@ const ENV_KEYS = {
     expiresAt: 'LEBONCOIN_TOKEN_EXPIRES_AT',
   },
 } as const
+
+const envKeys = (marketplace: Marketplace) =>
+  marketplace in ENV_KEYS ? ENV_KEYS[marketplace as keyof typeof ENV_KEYS] : null
 
 /** Codes connecteur signant un refus d'authentification par la plateforme. */
 const AUTH_REJECTED_CODE = /_HTTP_40[13]$/
@@ -61,7 +68,8 @@ export class MarketplaceAuthService {
       }
     }
 
-    const token = process.env[ENV_KEYS[marketplace].token]
+    const keys = envKeys(marketplace)
+    const token = keys ? process.env[keys.token] : undefined
     if (!token) {
       this.log?.warn({ marketplace }, 'credentials partenaire absents — publication impossible')
       return { ok: false, reason: 'MISSING' }
@@ -122,7 +130,8 @@ export class MarketplaceAuthService {
 
   private connectionState(marketplace: Marketplace): MarketplaceConnectionState {
     if (this.mockEnabled()) return 'CONNECTED'
-    if (!process.env[ENV_KEYS[marketplace].token]) return 'DISCONNECTED'
+    const keys = envKeys(marketplace)
+    if (!keys || !process.env[keys.token]) return 'DISCONNECTED'
     if (this.expired(marketplace)) return 'EXPIRED'
     if (this.lastAuthError.has(marketplace)) return 'AUTH_ERROR'
     return 'CONNECTED'
@@ -134,7 +143,8 @@ export class MarketplaceAuthService {
    * dont on ne sait pas lire l'échéance).
    */
   private expired(marketplace: Marketplace): boolean {
-    const raw = process.env[ENV_KEYS[marketplace].expiresAt]
+    const keys = envKeys(marketplace)
+    const raw = keys ? process.env[keys.expiresAt] : undefined
     if (!raw) return false
     const expiresAt = Date.parse(raw)
     if (Number.isNaN(expiresAt)) {

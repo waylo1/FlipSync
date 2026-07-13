@@ -8,6 +8,10 @@ import { Card } from '../ui/Card'
 const PLATFORM_LABEL: Readonly<Record<MarketplaceId, string>> = {
   VINTED: 'Vinted',
   LEBONCOIN: 'Leboncoin',
+  // Core Sync Engine (ADR-009) — libellés prêts, l'écran n'affiche que ce que
+  // GET /marketplace/status renvoie (rien tant que les connecteurs sont bouchonnés).
+  EBAY: 'eBay',
+  SHOPIFY: 'Shopify',
 }
 
 /**

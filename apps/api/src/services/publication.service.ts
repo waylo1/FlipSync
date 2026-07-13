@@ -23,11 +23,18 @@ export class PublicationError extends Error {
   }
 }
 
-/** Champs spécifiques à chaque plateforme sur le modèle Listing. */
+/**
+ * Champs spécifiques à chaque plateforme sur le modèle Listing — flux v1
+ * (LBC/Vinted). EBAY/SHOPIFY (ADR-009) passeront par le Core Sync Engine :
+ * ici, fail-fast MARKETPLACE_NOT_SUPPORTED sans toucher au listing.
+ */
 const PLATFORM_FIELDS = {
   [Marketplace.LEBONCOIN]: { categorie: 'categorieLbc', urlKey: 'lbcUrl' },
   [Marketplace.VINTED]: { categorie: 'categorieVinted', urlKey: 'vintedUrl' },
 } as const
+
+const platformFields = (marketplace: Marketplace) =>
+  marketplace in PLATFORM_FIELDS ? PLATFORM_FIELDS[marketplace as keyof typeof PLATFORM_FIELDS] : null
 
 /**
  * PublicationService — exécute la transition QUEUED → PUBLISHED via les APIs
@@ -49,6 +56,9 @@ export class PublicationService {
   ) {}
 
   async publish(listingId: string, marketplace: Marketplace): Promise<PublicationOutcome> {
+    const fields = platformFields(marketplace)
+    if (!fields) throw new PublicationError('MARKETPLACE_NOT_SUPPORTED')
+
     const listing = await this.db.listing.findUnique({
       where: { id: listingId },
       include: { photos: { orderBy: { order: 'asc' } } },
@@ -56,7 +66,6 @@ export class PublicationService {
     if (!listing) throw new PublicationError('LISTING_NOT_FOUND')
     if (listing.status !== ListingStatus.QUEUED) throw new PublicationError('INVALID_LISTING_STATE')
 
-    const fields = PLATFORM_FIELDS[marketplace]
     const categorie = listing[fields.categorie]
 
     // Garde-fous : un listing QUEUED doit porter un brouillon complet.

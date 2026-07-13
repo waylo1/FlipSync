@@ -62,8 +62,9 @@ export class WalletService {
    * Ordre de résolution (cf. CLAUDE.md) :
    *   1. freeListingsRemaining > 0 → FREE_CREDIT (cost projeté = 0)
    *   2. balance >= cost           → WALLET
-   *   3. autoRechargeEnabled       → WALLET avec requiresAutoRecharge=true
-   *   4. sinon                     → BLOCKED avec deficit
+   *   3. sinon                     → BLOCKED avec deficit (recharge manuelle,
+   *      MVP — cf. FLIPSYNC-AUDIT.md F2 : auto-recharge retirée, produisait
+   *      un solde projeté non garanti sans jamais déclencher de recharge réelle)
    *
    * Lecture seule : les compteurs retournés sont un snapshot AVANT commit.
    */
@@ -82,7 +83,6 @@ export class WalletService {
         freeCreditsRemaining: wallet.freeListingsRemaining,
         walletBalanceBefore: wallet.balance,
         walletBalanceAfter: wallet.balance,
-        requiresAutoRecharge: false,
       }
     }
 
@@ -94,20 +94,6 @@ export class WalletService {
         freeCreditsRemaining: 0,
         walletBalanceBefore: wallet.balance,
         walletBalanceAfter: wallet.balance - cost,
-        requiresAutoRecharge: false,
-      }
-    }
-
-    if (wallet.autoRechargeEnabled) {
-      // Le rechargement Stripe sera déclenché par l'appelant ; balance projetée après recharge.
-      return {
-        authorized: true,
-        source: PaymentSource.WALLET,
-        cost,
-        freeCreditsRemaining: 0,
-        walletBalanceBefore: wallet.balance,
-        walletBalanceAfter: wallet.balance + wallet.autoRechargeAmount - cost,
-        requiresAutoRecharge: true,
       }
     }
 
@@ -118,7 +104,6 @@ export class WalletService {
       freeCreditsRemaining: 0,
       walletBalanceBefore: wallet.balance,
       walletBalanceAfter: wallet.balance,
-      requiresAutoRecharge: false,
       deficit: cost - wallet.balance,
     }
   }

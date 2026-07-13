@@ -65,7 +65,6 @@ export interface ListingAuthResult {
   freeCreditsRemaining: number
   walletBalanceBefore:  number   // centimes
   walletBalanceAfter:   number   // centimes
-  requiresAutoRecharge: boolean
   deficit?:             number   // centimes — présent uniquement si BLOCKED
 }
 

@@ -203,7 +203,6 @@ describe('WalletService.authorize', () => {
     expect(res.freeCreditsRemaining).toBe(2)
     expect(res.walletBalanceBefore).toBe(500)
     expect(res.walletBalanceAfter).toBe(500)
-    expect(res.requiresAutoRecharge).toBe(false)
     // Lecture seule : rien n'a bougé en "base"
     expect(state.wallet?.balance).toBe(500)
     expect(state.wallet?.freeListingsRemaining).toBe(2)
@@ -226,28 +225,11 @@ describe('WalletService.authorize', () => {
       cost: 250,
       walletBalanceBefore: 300,
       walletBalanceAfter: 50,
-      requiresAutoRecharge: false,
     })
     expect(state.wallet?.balance).toBe(300) // aucun débit à l'autorisation
   })
 
-  it('priorité 3 — auto-recharge déclenchée si solde insuffisant et option active', async () => {
-    const state: FakeState = {
-      wallet: baseWallet({ balance: 100, autoRechargeEnabled: true, autoRechargeAmount: 1000 }),
-      listing: null,
-      transactions: [],
-    }
-    const svc = new WalletService(makeFakePrisma(state))
-
-    const res = await svc.authorize('u1', 250)
-
-    expect(res.authorized).toBe(true)
-    expect(res.source).toBe(PaymentSource.WALLET)
-    expect(res.requiresAutoRecharge).toBe(true)
-    expect(res.walletBalanceAfter).toBe(100 + 1000 - 250)
-  })
-
-  it('priorité 4 — BLOCKED avec deficit exact en centimes', async () => {
+  it('priorité 3 — BLOCKED avec deficit exact en centimes (auto-recharge retirée, F2 — recharge manuelle MVP)', async () => {
     const state: FakeState = {
       wallet: baseWallet({ balance: 100 }),
       listing: null,

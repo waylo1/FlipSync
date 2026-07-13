@@ -119,7 +119,11 @@ export class WalletService {
     const now = new Date()
     if (wallet.freeListingsResetAt > now) return wallet
 
+    // Ancré au 1er du mois suivant (fix F9) : setMonth(+1) seul déborde sur un
+    // mois court (31 janvier → 3 mars) car JS reporte l'excédent de jours.
+    // setDate(1) d'abord élimine tout débordement, quel que soit le jour courant.
     const nextResetAt = new Date(now)
+    nextResetAt.setDate(1)
     nextResetAt.setMonth(nextResetAt.getMonth() + 1)
 
     const updated = await this.db.userWallet.updateMany({

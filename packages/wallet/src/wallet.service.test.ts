@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PrismaClient } from '@flipsync/db'
 import { PaymentSource } from '@flipsync/core'
 import { WalletService } from './wallet.service'
@@ -260,6 +260,27 @@ describe('WalletService.authorize', () => {
     expect(res.freeCreditsRemaining).toBe(3)
     expect(state.wallet?.freeListingsRemaining).toBe(3)
     expect(state.wallet && state.wallet.freeListingsResetAt.getTime()).toBeGreaterThan(Date.now())
+  })
+
+  describe('31 janvier — pas de débordement sur mars (fix F9)', () => {
+    beforeEach(() => vi.useFakeTimers().setSystemTime(new Date('2026-01-31T10:00:00.000Z')))
+    afterEach(() => vi.useRealTimers())
+
+    it('ancre le prochain reset au 1er février, jamais au 3 mars', async () => {
+      const past = new Date('2026-01-01T00:00:00.000Z') // échéance déjà dépassée
+      const state: FakeState = {
+        wallet: baseWallet({ balance: 500, freeListingsRemaining: 0, freeListingsResetAt: past }),
+        listing: null,
+        transactions: [],
+      }
+      const svc = new WalletService(makeFakePrisma(state))
+
+      await svc.authorize('u1', 250)
+
+      const next = state.wallet?.freeListingsResetAt
+      expect(next?.getMonth()).toBe(1) // février (0-indexé) — jamais mars
+      expect(next?.getDate()).toBe(1)
+    })
   })
 
   it('rejette un montant non entier (jamais de Float monétaire)', async () => {

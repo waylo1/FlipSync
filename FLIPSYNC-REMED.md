@@ -15,7 +15,7 @@
 | F6 | S3 | À ROUTER | Sonnet | — |
 | F7 | S3 | À ROUTER | Sonnet | — |
 | F8 | S3 | **[OK] CORRIGÉ** | Fix direct (session courante) | `docs(ai): … [F8]` — tests ai 31/31, api 91/91 |
-| F9 | S3 | À ROUTER | Haiku (mécanique) | — |
+| F9 | S3 | **[OK] CORRIGÉ** | Fix direct (session courante) | `fix(wallet): … [F9]` — tests wallet 25/25 |
 
 ## Fix direct — session courante
 

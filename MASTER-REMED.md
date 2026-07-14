@@ -61,7 +61,10 @@
    sont nativement `ChannelConnector` ; `V2ToPortAdapter` et les contrats v1/v2 (`types.ts`,
    `client.ts`, `interfaces/connector.interface.ts`, `legacy-adapter.ts`) détruits, zéro référence
    restante en code actif (commits `544ddb8`, `79d7496`, `ca7f812`).
-7. Checks STATIC **verts** → commit du Lot 1 (pivot DB).
+7. **Terminée** — Checks STATIC **verts** (build/typecheck 16/16, tests 108/108, closure-check
+   0 fuite nouvelle, C-09 0/0) ; Lot 1 (pivot DB, C1/C2/C4/C5+A2) déjà committé atomiquement
+   (`aa2596f`, `8f08468`, `33fd24b`, `536800c`). Baseline C-1267/C-3 figée en dette technique
+   (§4bis), non résorbée à ce stade.
 8. Modèle de référence + les 4 reines (P-12/17/18/22), puis le reste de la suite (ordre INVARIANT-SPEC §8).
 9. Adapters réels Vinted/LBC — **premier test grandeur nature de CC-5 : le diff est la preuve.**
 
@@ -86,6 +89,15 @@ inférence prod (décision Maxime en attente, Sprint 4).
 | **Q10** | Un `SOLD` livré sur un canal déjà terminal (`RETRACTED`/`ENDED`, rétracté avant que son `SOLD` n'arrive) : stale-drop ordinaire (INV-24 actuel) ou incident signalé (alerte, cohérent avec l'esprit « jamais silencieux » d'INV-25/T2) ? Représente un acheteur ayant payé (ERRATA E-5) | Implémentation de la FSM (P-18 en dépend) |
 
 > Q1 et Q9 : tranchées 2026-07-14, déplacées au Decision record (§2).
+
+## 4bis. Politique de dette technique (Closure-check)
+
+> Arbitrage 2026-07-15 (clôture étape 7) : la baseline actuelle (C-1267 : 180 hits,
+> C-3 : 3 hits) est **figée comme dette technique existante, non bloquante**. Elle ne
+> sera résorbée que par un ticket dédié **"Technical Debt Reduction"**, jamais par un
+> blocage système. Le gate reste strict sur le différentiel : **tout hit nouveau hors
+> baseline échoue le build immédiatement** (0 nouveau toléré). C-09 (fuite Core vers
+> `packages/marketplace`) reste un gate dur à 0, sans baseline, inchangé.
 
 ## 5. Règle permanente
 

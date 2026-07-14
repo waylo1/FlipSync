@@ -16,6 +16,7 @@ import devSessionsRoutes from './routes/dev-sessions'
 import marketplaceRoutes from './routes/marketplace'
 import missionRoutes from './routes/mission'
 import notificationRoutes from './routes/notification'
+import webhookRoutes from './routes/webhook'
 
 /** Construit l'app complète — utilisé par index.ts (listen) et les tests (inject). */
 export async function buildApp(): Promise<FastifyInstance> {
@@ -57,7 +58,8 @@ export async function buildApp(): Promise<FastifyInstance> {
     await uploads.register(fastifyStatic, { root: UPLOAD_DIR, prefix: '/uploads/' })
   })
 
-  // Routes protégées JWT. Exceptions : /stripe/webhook (signature Stripe)
+  // Routes protégées JWT. Exceptions : /stripe/webhook (signature Stripe),
+  // /webhooks/vendu (signatures plateformes — HMAC Shopify / ECDSA eBay)
   // et /auth/dev-token (dev uniquement, absent en production).
   await app.register(authRoutes, { prefix: '/auth' })
   await app.register(walletRoutes, { prefix: '/wallet' })
@@ -69,6 +71,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(marketplaceRoutes, { prefix: '/marketplace' })
   await app.register(missionRoutes, { prefix: '/mission' })
   await app.register(notificationRoutes, { prefix: '/notifications' })
+  await app.register(webhookRoutes, { prefix: '/webhooks' })
 
   return app
 }

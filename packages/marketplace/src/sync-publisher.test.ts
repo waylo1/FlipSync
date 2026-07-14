@@ -159,19 +159,22 @@ describe('CoreSyncPublisher.publishMany', () => {
   })
 })
 
-describe('squelettes eBay / Shopify (contrat v2)', () => {
-  it('retournent CREDENTIALS_MISSING sans lever, sur les 4 opérations', async () => {
-    for (const connector of [new EbayConnector(), new ShopifyConnector()]) {
-      const expected = { ok: false, code: SyncErrorCode.CREDENTIALS_MISSING, retryable: false }
-      expect(await connector.publish(listing)).toMatchObject(expected)
-      expect(await connector.update('ext-1', listing)).toMatchObject(expected)
-      expect(await connector.withdraw('ext-1')).toMatchObject(expected)
-      expect(await connector.checkStatus('ext-1')).toMatchObject(expected)
+describe('connecteurs eBay / Shopify (contrat v2, clients réels Run 5)', () => {
+  it('sans configuration : CREDENTIALS_MISSING sur publish/withdraw, CONNECTOR_UNAVAILABLE sur le reste', async () => {
+    // env vide EXPLICITE : ne jamais dépendre du process.env de la machine.
+    for (const connector of [new EbayConnector({ env: {} }), new ShopifyConnector({ env: {} })]) {
+      const missing = { ok: false, code: SyncErrorCode.CREDENTIALS_MISSING, retryable: false }
+      const notImplemented = { ok: false, code: SyncErrorCode.CONNECTOR_UNAVAILABLE }
+      expect(await connector.publish(listing)).toMatchObject(missing)
+      expect(await connector.withdraw('ext-1')).toMatchObject(missing)
+      // update/checkStatus : hors périmètre v1 des clients réels.
+      expect(await connector.update('ext-1', listing)).toMatchObject(notImplemented)
+      expect(await connector.checkStatus('ext-1')).toMatchObject(notImplemented)
     }
   })
 
-  it('déclarent leurs capacités : eBay fixed+auction, Shopify fixed seul', () => {
-    expect(new EbayConnector().capabilities.modes).toEqual(['fixed', 'auction'])
-    expect(new ShopifyConnector().capabilities.modes).toEqual(['fixed'])
+  it('déclarent leurs capacités : fixed seul (enchères eBay = API Trading, hors v1 / D2)', () => {
+    expect(new EbayConnector({ env: {} }).capabilities.modes).toEqual(['fixed'])
+    expect(new ShopifyConnector({ env: {} }).capabilities.modes).toEqual(['fixed'])
   })
 })

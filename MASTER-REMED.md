@@ -1,4 +1,4 @@
-# MASTER-REMED — Cristallisation & feuille de route (P6, 2026-07-13)
+# MASTER-REMED — Cristallisation & feuille de route (P6, 2026-07-13 · MAJ 2026-07-15 : C3 clos)
 
 > **Aucune décision nouvelle ici.** Ce document récapitule P1→P5, ordonne la remédiation et
 > consigne les questions ouvertes. La doctrine applicable vit dans CLAUDE.md
@@ -56,7 +56,11 @@
    tables `ChannelEvent` (journal dédup) et `SaleFact` (vente set-once, INV-18). Dormant — aucun
    producteur/consommateur, `@@unique([listingId, marketplace])` inchangée (clé d'idempotence
    avec epoch = évolution de C3, hors périmètre ici).
-6. **C3** : refonte `packages/marketplace` sur le port complet (`ChannelConnector`).
+6. **C3** — **fait** : refonte `packages/marketplace` sur le port complet (`ChannelConnector`),
+   Étrangleur en 3 vagues (C3.4 eBay, C3.5 Shopify, C3.6 Vinted+Leboncoin) — les 4 connecteurs
+   sont nativement `ChannelConnector` ; `V2ToPortAdapter` et les contrats v1/v2 (`types.ts`,
+   `client.ts`, `interfaces/connector.interface.ts`, `legacy-adapter.ts`) détruits, zéro référence
+   restante en code actif (commits `544ddb8`, `79d7496`, `ca7f812`).
 7. Checks STATIC **verts** → commit du Lot 1 (pivot DB).
 8. Modèle de référence + les 4 reines (P-12/17/18/22), puis le reste de la suite (ordre INVARIANT-SPEC §8).
 9. Adapters réels Vinted/LBC — **premier test grandeur nature de CC-5 : le diff est la preuve.**

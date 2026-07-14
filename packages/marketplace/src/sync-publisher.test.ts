@@ -180,20 +180,27 @@ describe('CoreSyncPublisher.publishMany', () => {
   })
 })
 
-describe('ShopifyConnector (contrat v2, client réel Run 5)', () => {
-  it('sans configuration : CREDENTIALS_MISSING sur publish/withdraw, CONNECTOR_UNAVAILABLE sur le reste', async () => {
+describe('ShopifyConnector (port ChannelConnector, natif C3.5 — cf. shopify.test.ts pour la couverture complète)', () => {
+  it('sans configuration : CREDENTIALS_MISSING sur publish/retract, CONNECTOR_UNAVAILABLE sur update', async () => {
     // env vide EXPLICITE : ne jamais dépendre du process.env de la machine.
     const connector = new ShopifyConnector({ env: {} })
-    const missing = { ok: false, code: SyncErrorCode.CREDENTIALS_MISSING, retryable: false }
-    const notImplemented = { ok: false, code: SyncErrorCode.CONNECTOR_UNAVAILABLE }
-    expect(await connector.publish(listing)).toMatchObject(missing)
-    expect(await connector.withdraw('ext-1')).toMatchObject(missing)
-    // update/checkStatus : hors périmètre v1 du client réel.
-    expect(await connector.update('ext-1', listing)).toMatchObject(notImplemented)
-    expect(await connector.checkStatus('ext-1')).toMatchObject(notImplemented)
+    const missing = { status: 'FAILED', code: SyncErrorCode.CREDENTIALS_MISSING }
+    expect(await connector.publish(listing, undefined)).toMatchObject(missing)
+    expect(await connector.retract({ externalId: 'ext-1' }, undefined, 'SOLD_ELSEWHERE')).toMatchObject({
+      ok: false,
+      code: SyncErrorCode.CREDENTIALS_MISSING,
+    })
+    // update : hors périmètre v1 du client réel.
+    expect(await connector.update({ externalId: 'ext-1' }, listing, undefined)).toMatchObject({
+      ok: false,
+      code: SyncErrorCode.CONNECTOR_UNAVAILABLE,
+    })
   })
 
-  it('déclare ses capacités : fixed seul', () => {
-    expect(new ShopifyConnector({ env: {} }).capabilities.modes).toEqual(['fixed'])
+  it('precheck : fixed seul', () => {
+    const connector = new ShopifyConnector({ env: {} })
+    expect(connector.precheck(listing, undefined)).toEqual({ eligible: true })
+    const auction = { ...listing, mode: 'auction' as const, prixDepart: 100, prixReserve: null, dureeJours: 7 }
+    expect(connector.precheck(auction, undefined).eligible).toBe(false)
   })
 })

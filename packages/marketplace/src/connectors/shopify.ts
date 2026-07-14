@@ -2,12 +2,22 @@ import { z } from 'zod'
 import {
   Marketplace,
   SyncErrorCode,
-  type RemoteStatusOutcome,
   type SyncFailure,
   type SyncOutcome,
-  type UnifiedListing,
 } from '@flipsync/core'
-import type { ConnectorCapabilities, MarketplaceConnector } from '../interfaces/connector.interface'
+import type {
+  CanonicalListing,
+  ChannelCapabilities,
+  ChannelConnector,
+  ChannelCredentials,
+  Eligibility,
+  NormalizedChannelEvent,
+  OpOutcome,
+  PublicationRef,
+  PublishOutcome,
+  RetractReason,
+  SellerContext,
+} from '../interfaces/channel-connector.interface'
 import {
   centsToDecimal,
   credentialsMissing,
@@ -101,9 +111,28 @@ const graphqlEnvelope = z.object({
     .optional(),
 })
 
-export class ShopifyConnector implements MarketplaceConnector {
-  readonly marketplace = Marketplace.SHOPIFY
-  readonly capabilities: ConnectorCapabilities = { modes: ['fixed'] }
+function toPublishOutcome(outcome: SyncOutcome): PublishOutcome {
+  if (outcome.ok) return { status: 'PUBLISHED', externalId: outcome.externalId, url: outcome.url }
+  return { status: 'FAILED', kind: outcome.retryable ? 'TRANSIENT' : 'PERMANENT', code: outcome.code }
+}
+
+function toOpOutcome(outcome: SyncOutcome): OpOutcome {
+  if (outcome.ok) return { ok: true }
+  return { ok: false, kind: outcome.retryable ? 'TRANSIENT' : 'PERMANENT', code: outcome.code }
+}
+
+export class ShopifyConnector implements ChannelConnector {
+  readonly channel = Marketplace.SHOPIFY
+  readonly capabilities: ChannelCapabilities = {
+    kind: 'MP',
+    transport: 'direct',
+    negotiation: 'NONE',
+    publishMode: 'SYNC',
+    photosPerso: false,
+    productRef: false,
+    seller: 'both',
+    retractSla: null,
+  }
 
   private readonly fetchFn: FetchLike
   private readonly env: Readonly<Record<string, string | undefined>>
@@ -186,7 +215,35 @@ export class ShopifyConnector implements MarketplaceConnector {
     }
   }
 
-  async publish(listing: UnifiedListing): Promise<SyncOutcome> {
+  precheck(listing: CanonicalListing, _seller: SellerContext): Eligibility {
+    if (listing.mode !== 'fixed') {
+      return { eligible: false, reasons: ['Shopify : prix fixe uniquement'] }
+    }
+    return { eligible: true }
+  }
+
+  async publish(listing: CanonicalListing, _credentials: ChannelCredentials): Promise<PublishOutcome> {
+    return toPublishOutcome(await this.publishInternal(listing))
+  }
+
+  async update(
+    ref: PublicationRef,
+    listing: CanonicalListing,
+    _credentials: ChannelCredentials,
+  ): Promise<OpOutcome> {
+    return toOpOutcome(await this.updateInternal(ref.externalId, listing))
+  }
+
+  async retract(ref: PublicationRef, _credentials: ChannelCredentials, _why: RetractReason): Promise<OpOutcome> {
+    return toOpOutcome(await this.withdrawInternal(ref.externalId))
+  }
+
+  /** Aucun webhook Shopify câblé sur ce port. */
+  parseEvent(_raw: unknown): NormalizedChannelEvent | null {
+    return null
+  }
+
+  private async publishInternal(listing: CanonicalListing): Promise<SyncOutcome> {
     if (listing.mode !== 'fixed') {
       // Défense en profondeur — le moteur filtre déjà via capabilities.
       return {
@@ -275,7 +332,7 @@ export class ShopifyConnector implements MarketplaceConnector {
     return { ok: true, externalId: product.id, url: product.onlineStorePreviewUrl ?? null }
   }
 
-  async update(_externalId: string, _listing: UnifiedListing): Promise<SyncOutcome> {
+  private async updateInternal(_externalId: string, _listing: CanonicalListing): Promise<SyncOutcome> {
     return {
       ok: false,
       code: SyncErrorCode.CONNECTOR_UNAVAILABLE,
@@ -285,7 +342,7 @@ export class ShopifyConnector implements MarketplaceConnector {
   }
 
   /** Retrait = archivage du produit (idempotent : archiver un archivé réussit). */
-  async withdraw(externalId: string): Promise<SyncOutcome> {
+  private async withdrawInternal(externalId: string): Promise<SyncOutcome> {
     const cfg = this.config()
     if ('ok' in cfg) return cfg
     const vars = archiveVars.safeParse({ input: { id: externalId, status: 'ARCHIVED' } })
@@ -307,14 +364,5 @@ export class ShopifyConnector implements MarketplaceConnector {
       return this.userErrorsFailure(resp.data.productUpdate.userErrors)
     }
     return { ok: true, externalId, url: null }
-  }
-
-  async checkStatus(_externalId: string): Promise<RemoteStatusOutcome> {
-    return {
-      ok: false,
-      code: SyncErrorCode.CONNECTOR_UNAVAILABLE,
-      detail: 'Shopify v1 : publish + withdraw uniquement',
-      retryable: false,
-    }
   }
 }

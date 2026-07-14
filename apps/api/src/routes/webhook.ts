@@ -7,7 +7,6 @@ import {
   EbayConnector,
   isKnownSyncErrorCode,
   ShopifyConnector,
-  V2ToPortAdapter,
   type ChannelConnector,
   type OpOutcome,
 } from '@flipsync/marketplace'
@@ -225,11 +224,10 @@ const handleSale = async (log: FastifyBaseLogger, sale: SaleEvent) => {
     orderBy: { marketplace: 'asc' },
   })
 
-  // Port ChannelConnector (C3) : eBay natif (C3.4), Shopify via V2ToPortAdapter
-  // (transition, TODO destruction à sa migration native — cf. ebay.ts).
+  // Port ChannelConnector (C3) : eBay (C3.4) et Shopify (C3.5) natifs.
   const registry: ReadonlyMap<Marketplace, ChannelConnector> = new Map<Marketplace, ChannelConnector>([
     [Marketplace.EBAY, new EbayConnector()],
-    [Marketplace.SHOPIFY, new V2ToPortAdapter(new ShopifyConnector())],
+    [Marketplace.SHOPIFY, new ShopifyConnector()],
   ])
 
   const settled = await Promise.allSettled(

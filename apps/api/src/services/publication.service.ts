@@ -112,9 +112,9 @@ export class PublicationService {
     }
 
     // Registre construit PAR REQUÊTE (credentials liées à l'utilisateur courant).
-    // Port ChannelConnector (C3, ADAPTER-CONTRACT §3) : Vinted/LBC/Shopify
-    // passent encore par V2ToPortAdapter (transition, TODO destruction à leur
-    // migration native) ; eBay est nativement `ChannelConnector` depuis C3.4.
+    // Port ChannelConnector (C3, ADAPTER-CONTRACT §3) : Vinted/LBC passent
+    // encore par V2ToPortAdapter (transition, TODO destruction à leur migration
+    // native) ; eBay (C3.4) et Shopify (C3.5) sont nativement `ChannelConnector`.
     const registry = new Map<Marketplace, ChannelConnector>()
     for (const marketplace of [Marketplace.VINTED, Marketplace.LEBONCOIN] as const) {
       registry.set(
@@ -141,7 +141,7 @@ export class PublicationService {
     // Connecteurs v2 restants — config lue de l'env à l'appel : sans
     // credentials, ils répondent CREDENTIALS_MISSING sans appel réseau.
     registry.set(Marketplace.EBAY, new EbayConnector())
-    registry.set(Marketplace.SHOPIFY, new V2ToPortAdapter(new ShopifyConnector()))
+    registry.set(Marketplace.SHOPIFY, new ShopifyConnector())
 
     const report = await new CoreSyncPublisher(registry).publishMany(mapped.listing, targets)
 

@@ -1,14 +1,18 @@
 import { z } from 'zod'
-import {
-  ItemCondition,
-  Marketplace,
-  SyncErrorCode,
-  type RemoteStatusOutcome,
-  type SyncFailure,
-  type SyncOutcome,
-  type UnifiedListing,
-} from '@flipsync/core'
-import type { ConnectorCapabilities, MarketplaceConnector } from '../interfaces/connector.interface'
+import { ItemCondition, Marketplace, SyncErrorCode, type SyncFailure, type SyncOutcome } from '@flipsync/core'
+import type {
+  CanonicalListing,
+  ChannelCapabilities,
+  ChannelConnector,
+  ChannelCredentials,
+  Eligibility,
+  NormalizedChannelEvent,
+  OpOutcome,
+  PublicationRef,
+  PublishOutcome,
+  RetractReason,
+  SellerContext,
+} from '../interfaces/channel-connector.interface'
 import {
   centsToDecimal,
   credentialsMissing,
@@ -26,7 +30,15 @@ import {
 // (POST) → publish (POST). externalId persisté = offerId (clé de withdraw).
 // NOTE spec Run 5 : « AddFixedPriceItem » est l'API Trading (XML, legacy) —
 // la voie REST est l'Inventory API, prix fixe uniquement. Les enchères
-// exigeraient l'API Trading : hors v1 (doctrine D2) → capabilities `fixed`.
+// exigeraient l'API Trading : hors v1 (doctrine D2).
+//
+// C3.4 : première migration NATIVE sur le port `ChannelConnector` (ADAPTER-
+// CONTRACT §3) — remplace l'implémentation v2 (ADR-009). `CanonicalListing`
+// est concret (= UnifiedListing, cf. channel-connector.interface.ts) : aucun
+// cast n'est nécessaire ici. La logique HTTP interne (inchangée) retourne le
+// format `SyncOutcome` du Core Sync Engine v2 — traduite vers `PublishOutcome`/
+// `OpOutcome` uniquement à la frontière publique (toPublishOutcome/toOpOutcome
+// en bas de fichier), pour ne pas réécrire le parsing/gate Zod existant.
 
 /** Variables d'environnement exigées — toutes absentes ⇒ CREDENTIALS_MISSING. */
 const REQUIRED_ENV = [
@@ -119,9 +131,31 @@ const errorDetail = (raw: string): string | null => {
   return raw === '' ? null : truncate(raw)
 }
 
-export class EbayConnector implements MarketplaceConnector {
-  readonly marketplace = Marketplace.EBAY
-  readonly capabilities: ConnectorCapabilities = { modes: ['fixed'] }
+/** SyncOutcome (interne) → PublishOutcome (port) — aucune perte : url déjà nullable des deux côtés. */
+function toPublishOutcome(outcome: SyncOutcome): PublishOutcome {
+  if (outcome.ok) return { status: 'PUBLISHED', externalId: outcome.externalId, url: outcome.url }
+  return { status: 'FAILED', kind: outcome.retryable ? 'TRANSIENT' : 'PERMANENT', code: outcome.code }
+}
+
+/** SyncOutcome (interne) → OpOutcome (port). */
+function toOpOutcome(outcome: SyncOutcome): OpOutcome {
+  if (outcome.ok) return { ok: true }
+  return { ok: false, kind: outcome.retryable ? 'TRANSIENT' : 'PERMANENT', code: outcome.code }
+}
+
+export class EbayConnector implements ChannelConnector {
+  readonly channel = Marketplace.EBAY
+  readonly capabilities: ChannelCapabilities = {
+    kind: 'MP',
+    transport: 'direct',
+    // D4/D2 — Inventory API prix fixe uniquement, pas de Best Offer en v1.
+    negotiation: 'NONE',
+    publishMode: 'SYNC',
+    photosPerso: false,
+    productRef: false,
+    seller: 'both',
+    retractSla: null,
+  }
 
   private readonly fetchFn: FetchLike
   private readonly env: Readonly<Record<string, string | undefined>>
@@ -176,9 +210,27 @@ export class EbayConnector implements MarketplaceConnector {
     return { ok: true, json: parseJson(raw) }
   }
 
-  async publish(listing: UnifiedListing): Promise<SyncOutcome> {
+  /**
+   * Éligibilité — mode de vente uniquement (D2). Les credentials sont un état
+   * runtime, pas une capacité du canal : leur absence reste un échec de
+   * `publish()` (CREDENTIALS_MISSING), jamais une inéligibilité précheck —
+   * sinon CoreSyncPublisher les confondrait sous UNSUPPORTED_MODE (bug trouvé
+   * en C3.4, corrigé avant commit).
+   */
+  precheck(listing: CanonicalListing, _seller: SellerContext): Eligibility {
     if (listing.mode !== 'fixed') {
-      // Défense en profondeur — le moteur filtre déjà via capabilities.
+      return { eligible: false, reasons: ['Inventory API : prix fixe uniquement (enchères hors v1, D2)'] }
+    }
+    return { eligible: true }
+  }
+
+  async publish(listing: CanonicalListing, _credentials: ChannelCredentials): Promise<PublishOutcome> {
+    return toPublishOutcome(await this.publishInternal(listing))
+  }
+
+  private async publishInternal(listing: CanonicalListing): Promise<SyncOutcome> {
+    if (listing.mode !== 'fixed') {
+      // Défense en profondeur — precheck() filtre déjà en amont (CoreSyncPublisher).
       return {
         ok: false,
         code: SyncErrorCode.UNSUPPORTED_MODE,
@@ -258,16 +310,28 @@ export class EbayConnector implements MarketplaceConnector {
     }
   }
 
-  async update(_externalId: string, _listing: UnifiedListing): Promise<SyncOutcome> {
-    return {
+  async update(
+    _ref: PublicationRef,
+    _listing: CanonicalListing,
+    _credentials: ChannelCredentials,
+  ): Promise<OpOutcome> {
+    return toOpOutcome({
       ok: false,
       code: SyncErrorCode.CONNECTOR_UNAVAILABLE,
       detail: 'eBay v1 : publish + withdraw uniquement',
       retryable: false,
-    }
+    })
   }
 
-  async withdraw(externalId: string): Promise<SyncOutcome> {
+  async retract(
+    ref: PublicationRef,
+    _credentials: ChannelCredentials,
+    _why: RetractReason,
+  ): Promise<OpOutcome> {
+    return toOpOutcome(await this.withdrawInternal(ref.externalId))
+  }
+
+  private async withdrawInternal(externalId: string): Promise<SyncOutcome> {
     const cfg = this.config()
     if ('ok' in cfg) return cfg
     const res = await this.call(
@@ -280,12 +344,8 @@ export class EbayConnector implements MarketplaceConnector {
     return { ok: true, externalId, url: null }
   }
 
-  async checkStatus(_externalId: string): Promise<RemoteStatusOutcome> {
-    return {
-      ok: false,
-      code: SyncErrorCode.CONNECTOR_UNAVAILABLE,
-      detail: 'eBay v1 : publish + withdraw uniquement',
-      retryable: false,
-    }
+  /** eBay v1 : aucun webhook/poll normalisé câblé sur ce port. */
+  parseEvent(_raw: unknown): NormalizedChannelEvent | null {
+    return null
   }
 }

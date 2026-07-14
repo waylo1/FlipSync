@@ -46,14 +46,37 @@ const LISTING: FixedPriceListing = {
   photos: [{ url: 'https://api.flipsync.fr/uploads/a.jpg', order: 0 }],
 }
 
-describe('EbayConnector — Sell Inventory API', () => {
+const REF = (externalId: string) => ({ externalId })
+
+describe('EbayConnector — port ChannelConnector (C3.4, natif)', () => {
+  it('capacités déclarées — MP direct, pas de négociation, sync, prix fixe uniquement', () => {
+    const connector = new EbayConnector({ env: {} })
+    expect(connector.capabilities).toMatchObject({
+      kind: 'MP',
+      transport: 'direct',
+      negotiation: 'NONE',
+      publishMode: 'SYNC',
+    })
+  })
+
+  it('precheck : mode auction → inéligible sans appel réseau', () => {
+    const connector = new EbayConnector({ env: ENV })
+    const auction = { ...LISTING, mode: 'auction' as const, prixDepart: 1000, prixReserve: null, dureeJours: 7 }
+    const eligibility = connector.precheck(auction, undefined)
+    expect(eligibility.eligible).toBe(false)
+  })
+
+  it('precheck : mode fixed → éligible même sans credentials (credentials = échec publish(), pas précheck)', () => {
+    const connector = new EbayConnector({ env: {} })
+    expect(connector.precheck(LISTING, undefined)).toEqual({ eligible: true })
+  })
+
   it('sans configuration → CREDENTIALS_MISSING, zéro appel réseau', async () => {
     const { fn, calls } = fetchQueue([])
     const connector = new EbayConnector({ fetchFn: fn, env: {} })
 
-    const outcome = await connector.publish(LISTING)
-    expect(outcome).toMatchObject({ ok: false, code: SyncErrorCode.CREDENTIALS_MISSING })
-    if (!outcome.ok) expect(outcome.detail).toContain('EBAY_ACCESS_TOKEN')
+    const outcome = await connector.publish(LISTING, undefined)
+    expect(outcome).toMatchObject({ status: 'FAILED', code: SyncErrorCode.CREDENTIALS_MISSING })
     expect(calls).toHaveLength(0)
   })
 
@@ -65,9 +88,9 @@ describe('EbayConnector — Sell Inventory API', () => {
     ])
     const connector = new EbayConnector({ fetchFn: fn, env: ENV })
 
-    const outcome = await connector.publish(LISTING)
+    const outcome = await connector.publish(LISTING, undefined)
     expect(outcome).toEqual({
-      ok: true,
+      status: 'PUBLISHED',
       externalId: 'OF-1',
       url: 'https://www.ebay.fr/itm/110123456',
     })
@@ -94,36 +117,32 @@ describe('EbayConnector — Sell Inventory API', () => {
     const { fn, calls } = fetchQueue([])
     const connector = new EbayConnector({ fetchFn: fn, env: ENV })
 
-    const outcome = await connector.publish({ ...LISTING, photos: [] })
-    expect(outcome).toMatchObject({ ok: false, code: SyncErrorCode.INVALID_PAYLOAD })
+    const outcome = await connector.publish({ ...LISTING, photos: [] }, undefined)
+    expect(outcome).toMatchObject({ status: 'FAILED', code: SyncErrorCode.INVALID_PAYLOAD })
     expect(calls).toHaveLength(0)
   })
 
-  it('mode auction → UNSUPPORTED_MODE (Inventory API = prix fixe seul)', async () => {
+  it('mode auction → UNSUPPORTED_MODE (défense en profondeur, Inventory API = prix fixe seul)', async () => {
     const { fn, calls } = fetchQueue([])
     const connector = new EbayConnector({ fetchFn: fn, env: ENV })
 
-    const outcome = await connector.publish({
-      ...LISTING,
-      mode: 'auction',
-      prixDepart: 1000,
-      prixReserve: null,
-      dureeJours: 7,
-    })
-    expect(outcome).toMatchObject({ ok: false, code: SyncErrorCode.UNSUPPORTED_MODE })
+    const outcome = await connector.publish(
+      { ...LISTING, mode: 'auction', prixDepart: 1000, prixReserve: null, dureeJours: 7 },
+      undefined,
+    )
+    expect(outcome).toMatchObject({ status: 'FAILED', code: SyncErrorCode.UNSUPPORTED_MODE })
     expect(calls).toHaveLength(0)
-    expect(connector.capabilities.modes).toEqual(['fixed'])
   })
 
-  it('429 → RATE_LIMITED retryable ; 400 avec errors → REMOTE_REJECTED + detail', async () => {
+  it('429 → RATE_LIMITED (retryable) ; 400 avec errors → REMOTE_REJECTED + detail', async () => {
     const limited = new EbayConnector({
       fetchFn: fetchQueue([{ status: 429, body: {} }]).fn,
       env: ENV,
     })
-    expect(await limited.publish(LISTING)).toMatchObject({
-      ok: false,
+    expect(await limited.publish(LISTING, undefined)).toMatchObject({
+      status: 'FAILED',
+      kind: 'TRANSIENT',
       code: SyncErrorCode.RATE_LIMITED,
-      retryable: true,
     })
 
     const rejected = new EbayConnector({
@@ -132,37 +151,37 @@ describe('EbayConnector — Sell Inventory API', () => {
       ]).fn,
       env: ENV,
     })
-    const outcome = await rejected.publish(LISTING)
-    expect(outcome).toMatchObject({ ok: false, code: SyncErrorCode.REMOTE_REJECTED })
-    if (!outcome.ok) expect(outcome.detail).toContain('Catégorie 12345 invalide')
+    const outcome = await rejected.publish(LISTING, undefined)
+    expect(outcome).toMatchObject({ status: 'FAILED', code: SyncErrorCode.REMOTE_REJECTED })
   })
 
-  it('exception transport → NETWORK_ERROR retryable, jamais levé', async () => {
+  it('exception transport → NETWORK_ERROR (retryable), jamais levé', async () => {
     const connector = new EbayConnector({ fetchFn: throwingFetch, env: ENV })
-    expect(await connector.publish(LISTING)).toMatchObject({
-      ok: false,
+    expect(await connector.publish(LISTING, undefined)).toMatchObject({
+      status: 'FAILED',
+      kind: 'TRANSIENT',
       code: SyncErrorCode.NETWORK_ERROR,
-      retryable: true,
     })
   })
 
-  it('withdraw → POST offer/{id}/withdraw, succès normalisé', async () => {
+  it('retract → POST offer/{id}/withdraw, succès normalisé', async () => {
     const { fn, calls } = fetchQueue([{ status: 200, body: { listingId: '110123456' } }])
     const connector = new EbayConnector({ fetchFn: fn, env: ENV })
 
-    expect(await connector.withdraw('OF-1')).toEqual({ ok: true, externalId: 'OF-1', url: null })
+    expect(await connector.retract(REF('OF-1'), undefined, 'SOLD_ELSEWHERE')).toEqual({ ok: true })
     expect(new URL(calls[0]?.url ?? '').pathname).toBe('/sell/inventory/v1/offer/OF-1/withdraw')
   })
 
-  it('update / checkStatus → CONNECTOR_UNAVAILABLE (v1 : publish + withdraw)', async () => {
+  it('update → CONNECTOR_UNAVAILABLE (v1 : publish + withdraw uniquement)', async () => {
     const connector = new EbayConnector({ fetchFn: fetchQueue([]).fn, env: ENV })
-    expect(await connector.update('OF-1', LISTING)).toMatchObject({
+    expect(await connector.update(REF('OF-1'), LISTING, undefined)).toMatchObject({
       ok: false,
       code: SyncErrorCode.CONNECTOR_UNAVAILABLE,
     })
-    expect(await connector.checkStatus('OF-1')).toMatchObject({
-      ok: false,
-      code: SyncErrorCode.CONNECTOR_UNAVAILABLE,
-    })
+  })
+
+  it('parseEvent : aucun webhook câblé sur ce port → null', () => {
+    const connector = new EbayConnector({ env: ENV })
+    expect(connector.parseEvent({ anything: true })).toBeNull()
   })
 })

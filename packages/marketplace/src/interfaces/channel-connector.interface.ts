@@ -9,10 +9,9 @@ import type { Marketplace } from '@flipsync/core'
 
 /**
  * Capability matrix v1 (ADAPTER-CONTRACT §4 — « données, pas de code »).
- * Colonnes univoques uniquement. `retractSla`, `productRef`, `seller` restent
- * `unknown` : leur forme exacte n'est PAS donnée en code par le contrat gelé
- * (plusieurs valeurs marquées ⚠, à valider contre la doc partenaire au build —
- * §4/§12). Les figer ici serait inventer une extension du port, interdite.
+ * Typage minimal des colonnes de la matrice — tranché 2026-07-14 (réponse
+ * utilisateur, cf. commit) : simple typage des données de capacité existantes,
+ * aucune abstraction ni logique métier nouvelle.
  */
 export interface ChannelCapabilities {
   readonly kind: 'MP' | 'SF'
@@ -21,12 +20,9 @@ export interface ChannelCapabilities {
   readonly negotiation: 'NATIVE' | 'APP_SIDE' | 'NONE'
   readonly publishMode: 'SYNC' | 'ASYNC'
   readonly photosPerso: boolean
-  /** ⚠ Non figé par le contrat — cf. ADAPTER-CONTRACT §4/§12 avant tout usage réel. */
-  readonly productRef: unknown
-  /** ⚠ Non figé par le contrat — cf. ADAPTER-CONTRACT §4/§12 avant tout usage réel. */
-  readonly seller: unknown
-  /** ⚠ Non figé par le contrat — cf. ADAPTER-CONTRACT §4/§12 avant tout usage réel. */
-  readonly retractSla: unknown
+  readonly productRef: boolean
+  readonly seller: 'individual' | 'professional' | 'both'
+  readonly retractSla: string | null
 }
 
 export type IneligibilityReason = string

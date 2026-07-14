@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Dimensions, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { Redirect, useLocalSearchParams, useRouter } from 'expo-router'
-import { AlertTriangle, Pencil, RotateCcw } from 'lucide-react-native'
+import { AlertTriangle, Pencil, RotateCcw, Share2 } from 'lucide-react-native'
 import { ItemCondition, ListingStatus, ListingTier } from '@flipsync/core'
 import { API_BASE, ApiError, ApiListing, api } from '../src/services/api'
 import { LISTING_EDITABLE_STATUSES } from '../src/store/listing.store'
@@ -83,16 +83,28 @@ export default function ListingViewScreen() {
         <Detail
           listing={listing}
           onEdit={() => router.push({ pathname: '/listing-edit', params: { id: listing.id } })}
+          onDiffuse={() => router.push({ pathname: '/diffuser', params: { id: listing.id } })}
         />
       )}
     </View>
   )
 }
 
-function Detail({ listing, onEdit }: { listing: ApiListing; onEdit: () => void }) {
+function Detail({
+  listing,
+  onEdit,
+  onDiffuse,
+}: {
+  listing: ApiListing
+  onEdit: () => void
+  onDiffuse: () => void
+}) {
   const editable = LISTING_EDITABLE_STATUSES.includes(listing.status)
   const refunded = REFUNDED_STATUSES.includes(listing.status)
   const price = listing.prixPublie ?? listing.prixHaut
+  // Kit de vente exploitable ⇔ mêmes champs que l'écran Diffuser (titre,
+  // description, prix) — sinon l'écran afficherait « annonce incomplète ».
+  const diffusable = listing.titre !== null && listing.description !== null && price !== null
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
@@ -177,12 +189,21 @@ function Detail({ listing, onEdit }: { listing: ApiListing; onEdit: () => void }
           </View>
         )}
 
+        {diffusable && (
+          <Button
+            label="Diffuser l'annonce"
+            icon={<Share2 size={font.lead} color={theme.onDark} />}
+            onPress={onDiffuse}
+            style={styles.diffuseBtn}
+          />
+        )}
         {editable && (
           <Button
             label="Modifier l'annonce"
-            icon={<Pencil size={font.lead} color={theme.onDark} />}
+            variant={diffusable ? 'ghost' : 'primary'}
+            icon={<Pencil size={font.lead} color={diffusable ? theme.ink : theme.onDark} />}
             onPress={onEdit}
-            style={styles.editBtn}
+            style={diffusable ? styles.secondaryBtn : styles.editBtn}
           />
         )}
       </View>
@@ -247,4 +268,6 @@ const styles = StyleSheet.create({
   platformRow: { flexDirection: 'row', gap: space[2] },
 
   editBtn: { marginTop: space[5] },
+  diffuseBtn: { marginTop: space[5] },
+  secondaryBtn: { marginTop: space[2] },
 })

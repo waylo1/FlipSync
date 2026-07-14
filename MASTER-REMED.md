@@ -46,9 +46,12 @@
    bloquant intégral (baseline vidée) à l'étape 7.
 2. **ADR `CanonicalCategoryId`** — tranché (ADR-010, Q1) : référentiel versionné, pas un enum ;
    Core manipule l'id, mapping vers taxonomie canal dans chaque connecteur.
-3. **C1** taxonomie canonique (core + db + prompt + affichage mobile), sur la base d'ADR-010 —
-   la correction coûteuse.
-4. **C2** `ean` + `expedition` (additif) · **C4** union statut += `SUBMITTED`/`ENDED` (Zod seul).
+3. **C1** taxonomie canonique — **fait** : `categorieId` (CanonicalCategoryId) remplace
+   `categorieLbc`/`categorieVinted` dans core/db/prompt IA/API ; `V1_CATEGORY_FIELD` supprimé de
+   `publication.service.ts`. Mobile inchangé (aucun affichage catégorie n'existait).
+4. **C2** `ean` + `expedition` (additif) — **fait** : `Expedition` (core), colonnes `ean`/`expedition`
+   (Listing) ; sans producteur (prompt IA non touché, hors scope C2). **C4** union statut +=
+   `SUBMITTED` (Zod seul) — **fait** : `RemoteListingStatus.SUBMITTED` (`ENDED` déjà présent).
 5. **C5 + A2** : amender le schéma du Lot 1 (externalMeta, epoch, journal, fait vente, timestamps).
 6. **C3** : refonte `packages/marketplace` sur le port complet (`ChannelConnector`).
 7. Checks STATIC **verts** → commit du Lot 1 (pivot DB).

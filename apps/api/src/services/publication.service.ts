@@ -14,7 +14,8 @@ import {
   LegacyConnectorAdapter,
   MarketplaceClient,
   ShopifyConnector,
-  type MarketplaceConnector,
+  V2ToPortAdapter,
+  type ChannelConnector,
 } from '@flipsync/marketplace'
 import { MarketplaceAuthService } from './marketplace-auth.service'
 import { signPhotoPath } from './photo-url.service'
@@ -111,31 +112,36 @@ export class PublicationService {
     }
 
     // Registre construit PAR REQUÊTE (credentials liées à l'utilisateur courant).
-    const registry = new Map<Marketplace, MarketplaceConnector>()
+    // Port ChannelConnector (C3, ADAPTER-CONTRACT §3) : Vinted/LBC/Shopify
+    // passent encore par V2ToPortAdapter (transition, TODO destruction à leur
+    // migration native) ; eBay est nativement `ChannelConnector` depuis C3.4.
+    const registry = new Map<Marketplace, ChannelConnector>()
     for (const marketplace of [Marketplace.VINTED, Marketplace.LEBONCOIN] as const) {
       registry.set(
         marketplace,
-        new LegacyConnectorAdapter(marketplace, {
-          resolveCredentials: () => this.auth.resolve(listing.userId, marketplace),
-          toPayload: l => ({
-            titre: l.titre,
-            description: l.description,
-            categorie: l.categorie,
-            etat: l.etat,
-            marque: l.marque,
-            prixCents: l.mode === 'fixed' ? l.prix : 0, // v1 = fixed only (capabilities)
-            photoUrls: l.photos.map(p => p.url),
+        new V2ToPortAdapter(
+          new LegacyConnectorAdapter(marketplace, {
+            resolveCredentials: () => this.auth.resolve(listing.userId, marketplace),
+            toPayload: l => ({
+              titre: l.titre,
+              description: l.description,
+              categorie: l.categorie,
+              etat: l.etat,
+              marque: l.marque,
+              prixCents: l.mode === 'fixed' ? l.prix : 0, // v1 = fixed only (capabilities)
+              photoUrls: l.photos.map(p => p.url),
+            }),
+            publishV1: (payload, credentials) => this.client.publish(marketplace, payload, credentials),
+            onResult: result => this.auth.reportPublishOutcome(marketplace, result),
           }),
-          publishV1: (payload, credentials) => this.client.publish(marketplace, payload, credentials),
-          onResult: result => this.auth.reportPublishOutcome(marketplace, result),
-        }),
+        ),
       )
     }
 
-    // Connecteurs v2 natifs (Run 5) — config lue de l'env à l'appel :
-    // sans credentials, ils répondent CREDENTIALS_MISSING sans appel réseau.
+    // Connecteurs v2 restants — config lue de l'env à l'appel : sans
+    // credentials, ils répondent CREDENTIALS_MISSING sans appel réseau.
     registry.set(Marketplace.EBAY, new EbayConnector())
-    registry.set(Marketplace.SHOPIFY, new ShopifyConnector())
+    registry.set(Marketplace.SHOPIFY, new V2ToPortAdapter(new ShopifyConnector()))
 
     const report = await new CoreSyncPublisher(registry).publishMany(mapped.listing, targets)
 

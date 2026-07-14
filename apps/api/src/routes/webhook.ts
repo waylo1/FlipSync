@@ -3,7 +3,25 @@ import type { FastifyBaseLogger, FastifyPluginAsync } from 'fastify'
 import { z } from 'zod'
 import { Marketplace, PublicationStatus, prisma } from '@flipsync/db'
 import { SyncErrorCode, type SyncOutcome } from '@flipsync/core'
-import { EbayConnector, ShopifyConnector, type MarketplaceConnector } from '@flipsync/marketplace'
+import {
+  EbayConnector,
+  isKnownSyncErrorCode,
+  ShopifyConnector,
+  V2ToPortAdapter,
+  type ChannelConnector,
+  type OpOutcome,
+} from '@flipsync/marketplace'
+
+/** OpOutcome (port) → SyncOutcome (forme interne déjà consommée par ce fichier). */
+const toSyncOutcome = (outcome: OpOutcome, externalId: string): SyncOutcome =>
+  outcome.ok
+    ? { ok: true, externalId, url: null }
+    : {
+        ok: false,
+        code: isKnownSyncErrorCode(outcome.code) ? outcome.code : SyncErrorCode.REMOTE_REJECTED,
+        detail: outcome.code,
+        retryable: outcome.kind === 'TRANSIENT',
+      }
 
 /**
  * Routes /webhooks — notifications de vente entrantes (anti-double-vente).
@@ -207,12 +225,11 @@ const handleSale = async (log: FastifyBaseLogger, sale: SaleEvent) => {
     orderBy: { marketplace: 'asc' },
   })
 
-  const registry: ReadonlyMap<Marketplace, MarketplaceConnector> = new Map<
-    Marketplace,
-    MarketplaceConnector
-  >([
+  // Port ChannelConnector (C3) : eBay natif (C3.4), Shopify via V2ToPortAdapter
+  // (transition, TODO destruction à sa migration native — cf. ebay.ts).
+  const registry: ReadonlyMap<Marketplace, ChannelConnector> = new Map<Marketplace, ChannelConnector>([
     [Marketplace.EBAY, new EbayConnector()],
-    [Marketplace.SHOPIFY, new ShopifyConnector()],
+    [Marketplace.SHOPIFY, new V2ToPortAdapter(new ShopifyConnector())],
   ])
 
   const settled = await Promise.allSettled(
@@ -227,7 +244,9 @@ const handleSale = async (log: FastifyBaseLogger, sale: SaleEvent) => {
           retryable: false,
         })
       }
-      return Promise.resolve().then(() => connector.withdraw(s.externalId))
+      return Promise.resolve()
+        .then(() => connector.retract({ externalId: s.externalId }, undefined, 'SOLD_ELSEWHERE'))
+        .then(outcome => toSyncOutcome(outcome, s.externalId))
     }),
   )
   const results = siblings.map((s, i) => {

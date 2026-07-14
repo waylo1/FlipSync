@@ -9,10 +9,11 @@ import {
   type UnifiedListing,
 } from '@flipsync/core'
 import type {
-  ConnectorRegistry,
-  MarketplaceConnector,
-  SyncPublisher,
-} from './interfaces/connector.interface'
+  ChannelConnector,
+  ChannelConnectorRegistry,
+  PublishOutcome,
+} from './interfaces/channel-connector.interface'
+import type { SyncPublisher } from './interfaces/connector.interface'
 
 const failure = (code: SyncErrorCode, detail: string): SyncFailure => ({
   ok: false,
@@ -21,19 +22,55 @@ const failure = (code: SyncErrorCode, detail: string): SyncFailure => ({
   retryable: false,
 })
 
+/** `outcome.code` du port est une string libre (SNAKE_CASE) — round-trip sûr
+ *  uniquement si elle correspond à une valeur connue de l'union fermée `SyncErrorCode` ;
+ *  sinon repli générique REMOTE_REJECTED (jamais d'invention d'un nouveau code). */
+export function isKnownSyncErrorCode(code: string): code is SyncErrorCode {
+  return (Object.values(SyncErrorCode) as string[]).includes(code)
+}
+
+/** Traduit `PublishOutcome` (port, ADAPTER-CONTRACT §3) → `SyncOutcome` (Core Sync
+ *  Engine v2, contrat de sortie inchangé consommé par publication.service.ts/DB). */
+export function publishOutcomeToSyncOutcome(outcome: PublishOutcome): SyncOutcome {
+  switch (outcome.status) {
+    case 'PUBLISHED':
+      return { ok: true, externalId: outcome.externalId, url: outcome.url }
+    case 'FAILED':
+      return {
+        ok: false,
+        code: isKnownSyncErrorCode(outcome.code) ? outcome.code : SyncErrorCode.REMOTE_REJECTED,
+        detail: outcome.code,
+        retryable: outcome.kind === 'TRANSIENT',
+      }
+    case 'SUBMITTED':
+      // Gap connu, non résolu ici (cf. rapport C3.4) : aucun connecteur async
+      // (publishMode ASYNC) n'est migré à ce jour — le Core Sync Engine v2
+      // (SyncOutcome) n'a pas de représentation "publication en cours".
+      return {
+        ok: false,
+        code: SyncErrorCode.CONNECTOR_UNAVAILABLE,
+        detail: `SUBMITTED (${outcome.submissionRef}) — publication asynchrone non supportée par le Core Sync Engine v2`,
+        retryable: false,
+      }
+  }
+}
+
 /** Cible éligible (gates passés) ou échec immédiat — décidé SANS réseau. */
 type Slot =
   | { marketplace: Marketplace; outcome: SyncFailure }
-  | { marketplace: Marketplace; connector: MarketplaceConnector }
+  | { marketplace: Marketplace; connector: ChannelConnector }
 
 /**
- * Moteur de publication multi-plateformes (ADR-009) — pur, sans persistance :
- * la politique produit (Jeton Global : ≥1 succès ⇒ PUBLISHED sans refund,
- * 0 succès ⇒ PUBLISH_FAILED + refund total) se lit dans le SyncReport côté
- * api (Run 3) — `complete` pour le 100%, `results.some(ok)` pour le ≥1.
+ * Moteur de publication multi-plateformes (ADR-009, migré C3 sur le port
+ * `ChannelConnector` — ADAPTER-CONTRACT §3) — pur, sans persistance : la
+ * politique produit (Jeton Global : ≥1 succès ⇒ PUBLISHED sans refund, 0 succès
+ * ⇒ PUBLISH_FAILED + refund total) se lit dans le SyncReport côté api (Run 3) —
+ * `complete` pour le 100%, `results.some(ok)` pour le ≥1. Sortie (`SyncReport`)
+ * INCHANGÉE : c'est le contrat consommé par publication.service.ts/DB, hors
+ * périmètre ADAPTER-CONTRACT.
  */
 export class CoreSyncPublisher implements SyncPublisher {
-  constructor(private readonly registry: ConnectorRegistry) {}
+  constructor(private readonly registry: ChannelConnectorRegistry) {}
 
   async publishMany(
     listing: UnifiedListing,
@@ -50,7 +87,10 @@ export class CoreSyncPublisher implements SyncPublisher {
       )
     }
 
-    // GATE 2 — par cible, toujours sans réseau : connecteur présent + mode supporté.
+    // GATE 2 — par cible, toujours sans réseau : connecteur présent + precheck()
+    // éligible (le port déplace le filtrage — ex. mode de vente — DANS chaque
+    // connecteur, cf. ChannelConnector.precheck ; aucun contexte vendeur encore
+    // câblé ici → SellerContext = undefined, cf. Q4/Q6 MASTER-REMED).
     const slots: Slot[] = targets.map(marketplace => {
       const connector = this.registry.get(marketplace)
       if (!connector) {
@@ -59,10 +99,11 @@ export class CoreSyncPublisher implements SyncPublisher {
           outcome: failure(SyncErrorCode.CONNECTOR_UNAVAILABLE, `aucun connecteur enregistré pour ${marketplace}`),
         }
       }
-      if (!connector.capabilities.modes.includes(listing.mode)) {
+      const eligibility = connector.precheck(listing, undefined)
+      if (!eligibility.eligible) {
         return {
           marketplace,
-          outcome: failure(SyncErrorCode.UNSUPPORTED_MODE, `${marketplace} ne supporte pas le mode ${listing.mode}`),
+          outcome: failure(SyncErrorCode.UNSUPPORTED_MODE, eligibility.reasons.join(' | ')),
         }
       }
       return { marketplace, connector }
@@ -75,10 +116,10 @@ export class CoreSyncPublisher implements SyncPublisher {
     // sans ce wrapper, ce throw s'échapperait de .map() avant même d'atteindre
     // allSettled.
     const eligible = slots.filter(
-      (s): s is Extract<Slot, { connector: MarketplaceConnector }> => 'connector' in s,
+      (s): s is Extract<Slot, { connector: ChannelConnector }> => 'connector' in s,
     )
     const settled = await Promise.allSettled(
-      eligible.map(s => Promise.resolve().then(() => s.connector.publish(listing))),
+      eligible.map(s => Promise.resolve().then(() => s.connector.publish(listing, undefined))),
     )
 
     let cursor = 0
@@ -89,7 +130,7 @@ export class CoreSyncPublisher implements SyncPublisher {
         entry === undefined
           ? failure(SyncErrorCode.CONNECTOR_CRASH, 'résultat allSettled manquant')
           : entry.status === 'fulfilled'
-            ? entry.value
+            ? publishOutcomeToSyncOutcome(entry.value)
             : failure(SyncErrorCode.CONNECTOR_CRASH, String(entry.reason))
       return { marketplace: slot.marketplace, outcome }
     })

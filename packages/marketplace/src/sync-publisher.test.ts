@@ -4,12 +4,18 @@ import {
   Marketplace,
   SyncErrorCode,
   type FixedPriceListing,
-  type SyncOutcome,
+  type SaleMode,
   type UnifiedListing,
 } from '@flipsync/core'
-import type { ConnectorCapabilities, MarketplaceConnector } from './interfaces/connector.interface'
+import type {
+  ChannelCapabilities,
+  ChannelConnector,
+  ChannelConnectorRegistry,
+  Eligibility,
+  OpOutcome,
+  PublishOutcome,
+} from './interfaces/channel-connector.interface'
 import { CoreSyncPublisher } from './sync-publisher'
-import { EbayConnector } from './connectors/ebay'
 import { ShopifyConnector } from './connectors/shopify'
 
 const listing: FixedPriceListing = {
@@ -25,39 +31,54 @@ const listing: FixedPriceListing = {
   photos: [{ url: 'https://cdn.flipsync.fr/p1.jpg', order: 0 }],
 }
 
+const DEFAULT_CAPABILITIES: ChannelCapabilities = {
+  kind: 'MP',
+  transport: 'direct',
+  negotiation: 'NONE',
+  publishMode: 'SYNC',
+  photosPerso: false,
+  productRef: false,
+  seller: 'both',
+  retractSla: null,
+}
+
 /** Connecteur factice instrumenté — compte les appels pour prouver les gates sans réseau. */
-class FakeConnector implements MarketplaceConnector {
+class FakeConnector implements ChannelConnector {
   calls = 0
-  readonly capabilities: ConnectorCapabilities
+  readonly capabilities = DEFAULT_CAPABILITIES
 
   constructor(
-    readonly marketplace: Marketplace,
-    private readonly behave: (l: UnifiedListing) => Promise<SyncOutcome>,
-    modes: ConnectorCapabilities['modes'] = ['fixed'],
-  ) {
-    this.capabilities = { modes }
+    readonly channel: Marketplace,
+    private readonly behave: (l: UnifiedListing) => Promise<PublishOutcome>,
+    private readonly modes: readonly SaleMode[] = ['fixed'],
+  ) {}
+
+  precheck(listing: UnifiedListing): Eligibility {
+    return this.modes.includes(listing.mode)
+      ? { eligible: true }
+      : { eligible: false, reasons: [`${this.channel} ne supporte pas le mode ${listing.mode}`] }
   }
 
-  publish(l: UnifiedListing): Promise<SyncOutcome> {
+  publish(l: UnifiedListing): Promise<PublishOutcome> {
     this.calls++
     return this.behave(l)
   }
-  update(): Promise<SyncOutcome> {
+  update(): Promise<OpOutcome> {
     throw new Error('non testé ici')
   }
-  withdraw(): Promise<SyncOutcome> {
+  retract(): Promise<OpOutcome> {
     throw new Error('non testé ici')
   }
-  checkStatus(): never {
-    throw new Error('non testé ici')
+  parseEvent(): null {
+    return null
   }
 }
 
-const success = (externalId: string): Promise<SyncOutcome> =>
-  Promise.resolve({ ok: true, externalId, url: null })
+const success = (externalId: string): Promise<PublishOutcome> =>
+  Promise.resolve({ status: 'PUBLISHED', externalId, url: null })
 
-const registry = (...connectors: MarketplaceConnector[]) =>
-  new Map(connectors.map(c => [c.marketplace, c]))
+const registry = (...connectors: ChannelConnector[]): ChannelConnectorRegistry =>
+  new Map(connectors.map(c => [c.channel, c]))
 
 describe('CoreSyncPublisher.publishMany', () => {
   it('publie sur toutes les plateformes — complete true, ordre des targets préservé', async () => {
@@ -116,7 +137,7 @@ describe('CoreSyncPublisher.publishMany', () => {
     expect(report.results[1]?.outcome).toMatchObject({ ok: true, externalId: 'vinted-1' })
   })
 
-  it('mode auction vers connecteur fixed-only → UNSUPPORTED_MODE sans appel', async () => {
+  it('mode auction vers connecteur fixed-only → UNSUPPORTED_MODE sans appel (via precheck)', async () => {
     const fixedOnly = new FakeConnector(Marketplace.VINTED, () => success('x'), ['fixed'])
     const both = new FakeConnector(Marketplace.EBAY, () => success('ebay-1'), ['fixed', 'auction'])
     const publisher = new CoreSyncPublisher(registry(fixedOnly, both))
@@ -138,7 +159,7 @@ describe('CoreSyncPublisher.publishMany', () => {
 
   it('échec 100% (structure Jeton Global) : aucun ok, complete false', async () => {
     const failing = new FakeConnector(Marketplace.LEBONCOIN, () =>
-      Promise.resolve({ ok: false, code: SyncErrorCode.NETWORK_ERROR, detail: null, retryable: true }),
+      Promise.resolve({ status: 'FAILED', kind: 'TRANSIENT', code: SyncErrorCode.NETWORK_ERROR }),
     )
     const crashing = new FakeConnector(Marketplace.VINTED, () => {
       throw new Error('down')
@@ -159,22 +180,20 @@ describe('CoreSyncPublisher.publishMany', () => {
   })
 })
 
-describe('connecteurs eBay / Shopify (contrat v2, clients réels Run 5)', () => {
+describe('ShopifyConnector (contrat v2, client réel Run 5)', () => {
   it('sans configuration : CREDENTIALS_MISSING sur publish/withdraw, CONNECTOR_UNAVAILABLE sur le reste', async () => {
     // env vide EXPLICITE : ne jamais dépendre du process.env de la machine.
-    for (const connector of [new EbayConnector({ env: {} }), new ShopifyConnector({ env: {} })]) {
-      const missing = { ok: false, code: SyncErrorCode.CREDENTIALS_MISSING, retryable: false }
-      const notImplemented = { ok: false, code: SyncErrorCode.CONNECTOR_UNAVAILABLE }
-      expect(await connector.publish(listing)).toMatchObject(missing)
-      expect(await connector.withdraw('ext-1')).toMatchObject(missing)
-      // update/checkStatus : hors périmètre v1 des clients réels.
-      expect(await connector.update('ext-1', listing)).toMatchObject(notImplemented)
-      expect(await connector.checkStatus('ext-1')).toMatchObject(notImplemented)
-    }
+    const connector = new ShopifyConnector({ env: {} })
+    const missing = { ok: false, code: SyncErrorCode.CREDENTIALS_MISSING, retryable: false }
+    const notImplemented = { ok: false, code: SyncErrorCode.CONNECTOR_UNAVAILABLE }
+    expect(await connector.publish(listing)).toMatchObject(missing)
+    expect(await connector.withdraw('ext-1')).toMatchObject(missing)
+    // update/checkStatus : hors périmètre v1 du client réel.
+    expect(await connector.update('ext-1', listing)).toMatchObject(notImplemented)
+    expect(await connector.checkStatus('ext-1')).toMatchObject(notImplemented)
   })
 
-  it('déclarent leurs capacités : fixed seul (enchères eBay = API Trading, hors v1 / D2)', () => {
-    expect(new EbayConnector({ env: {} }).capabilities.modes).toEqual(['fixed'])
+  it('déclare ses capacités : fixed seul', () => {
     expect(new ShopifyConnector({ env: {} }).capabilities.modes).toEqual(['fixed'])
   })
 })

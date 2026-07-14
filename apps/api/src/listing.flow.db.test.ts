@@ -130,6 +130,23 @@ describe.skipIf(!DB_URL)('Flux mobile /listing — e2e JWT', () => {
     expect(authenticated.statusCode).toBe(200)
   })
 
+  it('photo servie via URL signée SANS JWT : 200 ; signature altérée ou expirée : 401', async () => {
+    const photo = await prismaRef.listingPhoto.findFirstOrThrow({ where: { listingId } })
+    const { signPhotoPath } = await import('./services/photo-url.service')
+
+    // Chemin signé = ce que le pipeline publish envoie aux plateformes (Run 6).
+    const signed = signPhotoPath(photo.url)
+    const external = await app.inject({ method: 'GET', url: signed })
+    expect(external.statusCode).toBe(200)
+
+    const forged = await app.inject({ method: 'GET', url: signed.replace(/sig=.{6}/, 'sig=000000') })
+    expect(forged.statusCode).toBe(401)
+    expect(forged.json()).toEqual({ error: 'UNAUTHORIZED' })
+
+    const expired = await app.inject({ method: 'GET', url: signPhotoPath(photo.url, -1) })
+    expect(expired.statusCode).toBe(401)
+  })
+
   it('hash falsifié → 400 HASH_MISMATCH, rien n’est écrit', async () => {
     const base64 = Buffer.from('fake-jpeg-bytes-2').toString('base64')
     const res = await app.inject({

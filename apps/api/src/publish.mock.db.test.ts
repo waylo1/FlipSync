@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -160,6 +160,16 @@ describe.skipIf(!DB_URL)('Publish mock e2e — QUEUED → PUBLISHED', () => {
       where: { listingId, type: 'REFUND' },
     })
     expect(refunds).toHaveLength(0)
+
+    // Run 6 : les connecteurs reçoivent des URLs photos SIGNÉES (lisibles
+    // sans JWT par les plateformes) — vérifié sur le payload réellement émis.
+    const log = JSON.parse(await readFile(process.env.MOCK_PUBLISH_LOG as string, 'utf8')) as {
+      payload: { photoUrls: string[] }
+    }[]
+    expect(log.length).toBeGreaterThan(0)
+    for (const entry of log) {
+      expect(entry.payload.photoUrls[0]).toMatch(/\?exp=\d+&sig=[0-9a-f]{64}$/)
+    }
   })
 
   it('Jeton Global — succès partiel (VINTED ok, EBAY sans credentials) → PUBLISHED, zéro refund', async () => {

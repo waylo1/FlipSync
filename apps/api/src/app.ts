@@ -17,6 +17,7 @@ import marketplaceRoutes from './routes/marketplace'
 import missionRoutes from './routes/mission'
 import notificationRoutes from './routes/notification'
 import webhookRoutes from './routes/webhook'
+import { isSignedPhotoUrlValid } from './services/photo-url.service'
 
 /** Construit l'app complète — utilisé par index.ts (listen) et les tests (inject). */
 export async function buildApp(): Promise<FastifyInstance> {
@@ -54,7 +55,11 @@ export async function buildApp(): Promise<FastifyInstance> {
   // URLs qu'eux seuls consomment côté serveur.
   await mkdir(UPLOAD_DIR, { recursive: true })
   await app.register(async uploads => {
-    uploads.addHook('onRequest', app.authenticate)
+    uploads.addHook('onRequest', async (req, reply) => {
+      // URL signée temporaire (connecteurs externes, Run 6) — sinon JWT (mobile).
+      if (isSignedPhotoUrlValid(req.url)) return
+      return app.authenticate(req, reply)
+    })
     await uploads.register(fastifyStatic, { root: UPLOAD_DIR, prefix: '/uploads/' })
   })
 

@@ -17,6 +17,7 @@ import {
   type MarketplaceConnector,
 } from '@flipsync/marketplace'
 import { MarketplaceAuthService } from './marketplace-auth.service'
+import { signPhotoPath } from './photo-url.service'
 
 /** Plateformes du flux actuel — cibles par défaut d'une publication. */
 export const DEFAULT_PUBLISH_TARGETS: readonly Marketplace[] = [
@@ -95,7 +96,11 @@ export class PublicationService {
       etat: listing.etat as ItemCondition | null,
       prixPublie: listing.prixPublie,
       categorie: listing.categorieId,
-      photos: listing.photos.map(p => ({ url: `${this.publicBaseUrl}${p.url}`, order: p.order })),
+      // URLs signées temporaires : lisibles par eBay/Shopify sans JWT (Run 6).
+      photos: listing.photos.map(p => ({
+        url: `${this.publicBaseUrl}${signPhotoPath(p.url)}`,
+        order: p.order,
+      })),
     })
     if (!mapped.ok) {
       return this.fail(

@@ -1,5 +1,5 @@
 import type { FastifyBaseLogger } from 'fastify'
-import { Marketplace, MarketplaceCredentials, PublishResult } from '@flipsync/marketplace'
+import { Marketplace, type PartnerCredentials, type PartnerPublishResult } from '@flipsync/marketplace'
 import type { ConnectorState, MarketplaceConnection, MarketplaceConnectionState } from '@flipsync/core'
 
 /**
@@ -7,7 +7,7 @@ import type { ConnectorState, MarketplaceConnection, MarketplaceConnectionState 
  * n'est retourné (fail-fast local plutôt qu'un 401 distant).
  */
 export type CredentialResolution =
-  | { ok: true; credentials: MarketplaceCredentials; mock: boolean }
+  | { ok: true; credentials: PartnerCredentials & { marketplace: Marketplace }; mock: boolean }
   | { ok: false; reason: 'MISSING' | 'EXPIRED' }
 
 /**
@@ -90,7 +90,7 @@ export class MarketplaceAuthService {
    * plateforme (HTTP 401/403) marque le connecteur AUTH_ERROR ; un succès
    * l'efface. Les autres échecs (réseau, 5xx) ne présument rien de l'auth.
    */
-  reportPublishOutcome(marketplace: Marketplace, result: PublishResult): void {
+  reportPublishOutcome(marketplace: Marketplace, result: PartnerPublishResult): void {
     if (result.ok) {
       this.lastAuthError.delete(marketplace)
     } else if (AUTH_REJECTED_CODE.test(result.code)) {

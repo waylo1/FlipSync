@@ -22,8 +22,7 @@
       "apps/api/src/marketplace.status.test.ts:72",
       "apps/api/src/marketplace.status.test.ts:77",
       "apps/api/src/marketplace.status.test.ts:78",
-      "apps/api/src/plugins/services.ts:53",
-      "apps/api/src/plugins/services.ts:54",
+      "apps/api/src/plugins/services.ts:42",
       "apps/api/src/publish.mock.db.test.ts:13",
       "apps/api/src/publish.mock.db.test.ts:69",
       "apps/api/src/publish.mock.db.test.ts:70",
@@ -117,17 +116,17 @@
       "apps/api/src/services/marketplace-auth.service.ts:114",
       "apps/api/src/services/photo-url.service.ts:4",
       "apps/api/src/services/photo-url.service.ts:13",
-      "apps/api/src/services/publication.service.ts:25",
       "apps/api/src/services/publication.service.ts:26",
-      "apps/api/src/services/publication.service.ts:57",
-      "apps/api/src/services/publication.service.ts:100",
-      "apps/api/src/services/publication.service.ts:115",
+      "apps/api/src/services/publication.service.ts:27",
+      "apps/api/src/services/publication.service.ts:58",
+      "apps/api/src/services/publication.service.ts:102",
       "apps/api/src/services/publication.service.ts:117",
-      "apps/api/src/services/publication.service.ts:119",
-      "apps/api/src/services/publication.service.ts:143",
-      "apps/api/src/services/publication.service.ts:144",
-      "apps/api/src/services/publication.service.ts:192",
-      "apps/api/src/services/publication.service.ts:193",
+      "apps/api/src/services/publication.service.ts:122",
+      "apps/api/src/services/publication.service.ts:133",
+      "apps/api/src/services/publication.service.ts:139",
+      "apps/api/src/services/publication.service.ts:140",
+      "apps/api/src/services/publication.service.ts:188",
+      "apps/api/src/services/publication.service.ts:189",
       "apps/api/src/webhook.db.test.ts:7",
       "apps/api/src/webhook.db.test.ts:8",
       "apps/api/src/webhook.db.test.ts:19",
@@ -185,8 +184,9 @@
       "packages/db/prisma/schema.prisma:348"
     ],
     "C-3": [
-      "apps/api/src/services/publication.service.ts:192",
-      "apps/api/src/services/publication.service.ts:193"
+      "apps/api/src/services/publication.service.ts:133",
+      "apps/api/src/services/publication.service.ts:188",
+      "apps/api/src/services/publication.service.ts:189"
     ],
     "C-09": []
   }

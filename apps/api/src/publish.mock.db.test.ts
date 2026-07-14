@@ -164,11 +164,11 @@ describe.skipIf(!DB_URL)('Publish mock e2e — QUEUED → PUBLISHED', () => {
     // Run 6 : les connecteurs reçoivent des URLs photos SIGNÉES (lisibles
     // sans JWT par les plateformes) — vérifié sur le payload réellement émis.
     const log = JSON.parse(await readFile(process.env.MOCK_PUBLISH_LOG as string, 'utf8')) as {
-      payload: { photoUrls: string[] }
+      payload: { photos: { url: string }[] }
     }[]
     expect(log.length).toBeGreaterThan(0)
     for (const entry of log) {
-      expect(entry.payload.photoUrls[0]).toMatch(/\?exp=\d+&sig=[0-9a-f]{64}$/)
+      expect(entry.payload.photos[0]?.url).toMatch(/\?exp=\d+&sig=[0-9a-f]{64}$/)
     }
   })
 

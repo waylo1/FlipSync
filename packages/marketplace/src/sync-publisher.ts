@@ -13,7 +13,11 @@ import type {
   ChannelConnectorRegistry,
   PublishOutcome,
 } from './interfaces/channel-connector.interface'
-import type { SyncPublisher } from './interfaces/connector.interface'
+
+/** Pipeline de publication multi-plateformes — pannes isolées par plateforme (C3). */
+export interface SyncPublisher {
+  publishMany(listing: UnifiedListing, targets: readonly Marketplace[]): Promise<SyncReport>
+}
 
 const failure = (code: SyncErrorCode, detail: string): SyncFailure => ({
   ok: false,

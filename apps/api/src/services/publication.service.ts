@@ -11,11 +11,12 @@ import { ListingEngine } from '@flipsync/ai'
 import {
   CoreSyncPublisher,
   EbayConnector,
-  LegacyConnectorAdapter,
-  MarketplaceClient,
+  LeboncoinConnector,
+  MockMarketplacePublisher,
   ShopifyConnector,
-  V2ToPortAdapter,
+  VintedConnector,
   type ChannelConnector,
+  type PartnerPublishResult,
 } from '@flipsync/marketplace'
 import { MarketplaceAuthService } from './marketplace-auth.service'
 import { signPhotoPath } from './photo-url.service'
@@ -67,9 +68,10 @@ export class PublicationService {
   constructor(
     private readonly db: PrismaClient,
     private readonly engine: ListingEngine,
-    private readonly client: MarketplaceClient,
     private readonly publicBaseUrl: string,
     private readonly auth: MarketplaceAuthService,
+    /** Mode mock (MARKETPLACE_MOCK=1, jamais prod) : chemin du log simulé — cf. plugins/services.ts. */
+    private readonly mockLogPath: string,
     private readonly log?: FastifyBaseLogger,
   ) {}
 
@@ -111,35 +113,29 @@ export class PublicationService {
       )
     }
 
-    // Registre construit PAR REQUÊTE (credentials liées à l'utilisateur courant).
-    // Port ChannelConnector (C3, ADAPTER-CONTRACT §3) : Vinted/LBC passent
-    // encore par V2ToPortAdapter (transition, TODO destruction à leur migration
-    // native) ; eBay (C3.4) et Shopify (C3.5) sont nativement `ChannelConnector`.
+    // Registre construit PAR REQUÊTE (credentials liées à l'utilisateur courant
+    // pour Vinted/LBC — resolveCredentials/onResult injectés, aucun wrapper).
+    // Port ChannelConnector (C3, ADAPTER-CONTRACT §3) : les 4 connecteurs sont
+    // nativement `ChannelConnector` depuis C3.6 (refonte achevée, v1/v2 détruits).
+    const useMock = this.auth.mockEnabled()
     const registry = new Map<Marketplace, ChannelConnector>()
     for (const marketplace of [Marketplace.VINTED, Marketplace.LEBONCOIN] as const) {
+      if (useMock) {
+        registry.set(marketplace, new MockMarketplacePublisher(marketplace, this.mockLogPath))
+        continue
+      }
+      const deps = {
+        resolveCredentials: () => this.auth.resolve(listing.userId, marketplace),
+        onResult: (result: PartnerPublishResult) => this.auth.reportPublishOutcome(marketplace, result),
+      }
       registry.set(
         marketplace,
-        new V2ToPortAdapter(
-          new LegacyConnectorAdapter(marketplace, {
-            resolveCredentials: () => this.auth.resolve(listing.userId, marketplace),
-            toPayload: l => ({
-              titre: l.titre,
-              description: l.description,
-              categorie: l.categorie,
-              etat: l.etat,
-              marque: l.marque,
-              prixCents: l.mode === 'fixed' ? l.prix : 0, // v1 = fixed only (capabilities)
-              photoUrls: l.photos.map(p => p.url),
-            }),
-            publishV1: (payload, credentials) => this.client.publish(marketplace, payload, credentials),
-            onResult: result => this.auth.reportPublishOutcome(marketplace, result),
-          }),
-        ),
+        marketplace === Marketplace.VINTED ? new VintedConnector(deps) : new LeboncoinConnector(deps),
       )
     }
 
-    // Connecteurs v2 restants — config lue de l'env à l'appel : sans
-    // credentials, ils répondent CREDENTIALS_MISSING sans appel réseau.
+    // Connecteurs restants — config lue de l'env à l'appel : sans credentials,
+    // ils répondent CREDENTIALS_MISSING sans appel réseau.
     registry.set(Marketplace.EBAY, new EbayConnector())
     registry.set(Marketplace.SHOPIFY, new ShopifyConnector())
 

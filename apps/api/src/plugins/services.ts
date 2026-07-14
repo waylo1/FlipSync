@@ -4,7 +4,6 @@ import { prisma } from '@flipsync/db'
 import { WalletService } from '@flipsync/wallet'
 import { ListingEngine, OllamaVisionBackend, VisionService } from '@flipsync/ai'
 import { join } from 'node:path'
-import { MarketplaceClient, Marketplace, MockMarketplacePublisher } from '@flipsync/marketplace'
 import { PublicationService } from '../services/publication.service'
 import { MarketplaceAuthService } from '../services/marketplace-auth.service'
 import { MissionService } from '../services/mission.service'
@@ -40,20 +39,15 @@ const servicesPlugin: FastifyPluginAsync = async app => {
   const marketplaceAuth = new MarketplaceAuthService(app.log)
 
   /**
-   * Mode mock (MARKETPLACE_MOCK=1, jamais en production) : les connecteurs réels
-   * sont remplacés par MockMarketplacePublisher qui journalise dans
-   * debug/publish_log.json — permet de valider le pipeline complet sans
-   * credentials partenaires ni device mobile (cf. tools/test-pipeline.ts).
+   * Mode mock (MARKETPLACE_MOCK=1, jamais en production) : Vinted/LBC sont
+   * remplacés par MockMarketplacePublisher (natif ChannelConnector, C3.6) qui
+   * journalise dans debug/publish_log.json — permet de valider le pipeline
+   * complet sans credentials partenaires ni device mobile (cf. tools/test-pipeline.ts).
+   * Le registre (mock ou réel) est construit PAR REQUÊTE dans PublicationService.
    */
   const useMock = marketplaceAuth.mockEnabled()
   const mockLogPath =
     process.env.MOCK_PUBLISH_LOG ?? join(process.cwd(), 'debug', 'publish_log.json')
-  const marketplaceClient = useMock
-    ? new MarketplaceClient([
-        new MockMarketplacePublisher(Marketplace.VINTED, mockLogPath),
-        new MockMarketplacePublisher(Marketplace.LEBONCOIN, mockLogPath),
-      ])
-    : new MarketplaceClient()
   if (useMock) app.log.warn({ mockLogPath }, 'MARKETPLACE_MOCK actif — publications simulées')
   const publicBaseUrl = process.env.PUBLIC_BASE_URL ?? 'http://localhost:3001'
 
@@ -63,7 +57,7 @@ const servicesPlugin: FastifyPluginAsync = async app => {
   app.decorate('marketplaceAuth', marketplaceAuth)
   app.decorate(
     'publicationService',
-    new PublicationService(prisma, listingEngine, marketplaceClient, publicBaseUrl, marketplaceAuth, app.log),
+    new PublicationService(prisma, listingEngine, publicBaseUrl, marketplaceAuth, mockLogPath, app.log),
   )
   app.decorate('missionService', new MissionService(prisma))
   // Notifications §7 (Lot 9) : ExpoNotificationService envoie un vrai push aux

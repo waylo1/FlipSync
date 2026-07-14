@@ -114,8 +114,8 @@ async function main(): Promise<void> {
       ['marketplace VINTED', entry?.marketplace === 'VINTED'],
       ['titre du draft mocké', entry?.payload.titre === MOCK_AI_DRAFT.titre],
       ['catégorie canonique', entry?.payload.categorie === MOCK_AI_DRAFT.categorieId],
-      ['prix publié en centimes Int', entry?.payload.prixCents === PRIX_PUBLIE],
-      ['photo (sha256) dans le payload', entry?.payload.photoUrls.some(u => u.includes(sha256)) === true],
+      ['prix publié en centimes Int', entry?.payload.mode === 'fixed' && entry.payload.prix === PRIX_PUBLIE],
+      ['photo (sha256) dans le payload', entry?.payload.photos.some(p => p.url.includes(sha256)) === true],
       ['url mock retournée', entry?.url === published.json.url],
     ]
     const failed = checks.filter(([, ok]) => !ok)

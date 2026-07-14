@@ -109,6 +109,7 @@ model Listing {
   transactions WalletTransaction[]
   mission      Mission?
   publications ListingPublication[]
+  saleFact     SaleFact? // A2 — dormant, écrit par le futur réducteur FSM (Lot 1)
 
   @@index([status, updatedAt])
 }
@@ -129,9 +130,48 @@ model ListingPublication {
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
 
+  // Conséquences additives Lot 1 (amendement A2, SYNC-FSM §9) + C5 (ADAPTER-CONTRACT §11) —
+  // colonnes dormantes : la mécanique de sync (epoch, dédup, timeouts) n'est PAS encore câblée
+  // (le réducteur FSM reste [à coder avec le Lot 1], cf. INVARIANT-SPEC §0/§7). Additif pur,
+  // aucune contrainte existante modifiée (@@unique([listingId, marketplace]) inchangée : la clé
+  // d'idempotence (listingId, channel, epoch) est une évolution du port complet, C3).
+  externalMeta     Json?     // C5 — détail brut opaque par plateforme (ex. identifiants composites hors `externalId` scalaire)
+  epoch            Int       @default(0) // REPUBLISH incrémente ; idempotence future de publish()
+  submittedAt      DateTime? // horodatage I/O — assiette de TIMEOUT_SUBMITTED (SYNC-FSM §2)
+  retractStartedAt DateTime? // horodatage I/O — assiette de TIMEOUT_RETRACT (SYNC-FSM §2)
+
   listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
 
   @@unique([listingId, marketplace])
+}
+
+// Journal de dédup/audit des événements canal (A2, SYNC-FSM §9) — dédup mécanique par
+// (channel, eventKey) : une violation d'unicité (P2002) EST le stale-drop journalisé.
+// Dormant : aucun producteur/consommateur avant le réducteur FSM (Lot 1).
+model ChannelEvent {
+  id          String      @id @default(cuid())
+  channel     Marketplace
+  eventKey    String
+  type        String
+  payload     Json
+  processedAt DateTime    @default(now())
+
+  @@unique([channel, eventKey])
+}
+
+// Fait vente set-once (A2, SYNC-FSM §9/§4 — porte INV-18) : au plus UN fait vente par listing,
+// à jamais — listingId unique = la contrainte DB qui rend la double-vente structurellement
+// impossible, indépendamment de l'ordre d'arrivée des événements (tie-break first-commit-wins).
+// Dormant : écrit par le futur réducteur FSM (Lot 1), pas par le pivot v1 actuel.
+model SaleFact {
+  id          String      @id @default(cuid())
+  listingId   String      @unique
+  channel     Marketplace
+  amountCents Int
+  eventKey    String
+  createdAt   DateTime    @default(now())
+
+  listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
 }
 
 // ─── MISSION (Commissaire-Priseur IA) ──────────────────────────────────────────

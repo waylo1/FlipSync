@@ -179,7 +179,7 @@
       "apps/web/src/store/useMissionControlStore.ts:222",
       "apps/web/src/store/useMissionControlStore.ts:224",
       "apps/web/src/store/useMissionControlStore.ts:226",
-      "packages/db/prisma/schema.prisma:308"
+      "packages/db/prisma/schema.prisma:348"
     ],
     "C-3": [
       "apps/api/src/services/publication.service.ts:186",

@@ -17,3 +17,4 @@ export {
   PublishResult,
 } from './types'
 export * from './interfaces/connector.interface'
+export * from './interfaces/channel-connector.interface'

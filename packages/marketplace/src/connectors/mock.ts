@@ -26,6 +26,13 @@ export interface MockPublishLogEntry {
  * réels : ne lève jamais, tout échec est un PublishResult { ok:false }.
  */
 export class MockMarketplacePublisher implements MarketplaceConnector {
+  /**
+   * Sérialise les écritures du log ENTRE instances : CoreSyncPublisher publie
+   * les plateformes en parallèle (allSettled) et deux mocks partagent le même
+   * fichier — sans verrou, le read-modify-write concurrent corrompt le JSON.
+   */
+  private static writeLock: Promise<unknown> = Promise.resolve()
+
   constructor(
     readonly marketplace: Marketplace,
     private readonly logPath: string,
@@ -47,16 +54,19 @@ export class MockMarketplacePublisher implements MarketplaceConnector {
       sellerId: credentials.sellerId ?? null,
     }
 
-    try {
-      await mkdir(dirname(this.logPath), { recursive: true })
-      const existing = await readFile(this.logPath, 'utf8').catch(() => '[]')
-      const log = JSON.parse(existing) as MockPublishLogEntry[]
-      log.push(entry)
-      await writeFile(this.logPath, JSON.stringify(log, null, 2), 'utf8')
-    } catch {
-      return { ok: false, code: 'MOCK_LOG_WRITE_FAILED' }
-    }
-
-    return { ok: true, externalId, url: entry.url }
+    const write = MockMarketplacePublisher.writeLock.then(async (): Promise<PublishResult> => {
+      try {
+        await mkdir(dirname(this.logPath), { recursive: true })
+        const existing = await readFile(this.logPath, 'utf8').catch(() => '[]')
+        const log = JSON.parse(existing) as MockPublishLogEntry[]
+        log.push(entry)
+        await writeFile(this.logPath, JSON.stringify(log, null, 2), 'utf8')
+      } catch {
+        return { ok: false, code: 'MOCK_LOG_WRITE_FAILED' }
+      }
+      return { ok: true, externalId, url: entry.url }
+    })
+    MockMarketplacePublisher.writeLock = write.catch(() => {})
+    return write
   }
 }

@@ -81,6 +81,8 @@ CREATE TABLE "Listing" (
     "prixPublie" INTEGER,
     "marque" TEXT,
     "confidence" DOUBLE PRECISION,
+    "ean" TEXT,
+    "expedition" JSONB,
     "publishedLbc" BOOLEAN NOT NULL DEFAULT false,
     "publishedVinted" BOOLEAN NOT NULL DEFAULT false,
     "lbcUrl" TEXT,

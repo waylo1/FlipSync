@@ -93,8 +93,14 @@ export enum SyncErrorCode {
   CONNECTOR_CRASH       = 'CONNECTOR_CRASH',
 }
 
-/** État distant normalisé d'une annonce — union fermée. */
+/**
+ * État distant normalisé d'une annonce — union fermée.
+ * SUBMITTED (C4, ADAPTER-CONTRACT L4/C4) : publication asynchrone acceptée par le canal, pas
+ * encore live (classe `publishMode: ASYNC`, cf. capability matrix) — additif, aucune colonne
+ * DB dédiée (valeur ad hoc de `checkStatus`, jamais persistée telle quelle).
+ */
 export enum RemoteListingStatus {
+  SUBMITTED = 'SUBMITTED', // accepté par le canal, publication asynchrone en cours
   ACTIVE    = 'ACTIVE',    // en ligne
   SOLD      = 'SOLD',      // vendue sur la plateforme
   ENDED     = 'ENDED',     // terminée sans vente (expiration, enchère sans adjudication)

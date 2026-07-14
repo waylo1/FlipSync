@@ -69,6 +69,15 @@ export interface ListingAuthResult {
 }
 
 /**
+ * Vérité-objet additive (C2, ADAPTER-CONTRACT §1/§2) — propriété physique de l'objet,
+ * jamais un format de canal. Débloque le precheck poids/format d'un futur connecteur.
+ */
+export interface Expedition {
+  formatColis:   'S' | 'M' | 'L' | 'XL'
+  poidsEstimeG?: number
+}
+
+/**
  * Brouillon généré par l'IA.
  * confidence est un score 0–1 (Float intentionnel, pas de l'argent).
  * Prix en centimes (Int).
@@ -82,6 +91,8 @@ export interface ListingDraft {
   prixHaut:        number         // centimes
   marque:          string | null
   confidence:      number         // 0–1, Float intentionnel (score, pas argent)
+  ean?:            string | null  // vérité-objet (C2), optionnel — sans producteur pour l'instant
+  expedition?:     Expedition | null // vérité-objet (C2), optionnel — sans producteur pour l'instant
 }
 
 /**

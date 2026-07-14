@@ -81,6 +81,13 @@ model Listing {
   marque          String?
   confidence      Float? // score 0–1, pas de l'argent → Float intentionnel
 
+  // Vérité-objet additive (C2, ADAPTER-CONTRACT §1/§2 — litmus de fermeture : propriété de
+  // l'objet physique, jamais un vocabulaire de canal). Optionnels, sans consommateur immédiat :
+  // débloquent les connecteurs exigeant un identifiant produit standard (EAN) et le futur
+  // precheck poids/format (expedition).
+  ean       String?
+  expedition Json? // { formatColis: 'S'|'M'|'L'|'XL'; poidsEstimeG?: number } — forme validée par Zod (core)
+
   // Plateformes
   publishedLbc    Boolean @default(false)
   publishedVinted Boolean @default(false)

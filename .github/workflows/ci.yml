@@ -55,3 +55,8 @@ jobs:
       # turbo résout l'ordre (build → test ; typecheck inclut le mobile via tsc --noEmit).
       - name: Build, test, typecheck
         run: npx turbo run build test typecheck
+
+      # Checks STATIC de fermeture (INVARIANT-SPEC §5) — mode baseline/expected-fail (ERRATA E-6) :
+      # bloque tout hit hors scripts/closure-check.baseline.json, tolère les violations connues.
+      - name: Closure checks (CC-1…7)
+        run: npm run closure-check

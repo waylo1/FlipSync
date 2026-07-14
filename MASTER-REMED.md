@@ -52,7 +52,10 @@
 4. **C2** `ean` + `expedition` (additif) — **fait** : `Expedition` (core), colonnes `ean`/`expedition`
    (Listing) ; sans producteur (prompt IA non touché, hors scope C2). **C4** union statut +=
    `SUBMITTED` (Zod seul) — **fait** : `RemoteListingStatus.SUBMITTED` (`ENDED` déjà présent).
-5. **C5 + A2** : amender le schéma du Lot 1 (externalMeta, epoch, journal, fait vente, timestamps).
+5. **C5 + A2** — **fait** : `ListingPublication.externalMeta/epoch/submittedAt/retractStartedAt` ;
+   tables `ChannelEvent` (journal dédup) et `SaleFact` (vente set-once, INV-18). Dormant — aucun
+   producteur/consommateur, `@@unique([listingId, marketplace])` inchangée (clé d'idempotence
+   avec epoch = évolution de C3, hors périmètre ici).
 6. **C3** : refonte `packages/marketplace` sur le port complet (`ChannelConnector`).
 7. Checks STATIC **verts** → commit du Lot 1 (pivot DB).
 8. Modèle de référence + les 4 reines (P-12/17/18/22), puis le reste de la suite (ordre INVARIANT-SPEC §8).

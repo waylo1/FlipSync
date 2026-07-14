@@ -19,3 +19,5 @@ détail d'implémentation isolable derrière une interface. Voir TECH_GOVERNANCE
 | [006](ADR-006-admin-emails.md) | Autorisation admin par liste blanche d'emails | Accepté |
 | [007](ADR-007-prisma-ssot-enums.md) | `schema.prisma` comme SSOT des enums TypeScript | Accepté |
 | [008](ADR-008-fournisseur-inference-prod.md) | Fournisseur d'inférence IA en production | Ouvert |
+| [009](ADR-009-core-sync-engine.md) | Core Sync Engine : pivot UnifiedListing + contrat connecteur v2 | Accepté |
+| [010](ADR-010-canonical-category-referentiel.md) | `CanonicalCategoryId` : référentiel versionné, pas un enum | Accepté |

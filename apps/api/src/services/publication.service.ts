@@ -10,8 +10,10 @@ import {
 import { ListingEngine } from '@flipsync/ai'
 import {
   CoreSyncPublisher,
+  EbayConnector,
   LegacyConnectorAdapter,
   MarketplaceClient,
+  ShopifyConnector,
   type MarketplaceConnector,
 } from '@flipsync/marketplace'
 import { MarketplaceAuthService } from './marketplace-auth.service'
@@ -46,12 +48,6 @@ export class PublicationError extends Error {
     this.name = 'PublicationError'
   }
 }
-
-/** Colonne catégorie du Listing par plateforme v1 — mapping hors du pivot agnostique. */
-const V1_CATEGORY_FIELD = {
-  [Marketplace.VINTED]: 'categorieVinted',
-  [Marketplace.LEBONCOIN]: 'categorieLbc',
-} as const
 
 /**
  * PublicationService — QUEUED → PUBLISHED|PUBLISH_FAILED via le Core Sync
@@ -88,9 +84,9 @@ export class PublicationService {
     if (!listing) throw new PublicationError('LISTING_NOT_FOUND')
     if (listing.status !== ListingStatus.QUEUED) throw new PublicationError('INVALID_LISTING_STATE')
 
-    // Pivot : catégorie interne provisoire = categorieLbc (pas de taxonomie
-    // interne encore) — la catégorie par PLATEFORME est réinjectée dans le
-    // toPayload de chaque adaptateur, jamais lue depuis le pivot.
+    // Pivot : catégorie canonique (CanonicalCategoryId, ADR-010) — le mapping
+    // vers la taxonomie propre à chaque plateforme vit dans le connecteur,
+    // jamais ici.
     const mapped = listingToUnified({
       id: listing.id,
       titre: listing.titre,
@@ -98,7 +94,7 @@ export class PublicationService {
       marque: listing.marque,
       etat: listing.etat as ItemCondition | null,
       prixPublie: listing.prixPublie,
-      categorie: listing.categorieLbc,
+      categorie: listing.categorieId,
       photos: listing.photos.map(p => ({ url: `${this.publicBaseUrl}${p.url}`, order: p.order })),
     })
     if (!mapped.ok) {
@@ -109,16 +105,9 @@ export class PublicationService {
       )
     }
 
-    // Registre construit PAR REQUÊTE : les adaptateurs v1 portent la catégorie
-    // plateforme du listing courant. Cible sans connecteur (EBAY/SHOPIFY, ou
-    // catégorie plateforme absente) ⇒ CONNECTOR_UNAVAILABLE via le publisher.
+    // Registre construit PAR REQUÊTE (credentials liées à l'utilisateur courant).
     const registry = new Map<Marketplace, MarketplaceConnector>()
-    for (const [marketplace, field] of Object.entries(V1_CATEGORY_FIELD) as [
-      keyof typeof V1_CATEGORY_FIELD,
-      (typeof V1_CATEGORY_FIELD)[keyof typeof V1_CATEGORY_FIELD],
-    ][]) {
-      const categorie = listing[field]
-      if (!categorie) continue
+    for (const marketplace of [Marketplace.VINTED, Marketplace.LEBONCOIN] as const) {
       registry.set(
         marketplace,
         new LegacyConnectorAdapter(marketplace, {
@@ -126,7 +115,7 @@ export class PublicationService {
           toPayload: l => ({
             titre: l.titre,
             description: l.description,
-            categorie,
+            categorie: l.categorie,
             etat: l.etat,
             marque: l.marque,
             prixCents: l.mode === 'fixed' ? l.prix : 0, // v1 = fixed only (capabilities)
@@ -137,6 +126,11 @@ export class PublicationService {
         }),
       )
     }
+
+    // Connecteurs v2 natifs (Run 5) — config lue de l'env à l'appel :
+    // sans credentials, ils répondent CREDENTIALS_MISSING sans appel réseau.
+    registry.set(Marketplace.EBAY, new EbayConnector())
+    registry.set(Marketplace.SHOPIFY, new ShopifyConnector())
 
     const report = await new CoreSyncPublisher(registry).publishMany(mapped.listing, targets)
 

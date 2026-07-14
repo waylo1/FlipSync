@@ -73,8 +73,7 @@ model Listing {
   // Données IA
   titre           String?
   description     String?
-  categorieLbc    String?
-  categorieVinted String?
+  categorieId     String? // CanonicalCategoryId (référentiel versionné, ADR-010) — pas de colonne par canal
   etat            ItemCondition?
   prixPlancher    Int? // centimes
   prixHaut        Int? // centimes
@@ -114,13 +113,14 @@ model Listing {
 // Remplace à terme les colonnes legacy publishedLbc/publishedVinted/lbcUrl/vintedUrl.
 
 model ListingPublication {
-  id          String      @id @default(cuid())
+  id          String            @id @default(cuid())
   listingId   String
   marketplace Marketplace
   externalId  String
   url         String?
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  status      PublicationStatus @default(ACTIVE)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
 
   listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
 
@@ -304,6 +304,17 @@ enum Marketplace {
   VINTED
   EBAY
   SHOPIFY
+}
+
+// Cycle de vie d'une publication PAR plateforme (anti-double-vente, Run 5).
+// SOLD / WITHDRAWN = faits terminaux ; WITHDRAW_FAILED = actionnable (le
+// webhook /webhooks/vendu re-tente le retrait à chaque rejeu). Le statut
+// agrégé du Listing reste dérivé — jamais stocké (doctrine « une seule FSM »).
+enum PublicationStatus {
+  ACTIVE
+  SOLD
+  WITHDRAWN
+  WITHDRAW_FAILED
 }
 
 enum ItemCondition {

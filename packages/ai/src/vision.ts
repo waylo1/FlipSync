@@ -25,8 +25,7 @@ const draftSchema = z
   .object({
     titre: z.string().min(1).max(120),
     description: z.string().min(1),
-    categorieLbc: z.string().min(1),
-    categorieVinted: z.string().min(1),
+    categorieId: z.string().min(1),
     etat: z.nativeEnum(ItemCondition),
     prixPlancher: z.number().int().nonnegative(),
     prixHaut: z.number().int().nonnegative(),
@@ -54,7 +53,7 @@ const buildPrompt = (): string =>
     '{',
     '  "titre": string (max 120 caractères, optimisé recherche),',
     '  "description": string (vendeuse, honnête, 2-4 phrases en français),',
-    '  "categorieLbc": string, "categorieVinted": string,',
+    '  "categorieId": string (catégorie canonique de l\'objet, vocabulaire libre),',
     '  "etat": "neuf" | "tres_bon" | "bon" | "correct",',
     '  "prixPlancher": int — prix bas RÉALISTE du marché de l\'occasion en France,',
     '    en CENTIMES d\'euro (euros × 100 : un objet à 15 € → 1500),',

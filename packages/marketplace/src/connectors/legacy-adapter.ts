@@ -19,9 +19,9 @@ export interface LegacyConnectorAdapterDeps {
   /** Lecture paresseuse — jamais figée à la construction (env mutable en test). */
   resolveCredentials: () => LegacyCredentialResolution
   /**
-   * Pivot → payload v1. C'est ICI que vit le mapping catégorie par plateforme
-   * (categorieLbc vs categorieVinted) : l'adaptateur est construit PAR REQUÊTE
-   * par le service api avec la catégorie du listing courant.
+   * Pivot → payload v1. `listing.categorie` est la catégorie canonique
+   * (CanonicalCategoryId, ADR-010) ; le mapping vers la taxonomie propre à
+   * chaque plateforme est la responsabilité du connecteur, pas de ce pivot.
    */
   toPayload: (listing: UnifiedListing) => ListingPayload
   /** Publication v1 (MarketplaceClient.publish lié à la plateforme). */

@@ -5,8 +5,7 @@ import { VisionService, VisionBackend } from './vision'
 const validDraft = {
   titre: 'Veste en cuir Schott NYC',
   description: 'Veste en cuir véritable, très bon état, peu portée.',
-  categorieLbc: 'Vêtements',
-  categorieVinted: 'Hommes > Vestes',
+  categorieId: 'vetements-homme-veste',
   etat: 'tres_bon',
   prixPlancher: 8000,
   prixHaut: 12000,

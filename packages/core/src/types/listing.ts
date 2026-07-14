@@ -76,8 +76,7 @@ export interface ListingAuthResult {
 export interface ListingDraft {
   titre:           string
   description:     string
-  categorieLbc:    string
-  categorieVinted: string
+  categorieId:     string // CanonicalCategoryId (référentiel versionné, ADR-010)
   etat:            ItemCondition
   prixPlancher:    number         // centimes
   prixHaut:        number         // centimes

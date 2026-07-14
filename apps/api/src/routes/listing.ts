@@ -53,8 +53,7 @@ const draftBody = z
   .object({
     titre: z.string().min(1).max(120),
     description: z.string().min(1),
-    categorieLbc: z.string().min(1),
-    categorieVinted: z.string().min(1),
+    categorieId: z.string().min(1),
     etat: z.nativeEnum(ItemCondition),
     prixPlancher: z.number().int().nonnegative(),
     prixHaut: z.number().int().nonnegative(),

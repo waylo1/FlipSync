@@ -13,8 +13,7 @@ const DB_URL = process.env.DATABASE_URL
 const VALID_DRAFT = {
   titre: 'Veste cuir Schott',
   description: 'Très bon état, peu portée.',
-  categorieLbc: 'Vêtements',
-  categorieVinted: 'Hommes > Vestes',
+  categorieId: 'vetements-homme-veste',
   etat: 'tres_bon',
   prixPlancher: 8000,
   prixHaut: 12000,

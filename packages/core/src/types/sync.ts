@@ -212,8 +212,8 @@ export const sanitizeDescription = (raw: string): string =>
 /**
  * Projection STRUCTURELLE du Listing DB nécessaire au pivot — core ne dépend
  * pas de @flipsync/db : le modèle Prisma (+ photos) satisfait ce type par
- * structure. `categorie` = décision du producteur (Run 3 — ex. categorieLbc
- * en attendant une taxonomie interne).
+ * structure. `categorie` = CanonicalCategoryId (référentiel versionné,
+ * ADR-010) — jamais une taxonomie de canal.
  */
 export interface ListingSyncSource {
   id:          string

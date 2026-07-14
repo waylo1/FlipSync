@@ -13,8 +13,7 @@ const DB_URL = process.env.DATABASE_URL
 const DRAFT: ListingDraft = {
   titre: 'Test - Veste cuir',
   description: 'Description test',
-  categorieLbc: 'Vêtements',
-  categorieVinted: 'Hommes > Vestes',
+  categorieId: 'vetements-homme-veste',
   etat: ItemCondition.tres_bon,
   prixPlancher: 8000,
   prixHaut: 12000,

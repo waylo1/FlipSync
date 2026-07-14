@@ -102,8 +102,7 @@ describe.skipIf(!DB_URL)('Publish mock e2e — QUEUED → PUBLISHED', () => {
       payload: {
         titre: 'Lampe opaline vintage',
         description: 'Verre opalin, années 70, très bon état.',
-        categorieLbc: 'Décoration',
-        categorieVinted: 'Maison > Luminaires',
+        categorieId: 'maison-luminaires',
         etat: 'tres_bon',
         prixPlancher: 2000,
         prixHaut: 3500,
@@ -163,7 +162,7 @@ describe.skipIf(!DB_URL)('Publish mock e2e — QUEUED → PUBLISHED', () => {
     expect(refunds).toHaveLength(0)
   })
 
-  it('Jeton Global — succès partiel (VINTED ok, EBAY sans connecteur) → PUBLISHED, zéro refund', async () => {
+  it('Jeton Global — succès partiel (VINTED ok, EBAY sans credentials) → PUBLISHED, zéro refund', async () => {
     const id = await createQueuedListing()
 
     const published = await app.inject({
@@ -177,7 +176,8 @@ describe.skipIf(!DB_URL)('Publish mock e2e — QUEUED → PUBLISHED', () => {
       status: 'PUBLISHED',
       results: [
         { marketplace: 'VINTED', ok: true },
-        { marketplace: 'EBAY', ok: false, code: 'CONNECTOR_UNAVAILABLE' },
+        // Connecteur eBay réel câblé (Run 5) mais env absente en test.
+        { marketplace: 'EBAY', ok: false, code: 'CREDENTIALS_MISSING' },
       ],
     })
 

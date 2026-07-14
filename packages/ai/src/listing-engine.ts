@@ -126,8 +126,7 @@ export class ListingEngine {
       this.move(tx, listingId, DbListingStatus.DRAFT_READY, {
         titre: draft.titre,
         description: draft.description,
-        categorieLbc: draft.categorieLbc,
-        categorieVinted: draft.categorieVinted,
+        categorieId: draft.categorieId,
         etat: draft.etat,
         prixPlancher: draft.prixPlancher,
         prixHaut: draft.prixHaut,

@@ -12,8 +12,7 @@ const DB_URL = process.env.DATABASE_URL
 const DRAFT_BODY = {
   titre: 'Veste cuir Schott',
   description: 'Très bon état, peu portée.',
-  categorieLbc: 'Vêtements',
-  categorieVinted: 'Hommes > Vestes',
+  categorieId: 'vetements-homme-veste',
   etat: 'tres_bon',
   prixPlancher: 8000,
   prixHaut: 12000,
@@ -215,10 +214,10 @@ describe.skipIf(!DB_URL)('Flux mobile /listing — e2e JWT', () => {
     delete process.env.VINTED_ACCESS_TOKEN
 
     const before = await prismaRef.userWallet.findUniqueOrThrow({ where: { userId } })
-    // S'assurer que le draft porte une catégorie Vinted (poussée par le mobile).
+    // S'assurer que le draft porte une catégorie canonique (poussée par le mobile).
     await prismaRef.listing.update({
       where: { id: listingId },
-      data: { categorieVinted: 'Hommes > Vestes' },
+      data: { categorieId: 'vetements-homme-veste' },
     })
 
     const res = await app.inject({

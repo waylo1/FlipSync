@@ -33,8 +33,7 @@ const FIXTURE = resolve(__dirname, 'fixtures', 'test-image.jpg')
 const MOCK_AI_DRAFT = {
   titre: 'Veste en cuir Schott vintage',
   description: 'Veste en cuir véritable, très bon état, peu portée. Taille M.',
-  categorieLbc: 'Vêtements',
-  categorieVinted: 'Hommes > Vestes',
+  categorieId: 'vetements-homme-veste',
   etat: 'tres_bon',
   prixPlancher: 8000, // centimes
   prixHaut: 12000,
@@ -114,7 +113,7 @@ async function main(): Promise<void> {
       ['une entrée écrite', log.length === 1],
       ['marketplace VINTED', entry?.marketplace === 'VINTED'],
       ['titre du draft mocké', entry?.payload.titre === MOCK_AI_DRAFT.titre],
-      ['catégorie Vinted', entry?.payload.categorie === MOCK_AI_DRAFT.categorieVinted],
+      ['catégorie canonique', entry?.payload.categorie === MOCK_AI_DRAFT.categorieId],
       ['prix publié en centimes Int', entry?.payload.prixCents === PRIX_PUBLIE],
       ['photo (sha256) dans le payload', entry?.payload.photoUrls.some(u => u.includes(sha256)) === true],
       ['url mock retournée', entry?.url === published.json.url],

@@ -4,7 +4,7 @@
 > Gates G1–G5 verts, typecheck vert. Reste hors périmètre gates : branchement
 > API listings/wallet (mocks assumés) + validation sur device réel.
 
-> Adapté du plan WAYLO (« Calme Souverain », navy/acier) → identité **« Vide-Grenier
+> Adapté d'un plan de design antérieur (« Calme Souverain », navy/acier) → identité **« Vide-Grenier
 > Chaleureux »** : papier crème, laiton chiné, terracotta, vert bouteille. Une app qui
 > parle à tout le monde — celui qui vide son grenier le dimanche, pas l'ingénieur.
 > Stack réelle : **React Native + Expo** (pas de web, pas de Radix — primitives RN + a11y native).

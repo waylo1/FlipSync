@@ -98,7 +98,6 @@ Double vérité publication (transition en cours) : colonnes legacy `publishedLb
 | `CLAUDE.md` | +64 | non lu en diff — probable section pivot |
 | `packages/ai/package.json` | +2 | non lu |
 | `migrations/20260711191009_channel_publication_pivot/` | untracked | migration du pivot |
-| `front end.txt` | untracked | **étranger au repo** : notes projet WAYLO (`@waylo/shared`) |
 | `patches/@expo+cli+0.18.31.patch` | untracked | patch outillage Expo |
 
 ## 9. Docs de gouvernance présentes

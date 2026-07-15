@@ -86,6 +86,7 @@ inférence prod (décision Maxime en attente, Sprint 4).
 | **Q6** | Réconciliation : capacité de lecture directe (poll) par canal ⚠ — à inventorier connecteur par connecteur au build ; sans lecture, quel succédané acceptable ? | Aucun (dégrade en événements seuls) |
 | **Q7** | Sémantique d'exécution de l'outbox (INV-19) : at-least-once ⇒ les effets (RETRACT…) doivent être idempotents côté worker — contrainte d'implémentation à formaliser au Lot 1 | Implémentation cascade |
 | **Q8** | Quotas anti-churn (INV-16) : valeurs des seuils par période — Business Policy, à fixer hors Core | Rien (config) |
+| **Q11** | Registre des connecteurs : THREAT-MODEL §1 (E-4) le fixe dans `packages/marketplace/src/registry.ts`, mais la composition root réelle vit dans `apps/api/src/services/publication.service.ts` + une 2ᵉ Map partielle dans `apps/api/src/routes/webhook.ts` (tension avec C-reg « une seule énumération ») ; le closure-check marque en outre C-reg/C-23 « N/A non codé » alors que le registre existe. Où consolider, et faut-il activer C-reg ? (constat 2026-07-15, dette documentée — aucun refactoring effectué) | Rien (revue à froid) |
 | **Q10** | Un `SOLD` livré sur un canal déjà terminal (`RETRACTED`/`ENDED`, rétracté avant que son `SOLD` n'arrive) : stale-drop ordinaire (INV-24 actuel) ou incident signalé (alerte, cohérent avec l'esprit « jamais silencieux » d'INV-25/T2) ? Représente un acheteur ayant payé (ERRATA E-5) | Implémentation de la FSM (P-18 en dépend) |
 
 > Q1 et Q9 : tranchées 2026-07-14, déplacées au Decision record (§2).

@@ -1,7 +1,7 @@
 # FLIPSYNC-AUDIT.md — Phase 1 (read-only)
 
 > Auditeur adverse, zéro confiance, code réel uniquement. 30 fichiers lus, mono-thread.
-> Périmètre : monorepo FlipSync **hors WAYLO** (`front end.txt` = autre projet, ignoré).
+> Périmètre : monorepo FlipSync (fichiers d'un projet externe exclus, retirés du repo depuis).
 > Sévérité : **S1** bloquant / **S2** majeur / **S3** mineur. Aucun S1 trouvé.
 
 ## Table de synthèse (triée par sévérité)

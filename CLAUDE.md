@@ -385,10 +385,15 @@ Vérification → **commit atomique** (cf. règle Commits ci-dessous).
       complet photos → /ai/draft → validation → publish (QUEUED). Fixes au passage :
       POST sans corps → body '{}' (Fastify 400 sinon) ; nouvelle capture ⇒ cancel
       du pendingPublish obsolète (sinon mélange annonce/photos d'un autre objet).
-- [ ] Prod : héberger l'inférence — décision en attente (Maxime) entre API hébergée
-      (reco : Claude Haiku 4.5, ~0,5 c€/annonce, backend à ajouter dans packages/ai)
-      et GPU loué avec Ollama (~30-80 €/mois). Qualité dev actuelle : objets parfois
-      mal identifiés, prix sous-estimés — connu, assumé jusqu'à la décision.
+- [x] **Décision inférence prod (2026-07-15, Maxime) : API hébergée** (reco CTO suivie,
+      ROADMAP_2_6_MONTHS.md item 0). Ollama qwen2.5vl:3b reste le backend de DEV/TEST
+      (PC local, `VisionService(OllamaVisionBackend)`) jusqu'à la fin du MVP. Le
+      switch vers l'API hébergée (candidat : Claude Haiku 4.5, ~0,5 c€/annonce) se
+      fait au moment de la mise en ligne stores (Play/Apple), pas avant — seam déjà
+      en place (`packages/ai` : `backend` implémente une interface, seconde
+      implémentation + sélecteur par config, zéro refonte). Ne pas implémenter le
+      backend hébergé avant que le MVP soit fonctionnellement prêt (ROI — inutile de
+      payer/maintenir une clé API tant que le produit change encore).
 - [x] Pipeline IA asynchrone détaché (commit 6e42c95) : POST /ai/draft synchrone
       remplacé par POST /ai/draft/start (JWT, 202, { jobId }) + GET /ai/draft/:jobId
       (poll). Le serveur continue l'inférence même si le mobile est tué en arrière-

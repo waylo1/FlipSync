@@ -97,6 +97,8 @@ PENDING_AUTH → AUTHORIZED → AI_PROCESSING → DRAFT_READY → USER_VALIDATED
 
 - failureReason toujours renseigné sur *_FAILED
 - Remboursement wallet auto sur AI_FAILED et PUBLISH_FAILED
+  ⚠ mono-canal historique (pré-pivot) — à N canaux, la règle de remboursement est une
+  **Business Policy — hors Core** (cf. Doctrine multi-canal, D5), pas une règle du Core (ERRATA E-13)
 
 ---
 
@@ -113,12 +115,68 @@ commit() s'exécute APRÈS USER_VALIDATED — jamais à l'autorisation.
 
 ## Publication marketplace — 100% APIs partenaires officielles
 
-- Connecteurs sanctionnés : Vinted Integrations/Pro, Leboncoin Partenaire
-  (direct ou agrégateur Lengow). PAS d'automatisation UI, PAS de contournement.
+- Connecteurs sanctionnés : Vinted Integrations/Pro, Leboncoin Partenaire — transport agrégateur
+  (ADAPTER-CONTRACT §4, capability matrix — donnée révisable, SSOT ; correction ERRATA E-16,
+  remplace la mention historique « direct ou agrégateur Lengow »). PAS d'automatisation UI,
+  PAS de contournement.
 - Logique 100% serveur : package @flipsync/marketplace (MarketplaceClient + connecteurs).
 - Le brouillon IA serveur (POST /ai/draft) alimente le payload via l'API (POST /listing/:id/publish).
 - Échec → PUBLISH_FAILED + remboursement wallet automatique.
+  ⚠ mono-canal historique (pré-pivot) — à N canaux, cf. Doctrine multi-canal / D5 : la règle de
+  remboursement vit en Business Policy, hors Core (ERRATA E-13)
 - Décision : modules AccessibilityService/stealth Android supprimés (pivot conformité).
+
+---
+
+## Doctrine multi-canal — Sessions Fable P1–P6 (2026-07-12/13)
+
+> Cristallisation des décisions P1→P5 — AUCUN concept nouveau ici. Artefacts source (détail
+> et preuves) : UNION-STRESS.md · ADAPTER-CONTRACT.md · THREAT-MODEL.md · SYNC-FSM.md ·
+> INVARIANT-SPEC.md · MASTER-REMED.md · ERRATA.md → ERRATA-RESOLVED.md (audit adversarial +
+> corrections de cohérence, 2026-07-13). Ces règles s'APPLIQUENT ; elles ne se modifient que
+> par revue d'architecture (cf. Architecture Freeze ci-dessous).
+
+### Règles
+
+| Règle | Objectif | Protège | Vérification | Exception |
+|---|---|---|---|---|
+| **Fermeture du core** (CC-1/2) : un champ n'entre au core que s'il décrit l'objet physique ou le mandat du vendeur — jamais un canal ; aucun symbole du Core ne nomme une marketplace | Ajouter un canal sans toucher au domaine | Contre la re-création de L1 (`categorieLbc`) : 9 canaux = 9 colonnes, pour toujours | `/closure-check` (greps INVARIANT-SPEC §5, checks C-1/2) | La déclaration d'enum des canaux (schema.prisma + enums générés) |
+| **Zéro branchement canal** (CC-3) : aucun `if`/`switch` sur un nom de canal hors `packages/marketplace` | Comportements par canal impossibles à disperser | La capability matrix comme unique vérité des différences | `/closure-check` (C-3, C-reg) | UNE énumération autorisée : le registre des connecteurs (composition root) |
+| **Tout transite par le port + la matrix** (CC-4/5) : une différence de canal = une valeur de matrix OU du code dans UN connecteur ; un canal s'ajoute en 5 étapes (ADAPTER-CONTRACT §12), zéro modif core | Canal N+1 à coût constant | La fermeture prouvable par le diff | `/pr-canal` : fichiers touchés ⊆ enum + `packages/marketplace/**` + config | Aucune — une 6ᵉ étape nécessaire = revue d'architecture |
+| **Taxonomie canonique** (CC-6) : le prompt IA produit `CanonicalCategory` ; les référentiels de catégories par canal vivent dans les connecteurs | Un seul prompt, un seul vocabulaire core | L1 côté IA (un prompt par canal) | `/closure-check` (grep canaux sur `packages/ai`) | Aucune |
+| **UI pilotée par l'API** (CC-7) : liste des canaux, éligibilité (precheck), états = données renvoyées par l'API ; aucune logique canal dans mobile/web | Zéro écran modifié par canal | La fermeture côté client | `/closure-check` (grep `apps/mobile`, `apps/web`) | Mapping présentationnel id → logo/couleur (la LISTE vient de l'API) |
+| **Wallet intouchable** (INV-9) : `packages/marketplace` n'importe jamais le wallet ; remboursements uniquement via ListingEngine | Un connecteur ne peut pas créer de mouvement d'argent | L'argent réel des users | `/closure-check` (C-09, grep imports) | Aucune |
+| **Business Policy — hors Core** (D5) : facturation, remboursement, compensation lisent les FAITS (vue agrégée SYNC-FSM §7 : `PARTIAL_SUCCESS`…) — jamais l'inverse ; aucune règle d'argent dans contrat/FSM/connecteurs | Changer une règle métier sans toucher au domaine | Contre la fossilisation d'une règle d'argent dans la machine (les faits peuvent évoluer après coup) | Aucun import Billing dans marketplace/FSM ; revue | Aucune |
+| **Une seule FSM stockée** : `ChannelPublication.status` par (listing, canal) + fait vente set-once ; la vue agrégée est une fonction pure, JAMAIS stockée | Une seule vérité de sync | Contre la double vérité qui dérive (leçon F3) | Revue schéma : aucun statut agrégé persisté | La queue de `ListingStatus` = projection compat, jamais source |
+| **Événements canal** : dédup `(channel, eventKey)` (A1) ; monotonie de la vérité-canal, correctives forward-only ; tout drop journalisé | Rejeu, désordre, forge absorbés sans corruption | L'objet unique (double-vente) et l'intégrité de la FSM | Propriétés P-12/P-17 (fast-check) + journal `ChannelEvent` | `REPUBLISH` : seule arête arrière — commande explicite, `epoch++` |
+| **Incidents bruyants** (INV-25) : entrer en `DIRTY`/`OVERSOLD` émet alerte + événement dashboard, atomiquement | Aucune publication zombie silencieuse | L'argent et la réputation vendeur (T2) | Propriété P-25 ; DoD observabilité | Aucune |
+
+### Architecture Freeze — one-way doors actées (P1→P5)
+
+> Toute modification d'un point ci-dessous est une **REVUE D'ARCHITECTURE** (mise à jour de
+> l'artefact source + gate utilisateur), jamais un refactoring. Garde-fou : `/arch-gate`.
+
+1. **Pricing canonique** `{ prixCents, offers?: { floorCents, autoAcceptCents? } }` — PAS d'union `fixed|auction` (P1).
+2. **D1** : `floorCents` comparé au prix BRUT du canal ; les nets par canal = affichage estimatif.
+3. **D2** : enchères hors v1 (si un jour : mode de publication channel-exclusif à FSM propre — jamais un pricing).
+4. **D3** : bundles/lots hors v1.
+5. **D4** : UN cerveau de négociation par canal — fonction pure de `capabilities.negotiation`, jamais deux.
+6. **Règle de fermeture** (ADAPTER-CONTRACT §1) + **CC-1…7** (THREAT-MODEL §1).
+7. **Port `ChannelConnector`** : `precheck/publish/update/retract/parseEvent` + `eventKey` obligatoire (A1).
+8. **`CanonicalItem`/`CanonicalListing`** versionnés ; `categorie: CanonicalCategory` (C1 — ADR taxonomie requis).
+9. **Capability matrix = SEUL vecteur** des différences inter-canaux (données, pas de code).
+10. **FSM 10 états** (SYNC-FSM §1), croyance vs vérité, monotonie (INV-17) ; vue agrégée dérivée, jamais stockée.
+11. **Tie-break double-vente = first-commit-wins** (encadré SYNC-FSM §4 — raisonnement conservé, ne pas rouvrir).
+12. **Business Policy — hors Core** (D5 requalifiée au gate P3).
+13. **Argent** : débit à USER_VALIDATED ; remboursement idempotent ≤1 par débit ; connecteurs sans wallet.
+14. **Merchant-of-record** : porte explicitement NON franchie (seule voie ManoMano/Cdiscount — hors-scope).
+15. **C1–C5 + A2 = pré-requis au commit du Lot 1** — aucun pivot DB sans eux ; checks STATIC câblés AVANT C1.
+
+### Slash commands doctrine
+
+`/closure-check` · `/pr-canal` · `/arch-gate` (cf. `.claude/commands/`) — elles **appliquent**
+la doctrine, ne la modifient jamais. Tout problème d'architecture découvert en cours de route :
+NE PAS le résoudre à chaud — l'ajouter à MASTER-REMED.md « Questions ouvertes », revue à froid.
 
 ---
 
@@ -147,6 +205,70 @@ eas.json submit (Apple/Play).
 - AccessibilityService = activation manuelle user dans Paramètres Android
 - iOS keyboard extension = App Group partagé obligatoire
 - Stripe webhook : vérifier signature constructEvent() — ne pas skip en dev
+
+---
+
+## Méthode de travail
+
+> Ces règles gouvernent COMMENT tu opères sur ce dépôt — elles priment sur toute habitude
+> d'outil. Objectif permanent : moins de fichiers lus, moins d'outils, moins de contexte,
+> de meilleures décisions. Réfléchir davantage avant d'agir, mais uniquement sur l'information
+> réellement nécessaire.
+
+### Outils & lecture du code
+- Un outil est une capacité, jamais une obligation. Avant d'agir : réfléchir, cibler
+  l'information strictement nécessaire, ne lancer que les outils indispensables. Jamais
+  d'outil par habitude, jamais plusieurs outils « au cas où ».
+- Avant de lire du code : identifier les fichiers exacts. Lire uniquement les fichiers
+  concernés, leurs dépendances immédiates et les types indispensables. Pas d'exploration
+  globale du dépôt sans raison, pas de recherche large quand quelques fichiers suffisent.
+- Réduire en continu : fichiers lus, outils, commandes, modifications, taille de contexte.
+  Privilégier la compréhension locale à l'exploration globale.
+
+### Décision — avant d'implémenter
+- Vérifier si une solution existe déjà, et si l'abstraction est réellement nécessaire.
+- KISS, YAGNI, DRY, SSOT (cf. « Types partagés » ci-dessous). Ne jamais complexifier
+  l'architecture sans bénéfice démontré. Toujours la solution la plus simple qui répond au besoin.
+- La présence d'une bibliothèque dans le projet ne justifie jamais son usage. Une lib
+  installée est une capacité future, pas une dépendance obligatoire.
+
+### ROI avant dépendance — avant toute installation
+Avant d'installer une bibliothèque, un SDK, un framework ou un service externe (LangGraph,
+Vercel AI SDK, Langfuse, Promptfoo, BullMQ, Inngest, MCP, Playwright ou toute autre lib),
+répondre systématiquement à :
+
+1. Le besoin est-il réel aujourd'hui ?
+2. Cette dépendance sera-t-elle utilisée dans le sprint en cours ou le suivant ?
+3. Apporte-t-elle un gain significatif de temps, de qualité ou de simplicité ?
+4. Son coût de maintenance est-il justifié ?
+5. Peut-on résoudre le problème sans elle ?
+
+Une réponse négative suffit à ne pas installer. « Utile un jour » n'est jamais un argument.
+Principe : installer le plus tard possible, mais avant que son absence ne ralentisse
+réellement le développement. Toujours privilégier simplicité, faible maintenance, faible
+consommation de ressources, faible dette technique.
+
+À chaque proposition d'installation, répondre sous cette forme :
+
+```
+Décision : INSTALLER / ATTENDRE
+Justification :
+- Valeur immédiate
+- Coût de maintenance
+- Alternatives
+- Moment recommandé
+```
+
+Cette règle prime sur toute autre considération technique pour les propositions de dépendance.
+
+### Boucle par tâche — ne sauter aucune étape
+Analyse → Plan → **validation utilisateur** → Exécution → Tests ciblés → Typecheck →
+Vérification → **commit atomique** (cf. règle Commits ci-dessous).
+
+### Communication
+- Réponses courtes, factuelles, sans remplissage ni répétition.
+- Expliquer les décisions importantes ; signaler toute information manquante nécessaire à la
+  décision avant de trancher.
 
 ---
 
@@ -289,3 +411,59 @@ eas.json submit (Apple/Play).
       Sélection du palier à l'écran de capture (vendre.tsx) — non modifiable
       après coup sans relancer l'analyse ; verrouillé à l'écran de validation
       (validate.tsx).
+
+---
+
+## Claude Code Environment — Optimisé 2026-07-14
+
+### Plugins Anthropic (6)
+
+| Plugin | Rôle | Activé |
+|---|---|---|
+| security-guidance | Hooks pattern-matching + revue LLM diffs + revue commit agentique (injection, XSS, SSRF, secrets, 25+ classes). Critique pour wallet/JWT/Stripe | ✅ |
+| pr-review-toolkit | 6 agents : code-reviewer, simplifier, comment-analyzer, test-analyzer, silent-failure-hunter, type-design-analyzer | ✅ |
+| commit-commands | `/commit`, `/commit-push-pr`, `/clean_gone` pour git workflow | ✅ |
+| typescript-lsp | Diagnostics TS, navigation, typage cross-package monorepo | ✅ |
+| claude-md-management | `/revise-claude-md` pour capturer apprentissages session | ✅ |
+| hookify | Générateur de hooks customs (ex : interdire Float monnaie, forbid `any`) | ✅ |
+
+### Marketplace Communautaire (1)
+
+| Marketplace | Plugin | Rôle |
+|---|---|---|
+| upstash/context7 | context7 v1.0.2 | Docs Expo/Prisma/Fastify/React Native fraîches + injectées dans contexte |
+
+### MCP Servers (1)
+
+| Server | Transport | Rôle |
+|---|---|---|
+| Expo (officiel) | HTTP https://mcp.expo.dev/mcp | EAS builds, TestFlight crash data, docs SDK, simulator control |
+
+### Agents Personnalisés (2)
+
+- Fullstack Developer (AITmpl)
+- Backend Architect (AITmpl)
+
+### Skills Personnalisées (4)
+
+- Senior Backend (refs API design, DB optim, security ; scripts Python load-test / scaffolder)
+- Mobile Design (11 fichiers : anti-memorization, touch-psychology, platform iOS/Android, perf RN/Flutter, testing, debugging)
+- ui-ux-pro-max (161 palettes, 57 font pairings, 161 product types, 99 UX guidelines, 25 charts ; consultable via script)
+- Frontend Design (studio direction, anti-template thinking)
+
+### Connecteurs Anthropic (5)
+
+- Engineering (GitHub)
+- Design (Figma, Intercom)
+- Productivity (Linear)
+- Data (unused)
+- Prisma (DB schema)
+
+### Résumé État
+
+**7 plugins · 6 skills · 19 agents · 13 hooks · 1 MCP server · 1 LSP server**
+
+**Posture** : Léger, sans doublon, aligné stack (RN/Expo/Fastify/TS/Prisma/PostgreSQL/Supabase/GitHub).
+**Sécurité** : Revue de code systématique + détection vuln crypto/JWT/secrets.
+**Documentation** : Contexte injecté auto (Expo SDK, Prisma 5, Fastify 4 docs fraîches via Context7).
+**Mobile** : Anti-defaults checklist avant chaque screen (mobile-design-thinking.md obligatoire).

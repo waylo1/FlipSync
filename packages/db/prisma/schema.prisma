@@ -57,6 +57,7 @@ model WalletTransaction {
   wallet  UserWallet @relation(fields: [walletId], references: [id])
   listing Listing?   @relation(fields: [listingId], references: [id])
 
+  @@unique([listingId, type]) // atomicité refund/debit (P-06) : un listing a au plus 1 DEBIT et 1 REFUND ; NULL non contraint (BONUS/RECHARGE)
   @@index([type, createdAt])
 }
 

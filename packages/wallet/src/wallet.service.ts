@@ -282,6 +282,12 @@ export class WalletService {
    * Remboursement automatique sur AI_FAILED / PUBLISH_FAILED.
    * Idempotent : si un REFUND existe déjà pour ce listing, no-op.
    * Restitue le crédit gratuit OU recrédite le wallet du montant exact du DEBIT.
+   *
+   * Atomicité stricte (P-06) : la contrainte DB `@@unique([listingId, type])`
+   * sur `WalletTransaction` rend un double REFUND structurellement impossible,
+   * y compris sous rejeu concurrent — le check `findFirst` ci-dessous n'est
+   * qu'un raccourci pour éviter l'écriture dans le cas nominal (single-writer) ;
+   * la contrainte, pas le check, est la garantie réelle (cf. wallet.service.refund.property.db.test.ts).
    */
   async refund(listingId: string, reason: string, tx?: Prisma.TransactionClient): Promise<void> {
     if (tx) {
@@ -304,41 +310,50 @@ export class WalletService {
     const alreadyRefunded = await tx.walletTransaction.findFirst({
       where: { listingId, type: DbTransactionType.REFUND },
     })
-    if (alreadyRefunded) return // idempotence — remboursement déjà effectué
+    if (alreadyRefunded) return // fast path — évite l'écriture, pas la garantie d'atomicité
 
-    if (debit.source === DbPaymentSource.FREE_CREDIT) {
+    try {
+      if (debit.source === DbPaymentSource.FREE_CREDIT) {
+        await tx.userWallet.update({
+          where: { id: debit.walletId },
+          data: { freeListingsRemaining: { increment: 1 } },
+        })
+        await tx.walletTransaction.create({
+          data: {
+            walletId: debit.walletId,
+            type: DbTransactionType.REFUND,
+            amount: 0,
+            source: DbPaymentSource.FREE_CREDIT,
+            listingId,
+            description: reason,
+          },
+        })
+        return
+      }
+
+      assertCents(debit.amount)
       await tx.userWallet.update({
         where: { id: debit.walletId },
-        data: { freeListingsRemaining: { increment: 1 } },
+        data: { balance: { increment: debit.amount } },
       })
       await tx.walletTransaction.create({
         data: {
           walletId: debit.walletId,
           type: DbTransactionType.REFUND,
-          amount: 0,
-          source: DbPaymentSource.FREE_CREDIT,
+          amount: debit.amount,
+          source: DbPaymentSource.WALLET,
           listingId,
           description: reason,
         },
       })
-      return
+    } catch (err) {
+      // Course entre deux remboursements concurrents du même listing (fenêtre entre
+      // le check ci-dessus et ce create) : la contrainte UNIQUE (listingId, type)
+      // tranche — le perdant voit son incrément annulé (rollback de CETTE
+      // transaction) puis no-op, jamais un double crédit.
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') return
+      throw err
     }
-
-    assertCents(debit.amount)
-    await tx.userWallet.update({
-      where: { id: debit.walletId },
-      data: { balance: { increment: debit.amount } },
-    })
-    await tx.walletTransaction.create({
-      data: {
-        walletId: debit.walletId,
-        type: DbTransactionType.REFUND,
-        amount: debit.amount,
-        source: DbPaymentSource.WALLET,
-        listingId,
-        description: reason,
-      },
-    })
   }
 }
 

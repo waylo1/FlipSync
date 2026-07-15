@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-14",
+  "generatedAt": "2026-07-15",
   "checks": {
     "C-1267": [
       "packages/core/src/types/admin.ts:17",
@@ -181,7 +181,7 @@
       "apps/web/src/store/useMissionControlStore.ts:222",
       "apps/web/src/store/useMissionControlStore.ts:224",
       "apps/web/src/store/useMissionControlStore.ts:226",
-      "packages/db/prisma/schema.prisma:348"
+      "packages/db/prisma/schema.prisma:349"
     ],
     "C-3": [
       "apps/api/src/services/publication.service.ts:133",

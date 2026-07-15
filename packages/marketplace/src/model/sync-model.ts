@@ -222,7 +222,13 @@ function transition(world: World, line: Line, input: Input): StepResult {
           return { world: withLine(world, { ...line, state: 'RETRACTED' }), effects: [] }
         case 'OUTCOME_RETRACT_PERMANENT':
         case 'TIMER_TIMEOUT_RETRACT':
-          return { world: withLine(world, { ...line, state: 'DIRTY' }), effects: [] }
+          return {
+            world: withLine(world, { ...line, state: 'DIRTY' }),
+            effects: [
+              { kind: 'INCIDENT', channel: line.channel },
+              { kind: 'DASHBOARD_EVENT', channel: line.channel, name: 'DIRTY' },
+            ],
+          }
         case 'SOLD':
           return arbitrateSale(world, line, input.eventKey)
         default:

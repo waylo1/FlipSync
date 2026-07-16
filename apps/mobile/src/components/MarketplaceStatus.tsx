@@ -5,7 +5,7 @@ import { font, space, theme } from '../theme'
 import { Badge } from '../ui/Badge'
 import { Card } from '../ui/Card'
 
-const PLATFORM_LABEL: Readonly<Record<MarketplaceId, string>> = {
+export const PLATFORM_LABEL: Readonly<Record<MarketplaceId, string>> = {
   VINTED: 'Vinted',
   LEBONCOIN: 'Leboncoin',
   // Core Sync Engine (ADR-009) — libellés prêts, l'écran n'affiche que ce que
@@ -19,7 +19,7 @@ const PLATFORM_LABEL: Readonly<Record<MarketplaceId, string>> = {
  * kraft = absent (neutre — l'accès partenaire n'est pas encore ouvert),
  * moutarde = vigilance (expiré), brique = échec (refus plateforme).
  */
-const STATE_META: Readonly<Record<MarketplaceConnectionState, { label: string; fg: string; bg: string }>> = {
+export const STATE_META: Readonly<Record<MarketplaceConnectionState, { label: string; fg: string; bg: string }>> = {
   CONNECTED: { label: 'Connecté', fg: theme.bouteille, bg: theme.bouteilleSoft },
   DISCONNECTED: { label: 'Déconnecté', fg: theme.krafInk, bg: theme.kraft },
   EXPIRED: { label: 'Expiré', fg: theme.moutarde, bg: theme.moutardeSoft },

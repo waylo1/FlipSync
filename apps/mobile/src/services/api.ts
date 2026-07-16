@@ -10,9 +10,11 @@ import type {
   ListingDTO,
   ListingPhotoDTO,
   ListingTier,
+  MarketplaceId,
   MarketplaceStatusResponse,
   MissionDTO,
   MissionEventDTO,
+  PublicationOutcome,
   SellMandate,
   WalletDTO,
   WalletTransactionDTO,
@@ -274,4 +276,8 @@ export const api = {
       opts?.includeCancelled === true ? '/listing?includeCancelled=true' : '/listing',
     ),
   getListing: (listingId: string) => request<{ listing: ApiListing }>(`/listing/${listingId}`),
+
+  /** QUEUED → PUBLISHED|PUBLISH_FAILED — canaux choisis par l'utilisateur (écran Diffuser). */
+  publish: (listingId: string, marketplaces: readonly MarketplaceId[]) =>
+    post<PublicationOutcome>(`/listing/${listingId}/publish`, { marketplaces }),
 }

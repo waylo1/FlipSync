@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { Dimensions, ScrollView, StyleSheet, Text, View } from 'react-native'
-import { Redirect, useLocalSearchParams, useRouter } from 'expo-router'
+import { Redirect, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router'
 import { AlertTriangle, Pencil, RotateCcw, Share2 } from 'lucide-react-native'
 import { ItemCondition, ListingStatus, ListingTier } from '@flipsync/core'
 import { API_BASE, ApiError, ApiListing, api } from '../src/services/api'
@@ -53,7 +53,9 @@ export default function ListingViewScreen() {
       .catch(err => setLoadError(err instanceof ApiError ? err.code : 'UNKNOWN'))
   }, [id])
 
-  useEffect(() => load(), [load])
+  // Focus (retour depuis Diffuser après publication) → refetch : le statut a
+  // pu changer (QUEUED → PUBLISHED/PUBLISH_FAILED) pendant que l'écran était masqué.
+  useFocusEffect(useCallback(() => load(), [load]))
 
   if (!id) return <Redirect href="/(tabs)" />
 

@@ -103,7 +103,11 @@ async function main(): Promise<void> {
     if (published.status !== 200 || published.json.status !== 'PUBLISHED') {
       fail('POST /publish', published)
     }
-    console.log(`[6/7] publié (mock) → ${published.json.url as string}`)
+    // Réponse multi-canal (PublicationOutcome) : l'URL vit dans results[], par plateforme.
+    const results = published.json.results as Array<{ marketplace: string; ok: boolean; url?: string | null }>
+    const vintedResult = results?.find(r => r.marketplace === 'VINTED')
+    if (!vintedResult?.ok) fail('POST /publish (résultat VINTED)', published)
+    console.log(`[6/7] publié (mock) → ${vintedResult.url}`)
 
     // 7. Vérification du log JSON écrit par MockMarketplacePublisher.
     const raw = await readFile(LOG_PATH, 'utf8')
@@ -116,7 +120,7 @@ async function main(): Promise<void> {
       ['catégorie canonique', entry?.payload.categorie === MOCK_AI_DRAFT.categorieId],
       ['prix publié en centimes Int', entry?.payload.mode === 'fixed' && entry.payload.prix === PRIX_PUBLIE],
       ['photo (sha256) dans le payload', entry?.payload.photos.some(p => p.url.includes(sha256)) === true],
-      ['url mock retournée', entry?.url === published.json.url],
+      ['url mock retournée', entry?.url === vintedResult.url],
     ]
     const failed = checks.filter(([, ok]) => !ok)
 

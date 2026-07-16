@@ -1,4 +1,4 @@
-import { Marketplace } from '../generated/enums'
+import { ListingStatus, Marketplace } from '../generated/enums'
 
 /**
  * Contrat marketplace — SSOT partagée api ↔ mobile ↔ @flipsync/marketplace.
@@ -35,4 +35,19 @@ export interface MarketplaceConnection {
 
 export interface MarketplaceStatusResponse {
   connections: MarketplaceConnection[]
+}
+
+/** Résultat de publication pour une plateforme — SSOT api ↔ mobile (réponse POST /listing/:id/publish). */
+export interface PublicationResult {
+  marketplace: MarketplaceId
+  ok: boolean
+  code?: string
+  url?: string | null
+}
+
+/** Réponse POST /listing/:id/publish — Jeton Global (≥1 succès ⇒ PUBLISHED, cf. publication.service.ts). */
+export interface PublicationOutcome {
+  status: ListingStatus
+  results: PublicationResult[]
+  failureReason?: string
 }

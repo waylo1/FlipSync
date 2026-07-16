@@ -109,9 +109,14 @@ export class MarketplaceAuthService {
     }
   }
 
-  /** États des deux plateformes, ordre stable VINTED puis LEBONCOIN. */
+  /** États des 4 plateformes, ordre stable VINTED, LEBONCOIN, EBAY, SHOPIFY. */
   status(): MarketplaceConnection[] {
-    return [this.connection(Marketplace.VINTED), this.connection(Marketplace.LEBONCOIN)]
+    return [
+      this.connection(Marketplace.VINTED),
+      this.connection(Marketplace.LEBONCOIN),
+      this.connection(Marketplace.EBAY),
+      this.connection(Marketplace.SHOPIFY),
+    ]
   }
 
   /** Projection admin (AdminOverview.marketplace) — MOCK/LIVE au lieu de CONNECTED. */

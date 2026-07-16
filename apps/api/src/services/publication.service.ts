@@ -1,10 +1,13 @@
 import type { FastifyBaseLogger } from 'fastify'
-import { ListingStatus, PrismaClient } from '@flipsync/db'
+import { ListingStatus as DbListingStatus, PrismaClient } from '@flipsync/db'
 import {
   ItemCondition,
+  ListingStatus,
   listingToUnified,
   Marketplace,
   type MarketplaceSyncResult,
+  type PublicationOutcome,
+  type PublicationResult,
   type SyncSuccess,
 } from '@flipsync/core'
 import { ListingEngine } from '@flipsync/ai'
@@ -26,20 +29,6 @@ export const DEFAULT_PUBLISH_TARGETS: readonly Marketplace[] = [
   Marketplace.VINTED,
   Marketplace.LEBONCOIN,
 ]
-
-/** Projection publique d'un résultat par plateforme — detail (diagnostic brut) jamais exposé. */
-export interface PublicationResult {
-  marketplace: Marketplace
-  ok: boolean
-  code?: string
-  url?: string | null
-}
-
-export interface PublicationOutcome {
-  status: ListingStatus
-  results: PublicationResult[]
-  failureReason?: string
-}
 
 /**
  * Erreur de publication — code SNAKE_CASE mappé en HTTP par l'error-handler
@@ -86,7 +75,7 @@ export class PublicationService {
       include: { photos: { orderBy: { order: 'asc' } } },
     })
     if (!listing) throw new PublicationError('LISTING_NOT_FOUND')
-    if (listing.status !== ListingStatus.QUEUED) throw new PublicationError('INVALID_LISTING_STATE')
+    if (listing.status !== DbListingStatus.QUEUED) throw new PublicationError('INVALID_LISTING_STATE')
 
     // Pivot : catégorie canonique (CanonicalCategoryId, ADR-010) — le mapping
     // vers la taxonomie propre à chaque plateforme vit dans le connecteur,
@@ -119,25 +108,38 @@ export class PublicationService {
     // nativement `ChannelConnector` depuis C3.6 (refonte achevée, v1/v2 détruits).
     const useMock = this.auth.mockEnabled()
     const registry = new Map<Marketplace, ChannelConnector>()
-    for (const marketplace of [Marketplace.VINTED, Marketplace.LEBONCOIN] as const) {
+    for (const marketplace of [
+      Marketplace.VINTED,
+      Marketplace.LEBONCOIN,
+      Marketplace.EBAY,
+      Marketplace.SHOPIFY,
+    ] as const) {
       if (useMock) {
         registry.set(marketplace, new MockMarketplacePublisher(marketplace, this.mockLogPath))
         continue
       }
-      const deps = {
-        resolveCredentials: () => this.auth.resolve(listing.userId, marketplace),
-        onResult: (result: PartnerPublishResult) => this.auth.reportPublishOutcome(marketplace, result),
+      // Hors mock : EBAY/SHOPIFY lisent leur config directement depuis l'env
+      // (sans credentials → CREDENTIALS_MISSING, sans appel réseau) ; VINTED/LBC
+      // passent par MarketplaceAuthService (compte partenaire global).
+      switch (marketplace) {
+        case Marketplace.EBAY:
+          registry.set(marketplace, new EbayConnector())
+          break
+        case Marketplace.SHOPIFY:
+          registry.set(marketplace, new ShopifyConnector())
+          break
+        default: {
+          const deps = {
+            resolveCredentials: () => this.auth.resolve(listing.userId, marketplace),
+            onResult: (result: PartnerPublishResult) => this.auth.reportPublishOutcome(marketplace, result),
+          }
+          registry.set(
+            marketplace,
+            marketplace === Marketplace.VINTED ? new VintedConnector(deps) : new LeboncoinConnector(deps),
+          )
+        }
       }
-      registry.set(
-        marketplace,
-        marketplace === Marketplace.VINTED ? new VintedConnector(deps) : new LeboncoinConnector(deps),
-      )
     }
-
-    // Connecteurs restants — config lue de l'env à l'appel : sans credentials,
-    // ils répondent CREDENTIALS_MISSING sans appel réseau.
-    registry.set(Marketplace.EBAY, new EbayConnector())
-    registry.set(Marketplace.SHOPIFY, new ShopifyConnector())
 
     const report = await new CoreSyncPublisher(registry).publishMany(mapped.listing, targets)
 

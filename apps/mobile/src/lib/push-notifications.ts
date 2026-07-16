@@ -29,7 +29,14 @@ export async function registerForPushNotifications(): Promise<void> {
   if (status !== 'granted') return
 
   const projectId = Constants.expoConfig?.extra?.eas?.projectId as string | undefined
-  const { data: token } = await Notifications.getExpoPushTokenAsync(projectId ? { projectId } : undefined)
+  let token: string
+  try {
+    // Peut rejeter (ex: Firebase non initialisé en dev-client sans build EAS) —
+    // best-effort comme le reste de cette fonction, jamais bloquant.
+    token = (await Notifications.getExpoPushTokenAsync(projectId ? { projectId } : undefined)).data
+  } catch {
+    return
+  }
 
   await api.registerDeviceToken(token).catch(() => {
     // Best-effort : un échec réseau ici ne doit jamais bloquer le démarrage

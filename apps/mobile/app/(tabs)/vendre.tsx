@@ -14,7 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Camera, useCameraDevice, useCameraPermission } from 'react-native-vision-camera'
 import { SaveFormat, manipulateAsync } from 'expo-image-manipulator'
 import * as Crypto from 'expo-crypto'
-import { CameraOff, Sparkles } from 'lucide-react-native'
+import { CameraOff, Sparkles, Zap, ZapOff } from 'lucide-react-native'
 import { useAnalysisQueue } from '../../src/store/listing.store'
 import { dev } from '../../src/dev-session/recorder'
 import { font, line, motion, radius, space, theme } from '../../src/theme'
@@ -52,6 +52,7 @@ export default function VendreScreen() {
   const [photos, setPhotos] = useState<CapturedPhoto[]>([])
   const [capturing, setCapturing] = useState(false)
   const [cameraError, setCameraError] = useState<string | null>(null)
+  const [flashMode, setFlashMode] = useState<'off' | 'on'>('off')
 
   // Flash de capture : voile blanc bref (feedback immédiat, à la Instagram).
   const flash = useRef(new Animated.Value(0)).current
@@ -81,7 +82,7 @@ export default function VendreScreen() {
     setCapturing(true)
     setCameraError(null)
     try {
-      const raw = await camera.current.takePhoto({ flash: 'off' })
+      const raw = await camera.current.takePhoto({ flash: device?.hasFlash ? flashMode : 'off' })
       blink() // retour visuel immédiat, avant même le resize
       const resized = await manipulateAsync(
         `file://${raw.path}`,
@@ -103,7 +104,7 @@ export default function VendreScreen() {
     } finally {
       setCapturing(false)
     }
-  }, [capturing, photos.length, blink])
+  }, [capturing, photos.length, blink, flashMode, device])
 
   /** Retire une photo ratée de la session de capture (avant rédaction). */
   const removePhoto = useCallback((sha256: string) => {
@@ -183,6 +184,21 @@ export default function VendreScreen() {
                 ? 'Photographiez votre objet sous tous les angles'
                 : 'Prêt — ajoutez des photos ou lancez la rédaction'}
             </Text>
+            {device.hasFlash && (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={flashMode === 'on' ? 'Désactiver le flash' : 'Activer le flash'}
+                accessibilityState={{ selected: flashMode === 'on' }}
+                onPress={() => setFlashMode(m => (m === 'on' ? 'off' : 'on'))}
+                hitSlop={space[2]}
+              >
+                {flashMode === 'on' ? (
+                  <Zap size={font.lead} color={theme.gold} fill={theme.gold} />
+                ) : (
+                  <ZapOff size={font.lead} color={theme.onDarkMuted} />
+                )}
+              </Pressable>
+            )}
           </View>
           <View style={styles.segments}>
             {Array.from({ length: MAX_PHOTOS }, (_, i) => (

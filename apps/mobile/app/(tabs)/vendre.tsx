@@ -174,31 +174,7 @@ export default function VendreScreen() {
       {/* Flash de capture — voile blanc bref au-dessus du viseur. */}
       <Animated.View pointerEvents="none" style={[styles.flash, { opacity: flash }]} />
 
-      {/* Bouton flash isolé coin haut-droit (à la Vinted/natif caméra) — jamais
-          mélangé au bandeau de progression, cible tactile ronde dédiée. */}
-      {device.hasFlash && (
-        <Pressable
-          style={[styles.flashBtn, { top: insets.top + space[3] }]}
-          accessibilityRole="button"
-          accessibilityLabel={flashMode === 'on' ? 'Désactiver le flash' : 'Activer le flash'}
-          accessibilityState={{ selected: flashMode === 'on' }}
-          onPress={() => setFlashMode(m => (m === 'on' ? 'off' : 'on'))}
-          hitSlop={space[2]}
-        >
-          {flashMode === 'on' ? (
-            <Zap size={font.lead} color={theme.gold} fill={theme.gold} />
-          ) : (
-            <ZapOff size={font.lead} color={theme.onDark} />
-          )}
-        </Pressable>
-      )}
-
-      <View
-        style={[
-          styles.topOverlay,
-          { top: insets.top + space[3] + (device.hasFlash ? space[8] : 0) },
-        ]}
-      >
+      <View style={[styles.topOverlay, { top: insets.top + space[3] }]}>
         {/* Jauge signature : l'IA "se nourrit" des photos — segments dorés remplis. */}
         <View style={styles.progressWrap} accessibilityLiveRegion="polite">
           <View style={styles.progressRow}>
@@ -249,18 +225,31 @@ export default function VendreScreen() {
           {capturing ? <ActivityIndicator color={theme.ink} /> : <View style={styles.shutterInner} />}
         </Pressable>
 
-        {/* Colonne droite vide : garantit le centrage géométrique du déclencheur. */}
-        <View style={styles.controlsSide} />
+        {/* Colonne droite : bouton flash (à côté du déclencheur, à la Vinted/natif). */}
+        <View style={styles.controlsSide}>
+          {device.hasFlash && (
+            <Pressable
+              style={styles.flashBtn}
+              accessibilityRole="button"
+              accessibilityLabel={flashMode === 'on' ? 'Désactiver le flash' : 'Activer le flash'}
+              accessibilityState={{ selected: flashMode === 'on' }}
+              onPress={() => setFlashMode(m => (m === 'on' ? 'off' : 'on'))}
+              hitSlop={space[2]}
+            >
+              {flashMode === 'on' ? (
+                <Zap size={font.lead} color={theme.gold} fill={theme.gold} />
+              ) : (
+                <ZapOff size={font.lead} color={theme.onDark} />
+              )}
+            </Pressable>
+          )}
+        </View>
       </View>
 
       {/* Caméra coupée par l'OS en cours de session (politique appareil, permission révoquée). */}
       {cameraError && (
         <View
-          style={[
-            styles.banner,
-            { top: insets.top + space[3] + BANNER_TOP_OFFSET + (device.hasFlash ? space[8] : 0) },
-            styles.bannerError,
-          ]}
+          style={[styles.banner, { top: insets.top + space[3] + BANNER_TOP_OFFSET }, styles.bannerError]}
           accessibilityRole="alert"
           accessibilityLiveRegion="polite"
         >
@@ -288,16 +277,12 @@ const styles = StyleSheet.create({
     gap: space[2],
   },
   flashBtn: {
-    position: 'absolute',
-    // top fourni en inline (safe-area insets.top).
-    right: space[4],
     width: space[8] - space[1],
     height: space[8] - space[1],
     borderRadius: radius.pill,
     backgroundColor: theme.scrim,
     alignItems: 'center',
     justifyContent: 'center',
-    zIndex: 1,
   },
   progressWrap: {
     gap: space[2],

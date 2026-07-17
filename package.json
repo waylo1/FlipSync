@@ -30,5 +30,8 @@
   "engines": {
     "node": ">=20.0.0"
   },
-  "packageManager": "npm@11.13.0"
+  "packageManager": "npm@11.13.0",
+  "overrides": {
+    "fast-jwt": "^6.2.4"
+  }
 }

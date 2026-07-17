@@ -61,13 +61,15 @@ describe.skipIf(!DB_URL)('Publish mock e2e — QUEUED → PUBLISHED', () => {
     await app.close()
   })
 
-  it('GET /marketplace/status en mode mock → CONNECTED (mock: true)', async () => {
+  it('GET /marketplace/status en mode mock → VINTED/LBC mockés, EBAY/SHOPIFY réels sans credentials', async () => {
     const res = await app.inject({ method: 'GET', url: '/marketplace/status', headers: authed() })
     expect(res.statusCode).toBe(200)
     const body = res.json() as MarketplaceStatusResponse
     expect(body.connections).toEqual([
       { marketplace: 'VINTED', state: 'CONNECTED', mock: true, detail: null },
       { marketplace: 'LEBONCOIN', state: 'CONNECTED', mock: true, detail: null },
+      { marketplace: 'EBAY', state: 'DISCONNECTED', mock: false, detail: null },
+      { marketplace: 'SHOPIFY', state: 'DISCONNECTED', mock: false, detail: null },
     ])
   })
 

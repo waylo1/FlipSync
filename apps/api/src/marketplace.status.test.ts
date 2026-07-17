@@ -59,11 +59,13 @@ describe('GET /marketplace/status', () => {
     expect(res.json()).toEqual({ error: 'UNAUTHORIZED' })
   })
 
-  it('200 — deux plateformes DISCONNECTED sans credentials (forme du contrat)', async () => {
+  it('200 — quatre plateformes DISCONNECTED sans credentials (forme du contrat)', async () => {
     const body = await getStatus()
     expect(body.connections).toEqual([
       { marketplace: 'VINTED', state: 'DISCONNECTED', mock: false, detail: null },
       { marketplace: 'LEBONCOIN', state: 'DISCONNECTED', mock: false, detail: null },
+      { marketplace: 'EBAY', state: 'DISCONNECTED', mock: false, detail: null },
+      { marketplace: 'SHOPIFY', state: 'DISCONNECTED', mock: false, detail: null },
     ])
   })
 
@@ -76,6 +78,8 @@ describe('GET /marketplace/status', () => {
     expect(body.connections).toEqual([
       { marketplace: 'VINTED', state: 'CONNECTED', mock: false, detail: null },
       { marketplace: 'LEBONCOIN', state: 'EXPIRED', mock: false, detail: null },
+      { marketplace: 'EBAY', state: 'DISCONNECTED', mock: false, detail: null },
+      { marketplace: 'SHOPIFY', state: 'DISCONNECTED', mock: false, detail: null },
     ])
   })
 })

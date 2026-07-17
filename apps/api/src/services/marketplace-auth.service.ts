@@ -99,12 +99,21 @@ export class MarketplaceAuthService {
     }
   }
 
+  /**
+   * Le mock (MARKETPLACE_MOCK=1) couvre UNIQUEMENT Vinted/LBC (cf.
+   * publication.service.ts) : EBAY/SHOPIFY ont des connecteurs réels qui lisent
+   * déjà leur propre config env sans avoir besoin d'être mockés.
+   */
+  private mockAppliesTo(marketplace: Marketplace): boolean {
+    return this.mockEnabled() && envKeys(marketplace) !== null
+  }
+
   /** État de connexion d'une plateforme — contrat GET /marketplace/status. */
   connection(marketplace: Marketplace): MarketplaceConnection {
     return {
       marketplace,
       state: this.connectionState(marketplace),
-      mock: this.mockEnabled(),
+      mock: this.mockAppliesTo(marketplace),
       detail: this.lastAuthError.get(marketplace) ?? null,
     }
   }
@@ -121,7 +130,7 @@ export class MarketplaceAuthService {
 
   /** Projection admin (AdminOverview.marketplace) — MOCK/LIVE au lieu de CONNECTED. */
   connectorState(marketplace: Marketplace): ConnectorState {
-    if (this.mockEnabled()) return 'MOCK'
+    if (this.mockAppliesTo(marketplace)) return 'MOCK'
     const state = this.connectionState(marketplace)
     switch (state) {
       case 'CONNECTED':
@@ -134,7 +143,7 @@ export class MarketplaceAuthService {
   }
 
   private connectionState(marketplace: Marketplace): MarketplaceConnectionState {
-    if (this.mockEnabled()) return 'CONNECTED'
+    if (this.mockAppliesTo(marketplace)) return 'CONNECTED'
     const keys = envKeys(marketplace)
     if (!keys || !process.env[keys.token]) return 'DISCONNECTED'
     if (this.expired(marketplace)) return 'EXPIRED'

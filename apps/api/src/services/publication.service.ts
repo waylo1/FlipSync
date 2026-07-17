@@ -106,6 +106,11 @@ export class PublicationService {
     // pour Vinted/LBC — resolveCredentials/onResult injectés, aucun wrapper).
     // Port ChannelConnector (C3, ADAPTER-CONTRACT §3) : les 4 connecteurs sont
     // nativement `ChannelConnector` depuis C3.6 (refonte achevée, v1/v2 détruits).
+    // Le mock (MARKETPLACE_MOCK=1) couvre UNIQUEMENT Vinted/LBC : ce sont les
+    // seuls canaux sans credentials partenaires réels aujourd'hui (Sprint 3,
+    // programme partenaire en attente). EBAY/SHOPIFY ont des connecteurs réels
+    // qui dégradent déjà proprement (CREDENTIALS_MISSING, aucun appel réseau)
+    // sans mock — les mocker aussi masquerait ce comportement dans les tests.
     const useMock = this.auth.mockEnabled()
     const registry = new Map<Marketplace, ChannelConnector>()
     for (const marketplace of [
@@ -114,13 +119,6 @@ export class PublicationService {
       Marketplace.EBAY,
       Marketplace.SHOPIFY,
     ] as const) {
-      if (useMock) {
-        registry.set(marketplace, new MockMarketplacePublisher(marketplace, this.mockLogPath))
-        continue
-      }
-      // Hors mock : EBAY/SHOPIFY lisent leur config directement depuis l'env
-      // (sans credentials → CREDENTIALS_MISSING, sans appel réseau) ; VINTED/LBC
-      // passent par MarketplaceAuthService (compte partenaire global).
       switch (marketplace) {
         case Marketplace.EBAY:
           registry.set(marketplace, new EbayConnector())
@@ -129,6 +127,10 @@ export class PublicationService {
           registry.set(marketplace, new ShopifyConnector())
           break
         default: {
+          if (useMock) {
+            registry.set(marketplace, new MockMarketplacePublisher(marketplace, this.mockLogPath))
+            break
+          }
           const deps = {
             resolveCredentials: () => this.auth.resolve(listing.userId, marketplace),
             onResult: (result: PartnerPublishResult) => this.auth.reportPublishOutcome(marketplace, result),

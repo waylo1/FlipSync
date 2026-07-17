@@ -7,6 +7,7 @@
     "packages/*"
   ],
   "scripts": {
+    "postinstall": "patch-package",
     "dev": "turbo run dev",
     "build": "turbo run build",
     "test": "turbo run test",
@@ -20,10 +21,11 @@
     "closure-check": "node scripts/closure-check.mjs"
   },
   "devDependencies": {
-    "turbo": "^2.0.0",
-    "typescript": "^5.4.0",
+    "@types/node": "^20.0.0",
+    "patch-package": "^8.0.1",
     "prettier": "^3.2.0",
-    "@types/node": "^20.0.0"
+    "turbo": "^2.0.0",
+    "typescript": "^5.4.0"
   },
   "engines": {
     "node": ">=20.0.0"

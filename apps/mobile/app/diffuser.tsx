@@ -1,15 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { Redirect, useLocalSearchParams, useRouter } from 'expo-router'
+import * as Clipboard from 'expo-clipboard'
 import * as Linking from 'expo-linking'
-import { Check, ExternalLink, Share2 } from 'lucide-react-native'
+import { Check, Copy, ExternalLink, Share2 } from 'lucide-react-native'
 import { ListingStatus } from '@flipsync/core'
-import type { MarketplaceId, PublicationOutcome } from '@flipsync/core'
+import type { MarketplaceConnection, MarketplaceId, PublicationOutcome } from '@flipsync/core'
 import { ApiError, ApiListing, api } from '../src/services/api'
 import { useApiResource } from '../src/hooks/useApiResource'
 import { PLATFORM_LABEL, STATE_META } from '../src/components/MarketplaceStatus'
 import { StatusBadge } from '../src/components/StatusBadge'
-import { font, line, radius, space, theme } from '../src/theme'
+import { font, formatEur, line, radius, space, theme } from '../src/theme'
 import { Badge } from '../src/ui/Badge'
 import { Button } from '../src/ui/Button'
 import { Card } from '../src/ui/Card'
@@ -18,12 +19,107 @@ import { Skeleton } from '../src/ui/Skeleton'
 import { StackHeader } from '../src/ui/StackHeader'
 
 /**
- * Diffuser — sélection multi-canal (CC-7 : la liste des plateformes et leur
- * état viennent de GET /marketplace/status, aucune logique canal ici) puis
- * publication réelle via POST /listing/:id/publish. Remplace l'ancien kit
- * copier-coller (Run 3) — la publication automatisée existait déjà côté
- * serveur (PublicationService) mais n'était appelée par aucun écran mobile.
+ * Diffuser — deux chemins, choisis par l'API et non par cet écran (CC-7 : la
+ * liste des plateformes et leur éligibilité viennent de GET /marketplace/status) :
+ *
+ * - canal CONNECTED  → publication réelle via POST /listing/:id/publish ;
+ * - canal non connecté → kit manuel (presse-papier + deep link), restauré de
+ *   14db154 : tant que les accès partenaires ne sont pas ouverts, l'utilisateur
+ *   colle l'annonce lui-même. C'est le mode nominal de la v1.
+ *
+ * Aucune bascule à faire le jour des credentials : le canal passe CONNECTED
+ * côté serveur et remonte tout seul dans le bloc automatique.
  */
+// ─── Tracking — seam locale (décision Run 5) ─────────────────────────────────
+// Aucun pipeline analytics mobile aujourd'hui : log en dev, no-op en prod.
+// Point de branchement UNIQUE le jour où un vrai collecteur existe.
+type TrackEvent = 'cross_post_opened'
+const track = (event: TrackEvent, props: Readonly<Record<string, string>>): void => {
+  if (__DEV__) console.log(`[track] ${event}`, props)
+}
+
+/**
+ * Mapping PRÉSENTATIONNEL uniquement (deep link + fallback web) — exception
+ * CC-7 explicite : la LISTE des canaux vient de l'API, ceci ne fait que dire
+ * quelle app ouvrir. Un canal absent d'ici reste copiable, sans bouton "ouvrir".
+ */
+const PLATFORM_LINK: Readonly<Partial<Record<MarketplaceId, { scheme: string; web: string }>>> = {
+  VINTED: { scheme: 'vinted://', web: 'https://www.vinted.fr' },
+  LEBONCOIN: { scheme: 'leboncoin://', web: 'https://www.leboncoin.fr' },
+}
+
+/** Texte prêt à coller : titre + description optimisée + prix (spec Kit de Vente). */
+export const buildKitText = (titre: string, description: string, prixCents: number): string =>
+  `${titre}\n\n${description}\n\nPrix : ${formatEur(prixCents)}`
+
+/**
+ * Kit manuel d'un canal non connecté — copie l'annonce puis ouvre l'app de la
+ * plateforme. Ne touche jamais au statut du listing : rien ne prouve, côté
+ * serveur, que l'utilisateur a réellement collé et publié (cf. Q13, MASTER-REMED).
+ */
+function ManualKit({
+  connection,
+  kitText,
+  listingId,
+}: {
+  connection: MarketplaceConnection
+  kitText: string | null
+  listingId: string
+}) {
+  const [copied, setCopied] = useState(false)
+  const label = PLATFORM_LABEL[connection.marketplace]
+  const link = PLATFORM_LINK[connection.marketplace]
+
+  const copy = async () => {
+    if (kitText === null) return
+    await Clipboard.setStringAsync(kitText)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  const openApp = async () => {
+    if (!link) return
+    track('cross_post_opened', { marketplace: connection.marketplace, listingId })
+    try {
+      await Linking.openURL(link.scheme)
+    } catch {
+      // Application absente du téléphone → site web de la plateforme.
+      await Linking.openURL(link.web)
+    }
+  }
+
+  return (
+    <Card style={styles.card}>
+      <View style={styles.resultRow}>
+        <Text style={styles.cardTitle}>{label}</Text>
+        <Badge label="À coller vous-même" fg={theme.krafInk} bg={theme.kraft} numberOfLines={1} />
+      </View>
+      <Button
+        label={copied ? 'Annonce copiée' : "Copier l'annonce"}
+        variant={copied ? 'laiton' : 'primary'}
+        icon={
+          copied ? (
+            <Check size={font.lead} color={theme.ink} />
+          ) : (
+            <Copy size={font.lead} color={theme.onDark} />
+          )
+        }
+        onPress={() => void copy()}
+        disabled={kitText === null}
+        accessibilityLabel={copied ? `Annonce copiée pour ${label}` : `Copier l'annonce pour ${label}`}
+      />
+      {link !== undefined && (
+        <Button
+          label={`Ouvrir ${label}`}
+          variant="ghost"
+          icon={<ExternalLink size={font.lead} color={theme.ink} />}
+          onPress={() => void openApp()}
+        />
+      )}
+    </Card>
+  )
+}
+
 export default function DiffuserScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const router = useRouter()
@@ -86,6 +182,18 @@ export default function DiffuserScreen() {
   const diffusable = listing?.titre != null && listing?.description != null && price !== null
   const queued = listing?.status === ListingStatus.QUEUED
 
+  const kitText =
+    listing?.titre != null && listing.description != null && price !== null
+      ? buildKitText(listing.titre, listing.description, price)
+      : null
+
+  // Le partage entre les deux chemins est une donnée de l'API, pas une décision
+  // de cet écran : un canal devient automatique dès qu'il passe CONNECTED côté
+  // serveur, sans rien changer ici (CC-7).
+  const connections = status.data?.connections ?? []
+  const autoChannels = connections.filter(c => c.state === 'CONNECTED')
+  const manualChannels = connections.filter(c => c.state !== 'CONNECTED')
+
   return (
     <View style={styles.screen}>
       <StackHeader title="Diffuser" />
@@ -138,8 +246,6 @@ export default function DiffuserScreen() {
         </ScrollView>
       ) : (
         <ScrollView contentContainerStyle={styles.content}>
-          <Text style={styles.intro}>Choisissez les plateformes sur lesquelles publier cette annonce.</Text>
-
           {diffusable === false && (
             <Text accessibilityRole="alert" style={styles.incomplete}>
               Annonce incomplète — validez d'abord le brouillon (titre, description, prix).
@@ -151,46 +257,74 @@ export default function DiffuserScreen() {
           ) : status.data === null ? (
             <Skeleton height={space[8] * 4} round="md" />
           ) : (
-            status.data.connections.map(connection => {
-              const meta = STATE_META[connection.state]
-              const label = connection.mock ? `${meta.label} (simulation)` : meta.label
-              const disabled = connection.state !== 'CONNECTED'
-              const checked = selected.has(connection.marketplace)
-              return (
-                <Pressable
-                  key={connection.marketplace}
-                  accessibilityRole="checkbox"
-                  accessibilityState={{ checked, disabled }}
-                  accessibilityLabel={`${PLATFORM_LABEL[connection.marketplace]} : ${label}`}
-                  onPress={() => !disabled && toggle(connection.marketplace)}
-                  disabled={disabled}
-                  style={[styles.channelRow, disabled && styles.channelRowDisabled]}
-                >
-                  <View style={[styles.checkbox, checked && styles.checkboxChecked]}>
-                    {checked && <Check size={font.small} color={theme.onDark} />}
-                  </View>
-                  <Text style={styles.channelLabel}>{PLATFORM_LABEL[connection.marketplace]}</Text>
-                  <Badge label={label} fg={meta.fg} bg={meta.bg} numberOfLines={1} />
-                </Pressable>
-              )
-            })
-          )}
+            <>
+              {autoChannels.length > 0 && (
+                <>
+                  <Text style={styles.intro}>
+                    Choisissez les plateformes sur lesquelles publier cette annonce.
+                  </Text>
+                  {autoChannels.map(connection => {
+                    const meta = STATE_META[connection.state]
+                    const label = connection.mock ? `${meta.label} (simulation)` : meta.label
+                    const checked = selected.has(connection.marketplace)
+                    return (
+                      <Pressable
+                        key={connection.marketplace}
+                        accessibilityRole="checkbox"
+                        accessibilityState={{ checked }}
+                        accessibilityLabel={`${PLATFORM_LABEL[connection.marketplace]} : ${label}`}
+                        onPress={() => toggle(connection.marketplace)}
+                        style={styles.channelRow}
+                      >
+                        <View style={[styles.checkbox, checked && styles.checkboxChecked]}>
+                          {checked && <Check size={font.small} color={theme.onDark} />}
+                        </View>
+                        <Text style={styles.channelLabel}>{PLATFORM_LABEL[connection.marketplace]}</Text>
+                        <Badge label={label} fg={meta.fg} bg={meta.bg} numberOfLines={1} />
+                      </Pressable>
+                    )
+                  })}
 
-          {publishErr !== null && (
-            <ErrorBanner message={`Publication impossible (${publishErr}).`} onRetry={() => void publish()} />
-          )}
+                  {publishErr !== null && (
+                    <ErrorBanner
+                      message={`Publication impossible (${publishErr}).`}
+                      onRetry={() => void publish()}
+                    />
+                  )}
 
-          <Button
-            label={
-              selected.size === 0
-                ? 'Choisissez une plateforme'
-                : `Publier sur ${selected.size} plateforme${selected.size > 1 ? 's' : ''}`
-            }
-            icon={<Share2 size={font.lead} color={theme.onDark} />}
-            onPress={() => void publish()}
-            disabled={selected.size === 0 || diffusable === false}
-            loading={publishing}
-          />
+                  <Button
+                    label={
+                      selected.size === 0
+                        ? 'Choisissez une plateforme'
+                        : `Publier sur ${selected.size} plateforme${selected.size > 1 ? 's' : ''}`
+                    }
+                    icon={<Share2 size={font.lead} color={theme.onDark} />}
+                    onPress={() => void publish()}
+                    disabled={selected.size === 0 || diffusable === false}
+                    loading={publishing}
+                  />
+                </>
+              )}
+
+              {manualChannels.length > 0 && (
+                <>
+                  <Text style={styles.intro}>
+                    {autoChannels.length > 0
+                      ? 'Sur ces plateformes, la publication automatique n’est pas encore ouverte : copiez l’annonce et collez-la vous-même.'
+                      : 'Votre annonce est prête. Copiez-la et collez-la sur la plateforme de votre choix — la publication automatique arrive bientôt.'}
+                  </Text>
+                  {manualChannels.map(connection => (
+                    <ManualKit
+                      key={connection.marketplace}
+                      connection={connection}
+                      kitText={kitText}
+                      listingId={id}
+                    />
+                  ))}
+                </>
+              )}
+            </>
+          )}
         </ScrollView>
       )}
     </View>
@@ -222,7 +356,6 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     padding: space[3],
   },
-  channelRowDisabled: { opacity: 0.5 },
   checkbox: {
     width: space[5],
     height: space[5],

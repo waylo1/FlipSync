@@ -49,6 +49,14 @@ apps/api/uploads/
 # Journal des publications mockées (tools/test-pipeline.ts)
 apps/api/debug/
 
+# Mêmes artefacts créés à la RACINE quand vitest/tools tournent depuis la racine
+# (process.cwd() = racine du monorepo)
+/uploads/
+/debug/
+
+# Captures d'écran de sessions Claude (adb screencap jetables)
+/scratch_*.png
+
 # Logs
 *.log
 npm-debug.log*

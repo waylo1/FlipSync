@@ -76,16 +76,25 @@ flipsync/
 
 ## Modèle économique
 
-| Service | Centimes |
-|---|---|
-| Listing SIMPLE | 80 |
-| Listing OPTIMIZED | 250 |
-| Listing PREMIUM | 300 |
-| Gestion Active /mois | 100 |
-| Free tier | 3 listings/mois |
-| Bonus fidélité | +100 (1ère recharge ≥1000) |
+> SSOT = `packages/core/src/types/listing.ts` (`TIER_PRICING`, `TIER_FEATURES`) et
+> `packages/core/src/types/wallet.ts`. Ce tableau est un reflet — en cas d'écart, le code
+> a raison. (Corrigé 2026-07-17 : la doc annonçait 80/250/300 et une « Gestion Active
+> /mois » qui n'a jamais été codée.)
+
+| Service | Centimes | Constante |
+|---|---|---|
+| Listing SIMPLE (« Essentiel ») | 99 | `TIER_PRICING` |
+| Listing OPTIMIZED (« Optimisé ») | 199 | `TIER_PRICING` |
+| Listing PREMIUM (« Premium ») | 299 | `TIER_PRICING` |
+| Free tier | 3 listings/mois | `schema.prisma` (`freeListingsRemaining`) |
+| Bonus fidélité | +100 (1ère recharge ≥1000) | `FIRST_RECHARGE_BONUS_CENTS` |
+| Montants de recharge | 500 / 1000 / 2000 / 5000 | `RECHARGE_AMOUNTS_CENTS` |
 
 Pas de commission sur ventes. Frais de service uniquement.
+Pas d'abonnement : aucun modèle `Subscription` n'existe en base.
+
+⚠ Les paliers se différencient par le niveau d'assistance IA (`TIER_FEATURES`), plus par le
+nombre de photos — `TIER_PHOTO_COUNT` a été supprimé.
 
 ---
 
@@ -405,16 +414,13 @@ Vérification → **commit atomique** (cf. règle Commits ci-dessous).
       Côté mobile : useAnalysisQueue (apps/mobile/src/store/listing.store.ts),
       file persistée MMKV — un job « running » survit à un kill de l'app, poll
       toutes les 3-5 s tant que status === 'running'.
-- [x] Différenciation réelle des formules par nombre de photos analysées
-      (commit 4d080bb) : TIER_PHOTO_COUNT (SIMPLE=1, OPTIMIZED=2, PREMIUM=3) et
-      TIER_FEATURES — SSOT packages/core/src/types/listing.ts. C'est le seul
-      levier de différenciation produit actuel entre paliers (plus de photos =
-      identification/prix plus fiables). Sans lien avec le seuil global d'upload
-      1-6 (569842a, apps/api/src/routes/listing.ts MAX_PHOTOS_PER_LISTING) : ce
-      seuil borne le nombre total de photos listées, TIER_PHOTO_COUNT borne
-      combien d'entre elles sont envoyées à /ai/draft/start pour l'analyse.
-      Sélection du palier à l'écran de capture (vendre.tsx) — non modifiable
-      après coup sans relancer l'analyse ; verrouillé à l'écran de validation
+- [x] ~~Différenciation des formules par nombre de photos (TIER_PHOTO_COUNT)~~ —
+      PÉRIMÉ (constat 2026-07-17) : `TIER_PHOTO_COUNT` n'existe plus dans
+      packages/core/src/types/listing.ts. Toutes les offres capturent autant de
+      photos que l'utilisateur veut ; la seule différence entre paliers est le
+      niveau d'assistance IA (`TIER_FEATURES`). Le seuil global d'upload 1-6
+      (569842a, MAX_PHOTOS_PER_LISTING) est inchangé et sans lien. Sélection du
+      palier à l'écran de capture (vendre.tsx), verrouillée à la validation
       (validate.tsx).
 
 ---

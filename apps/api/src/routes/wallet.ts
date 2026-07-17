@@ -1,5 +1,7 @@
 import { FastifyPluginAsync } from 'fastify'
+import Stripe from 'stripe'
 import { prisma } from '@flipsync/db'
+import { RECHARGE_AMOUNTS_CENTS } from '@flipsync/core'
 
 /**
  * Routes /wallet — toutes protégées par JWT (req.userId injecté par authPlugin).
@@ -8,6 +10,18 @@ import { prisma } from '@flipsync/db'
  */
 const walletRoutes: FastifyPluginAsync = async app => {
   app.addHook('preHandler', app.authenticate)
+
+  // Client Stripe créé à la demande (jamais à l'enregistrement du plugin) : les
+  // autres routes /wallet doivent rester utilisables même si Stripe n'est pas
+  // encore configuré (clé test absente en dev précoce).
+  let stripe: Stripe | null = null
+  const getStripe = (): Stripe => {
+    if (stripe) return stripe
+    const secretKey = process.env.STRIPE_SECRET_KEY
+    if (!secretKey) throw new Error('STRIPE_ENV_MISSING')
+    stripe = new Stripe(secretKey)
+    return stripe
+  }
 
   /** État du wallet de l'utilisateur courant. */
   app.get('/', async (req, reply) => {
@@ -46,6 +60,43 @@ const walletRoutes: FastifyPluginAsync = async app => {
     })
 
     return { transactions }
+  })
+
+  /**
+   * Crée un PaymentIntent Stripe pour une recharge — le crédit effectif se fait
+   * UNIQUEMENT via /stripe/webhook (payment_intent.succeeded), jamais ici.
+   * metadata.userId est ce que le webhook lit pour créditer le bon wallet.
+   */
+  app.post<{ Body: { amountCents?: number } }>('/recharge/intent', async (req, reply) => {
+    const amountCents = req.body?.amountCents
+    if (
+      typeof amountCents !== 'number' ||
+      !Number.isInteger(amountCents) ||
+      !RECHARGE_AMOUNTS_CENTS.includes(amountCents as (typeof RECHARGE_AMOUNTS_CENTS)[number])
+    ) {
+      return reply.code(400).send({ error: 'INVALID_AMOUNT' })
+    }
+
+    let intent: Stripe.PaymentIntent
+    try {
+      intent = await getStripe().paymentIntents.create({
+        amount: amountCents,
+        currency: 'eur',
+        metadata: { userId: req.userId },
+        automatic_payment_methods: { enabled: true },
+      })
+    } catch (err) {
+      if (err instanceof Error && err.message === 'STRIPE_ENV_MISSING') {
+        return reply.code(503).send({ error: 'STRIPE_NOT_CONFIGURED' })
+      }
+      req.log.error({ err }, 'création PaymentIntent échouée')
+      return reply.code(502).send({ error: 'STRIPE_ERROR' })
+    }
+
+    if (!intent.client_secret) {
+      return reply.code(502).send({ error: 'STRIPE_ERROR' })
+    }
+    return { clientSecret: intent.client_secret }
   })
 }
 

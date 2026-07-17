@@ -43,6 +43,9 @@ export const FIRST_RECHARGE_BONUS_CENTS = 100
 /** Montant minimum de la première recharge pour déclencher le bonus (10,00 €). */
 export const FIRST_RECHARGE_BONUS_THRESHOLD_CENTS = 1000
 
+/** Montants de recharge proposés à l'écran wallet (centimes) — SSOT api ↔ mobile. */
+export const RECHARGE_AMOUNTS_CENTS = [500, 1000, 2000, 5000] as const
+
 // ─── Helpers de conversion ────────────────────────────────────────────────────
 
 /**

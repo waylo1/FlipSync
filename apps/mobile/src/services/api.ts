@@ -213,6 +213,9 @@ export const api = {
   // ─── Wallet ────────────────────────────────────────────────────────────────
   getWallet: () => request<ApiWallet>('/wallet'),
   getTransactions: () => request<{ transactions: ApiTransaction[] }>('/wallet/transactions'),
+  /** Crédit effectif via /stripe/webhook uniquement — ceci ne fait que créer l'intent. */
+  createRechargeIntent: (amountCents: number) =>
+    post<{ clientSecret: string }>('/wallet/recharge/intent', { amountCents }),
 
   // ─── Listing — cycle complet piloté par le mobile ──────────────────────────
   createListing: (tier: ListingTier) =>

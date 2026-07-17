@@ -1,19 +1,34 @@
+import { useState } from 'react'
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, View } from 'react-native'
 import { useRouter } from 'expo-router'
 import { Receipt } from 'lucide-react-native'
-import { TransactionType } from '@flipsync/core'
-import { ApiTransaction, api } from '../../src/services/api'
+import { RECHARGE_AMOUNTS_CENTS, TransactionType } from '@flipsync/core'
+import { ApiError, ApiTransaction, api } from '../../src/services/api'
 import { useAuthStore } from '../../src/store/auth.store'
 import { useApiResource } from '../../src/hooks/useApiResource'
 import { formatRelativeFr } from '../../src/lib/time'
 import { font, formatEur, line, radius, shadow, space, theme } from '../../src/theme'
 import { ScreenHeader } from '../../src/ui/ScreenHeader'
 import { Avatar } from '../../src/ui/Avatar'
+import { Button } from '../../src/ui/Button'
 import { Card } from '../../src/ui/Card'
 import { AmountText } from '../../src/ui/AmountText'
 import { ErrorBanner } from '../../src/ui/ErrorBanner'
 import { EmptyState } from '../../src/ui/EmptyState'
 import { Skeleton } from '../../src/ui/Skeleton'
+
+/**
+ * Paiement en carte native (Apple/Google Pay via Payment Sheet) — nécessite
+ * @stripe/stripe-react-native lié au projet natif (expo prebuild) + une clé
+ * publiable configurée. Aucun des deux n'est encore en place sur ce build
+ * device (cf. gotchas.md) : le bouton crée bien l'intent serveur (preuve que
+ * Stripe est opérationnel côté API) mais s'arrête avant la feuille de
+ * paiement plutôt que de crasher l'app sur un module natif absent.
+ */
+const RECHARGE_ERROR_MESSAGES: Readonly<Record<string, string>> = {
+  STRIPE_NOT_CONFIGURED: 'Paiement pas encore configuré côté serveur.',
+  INVALID_AMOUNT: 'Montant invalide.',
+}
 
 /** Sémantique des mouvements : crédits en bouteille, débits en encre, signe explicite. */
 const TX_META: Readonly<Record<TransactionType, { sign: '+' | '−'; color: string; label: string }>> = {
@@ -42,6 +57,53 @@ function TransactionLine({ tx }: { tx: ApiTransaction }) {
       </View>
       <AmountText cents={tx.amount} sign={meta.sign} size={font.body} color={meta.color} />
     </View>
+  )
+}
+
+/** Choix du montant + création de l'intent Stripe — cf. note en tête de fichier. */
+function RechargeSection({ onRecharged }: { onRecharged: () => void }) {
+  const [amount, setAmount] = useState<number>(RECHARGE_AMOUNTS_CENTS[1])
+  const [loading, setLoading] = useState(false)
+  const [notice, setNotice] = useState<string | null>(null)
+
+  const recharge = async () => {
+    setLoading(true)
+    setNotice(null)
+    try {
+      await api.createRechargeIntent(amount)
+      // Intent créé côté Stripe — reste à présenter la feuille de paiement
+      // native une fois le module lié (cf. note en tête de fichier).
+      setNotice('Paiement carte bientôt disponible — revenez très vite.')
+    } catch (err) {
+      const code = err instanceof ApiError ? err.code : 'UNKNOWN'
+      setNotice(RECHARGE_ERROR_MESSAGES[code] ?? `Impossible de préparer le paiement (${code}).`)
+    } finally {
+      setLoading(false)
+      onRecharged()
+    }
+  }
+
+  return (
+    <Card style={styles.section}>
+      <Text style={styles.sectionTitle}>Recharger</Text>
+      <View style={styles.amountRow}>
+        {RECHARGE_AMOUNTS_CENTS.map(cents => (
+          <Pressable
+            key={cents}
+            accessibilityRole="button"
+            accessibilityState={{ selected: amount === cents }}
+            onPress={() => setAmount(cents)}
+            style={[styles.amountChip, amount === cents && styles.amountChipSelected]}
+          >
+            <Text style={[styles.amountChipLabel, amount === cents && styles.amountChipLabelSelected]}>
+              {formatEur(cents)}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+      <Button label="Recharger" onPress={() => void recharge()} loading={loading} />
+      {notice !== null && <Text style={styles.hint}>{notice}</Text>}
+    </Card>
   )
 }
 
@@ -128,6 +190,8 @@ export default function WalletScreen() {
         </View>
       )}
 
+      {w !== null && <RechargeSection onRecharged={refreshAll} />}
+
       {/* Historique — montants signés, sémantique par type de transaction. */}
       <Card style={styles.section}>
         <Text style={styles.sectionTitle}>Historique</Text>
@@ -202,6 +266,19 @@ const styles = StyleSheet.create({
   section: { marginHorizontal: space[4], marginTop: space[4], gap: space[3] },
   // Titre de section un cran au-dessus du contenu (hiérarchie taille + poids).
   sectionTitle: { fontSize: font.lead, fontWeight: '700', color: theme.ink },
+
+  amountRow: { flexDirection: 'row', flexWrap: 'wrap', gap: space[2] },
+  amountChip: {
+    borderWidth: 1,
+    borderColor: theme.border,
+    borderRadius: radius.pill,
+    paddingHorizontal: space[4],
+    paddingVertical: space[2],
+  },
+  amountChipSelected: { backgroundColor: theme.terracotta, borderColor: theme.terracotta },
+  amountChipLabel: { fontSize: font.body, fontWeight: '600', color: theme.ink },
+  amountChipLabelSelected: { color: theme.onDark },
+  hint: { fontSize: font.caption, lineHeight: line.caption, color: theme.muted },
 
   // Réglage secondaire (lecture seule) : une ligne discrète, jamais une Card
   // pleine — ne doit pas rivaliser visuellement avec le solde ou l'historique.

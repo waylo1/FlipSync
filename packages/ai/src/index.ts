@@ -5,6 +5,8 @@ export {
   VisionService,
   VisionBackend,
   OllamaVisionBackend,
+  AnthropicVisionBackend,
+  createVisionBackend,
 } from './vision'
 export {
   EngineError,

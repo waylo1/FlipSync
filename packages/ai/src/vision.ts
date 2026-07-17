@@ -110,12 +110,12 @@ export class VisionService {
   }
 }
 
-// ─── Backend Ollama (dev local ; instance dédiée en prod, cf. ADR-008) ────────
+// ─── Backend Ollama (dev local uniquement) ────────────────────────────────────
 
 /**
- * Backend d'inférence serveur — Ollama en dev (localhost). Le modèle tourne
- * côté API, jamais sur le mobile (cf. ADR-003). Prod : instance dédiée
- * derrière la même interface (décision hébergement en attente, ADR-008).
+ * Backend d'inférence serveur — Ollama sur le PC de dev. Le modèle tourne
+ * côté API, jamais sur le mobile (cf. ADR-003). Ne part JAMAIS en production :
+ * l'image Docker n'embarque pas Ollama (cf. createVisionBackend ci-dessous).
  */
 export class OllamaVisionBackend implements VisionBackend {
   constructor(
@@ -150,4 +150,98 @@ export class OllamaVisionBackend implements VisionBackend {
     if (typeof json.response !== 'string') throw new VisionBackendError('OLLAMA_BAD_RESPONSE')
     return json.response
   }
+}
+
+// ─── Backend Anthropic (production, cf. CLAUDE.md Sprint 4 — décision 2026-07-15) ──
+
+/** Modèle par défaut : le moins cher qui sait lire une photo et rédiger du français. */
+const ANTHROPIC_DEFAULT_MODEL = 'claude-haiku-4-5-20251001'
+
+/** Le JSON complet fait ~200-300 tokens — plafond large, mais borné. */
+const ANTHROPIC_MAX_TOKENS = 1024
+
+/**
+ * Le mobile capture en JPEG, mais l'API Anthropic exige un media_type exact :
+ * on le déduit des premiers octets du base64 plutôt que de le supposer.
+ */
+const detectMediaType = (base64: string): string => {
+  if (base64.startsWith('iVBOR')) return 'image/png'
+  if (base64.startsWith('R0lGOD')) return 'image/gif'
+  if (base64.startsWith('UklGR')) return 'image/webp'
+  return 'image/jpeg'
+}
+
+/**
+ * Backend d'inférence hébergé — API Anthropic (Messages). Remplace Ollama en
+ * production : pas de GPU à opérer, coût à l'usage (~0,5 c€/annonce).
+ * Pas de SDK : un seul appel HTTP, `fetch` suffit (règle ROI, CLAUDE.md).
+ */
+export class AnthropicVisionBackend implements VisionBackend {
+  constructor(
+    private readonly apiKey: string,
+    private readonly model: string = process.env.ANTHROPIC_MODEL ?? ANTHROPIC_DEFAULT_MODEL,
+    private readonly baseUrl: string = process.env.ANTHROPIC_BASE_URL ?? 'https://api.anthropic.com',
+  ) {
+    if (!apiKey) throw new VisionBackendError('ANTHROPIC_API_KEY_MISSING')
+  }
+
+  async generate(prompt: string, imagesBase64: readonly string[]): Promise<string> {
+    const res = await fetch(`${this.baseUrl}/v1/messages`, {
+      method: 'POST',
+      headers: {
+        'x-api-key': this.apiKey,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: this.model,
+        max_tokens: ANTHROPIC_MAX_TOKENS,
+        // Sortie JSON : stabilité avant créativité (aligné sur le backend Ollama).
+        temperature: 0.2,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              ...imagesBase64.map(data => ({
+                type: 'image',
+                source: { type: 'base64', media_type: detectMediaType(data), data },
+              })),
+              { type: 'text', text: prompt },
+            ],
+          },
+        ],
+      }),
+    })
+    if (!res.ok) throw new VisionBackendError(`ANTHROPIC_HTTP_${res.status}`)
+
+    const json = (await res.json()) as { content?: readonly { type?: string; text?: string }[] }
+    const text = json.content?.find(b => b.type === 'text')?.text
+    if (typeof text !== 'string') throw new VisionBackendError('ANTHROPIC_BAD_RESPONSE')
+    return text
+  }
+}
+
+// ─── Sélecteur de backend ─────────────────────────────────────────────────────
+
+/**
+ * Choisit le backend d'inférence selon l'environnement.
+ *
+ * Ollama n'existe QUE sur le PC de dev : le laisser sélectionnable en production
+ * garantirait un échec silencieux sur chaque annonce (connexion refusée →
+ * AI_FAILED → remboursement). D'où le refus de démarrer en prod sans clé, plutôt
+ * qu'un repli discret sur un backend qui ne répondra jamais.
+ */
+export const createVisionBackend = (
+  env: NodeJS.ProcessEnv = process.env,
+): VisionBackend => {
+  const apiKey = env.ANTHROPIC_API_KEY
+  const isProduction = env.NODE_ENV === 'production'
+  const requested = env.AI_VISION_BACKEND ?? (apiKey ? 'anthropic' : 'ollama')
+
+  if (requested === 'anthropic') {
+    if (!apiKey) throw new VisionBackendError('ANTHROPIC_API_KEY_MISSING')
+    return new AnthropicVisionBackend(apiKey)
+  }
+  if (isProduction) throw new VisionBackendError('OLLAMA_BACKEND_FORBIDDEN_IN_PRODUCTION')
+  return new OllamaVisionBackend()
 }

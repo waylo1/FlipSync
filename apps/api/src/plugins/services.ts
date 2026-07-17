@@ -2,7 +2,7 @@ import fp from 'fastify-plugin'
 import { FastifyPluginAsync } from 'fastify'
 import { prisma } from '@flipsync/db'
 import { WalletService } from '@flipsync/wallet'
-import { ListingEngine, OllamaVisionBackend, VisionService } from '@flipsync/ai'
+import { ListingEngine, VisionService, createVisionBackend } from '@flipsync/ai'
 import { join } from 'node:path'
 import { PublicationService } from '../services/publication.service'
 import { MarketplaceAuthService } from '../services/marketplace-auth.service'
@@ -24,7 +24,7 @@ declare module 'fastify' {
 
 /**
  * Pivot IA serveur : la rédaction du brouillon tourne côté API (Ollama en dev,
- * instance dédiée en prod) — le mobile envoie les photos et reçoit le brouillon.
+ * API Anthropic en prod) — le mobile envoie les photos et reçoit le brouillon.
  * Timeout large : modèle vision 3B sur CPU, 30-90 s réalistes en dev.
  */
 const SERVER_VISION_TIMEOUT_MS = 120_000
@@ -53,7 +53,9 @@ const servicesPlugin: FastifyPluginAsync = async app => {
 
   app.decorate('walletService', walletService)
   app.decorate('listingEngine', listingEngine)
-  app.decorate('visionService', new VisionService(new OllamaVisionBackend(), SERVER_VISION_TIMEOUT_MS))
+  // Ollama en dev, API Anthropic dès qu'ANTHROPIC_API_KEY est posée. Le
+  // sélecteur refuse de démarrer en prod sans clé — cf. createVisionBackend.
+  app.decorate('visionService', new VisionService(createVisionBackend(), SERVER_VISION_TIMEOUT_MS))
   app.decorate('marketplaceAuth', marketplaceAuth)
   app.decorate(
     'publicationService',

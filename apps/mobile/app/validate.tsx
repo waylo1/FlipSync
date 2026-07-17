@@ -6,6 +6,7 @@ import {
   ItemCondition,
   ListingDraft,
   ListingTier,
+  PREMIUM_TIER_ENABLED,
   SellMandate,
   TIER_FEATURES,
   TIER_PRICING,
@@ -33,8 +34,14 @@ import { Field } from '../src/ui/Field'
 import { Tappable } from '../src/ui/Tappable'
 import { ErrorBanner } from '../src/ui/ErrorBanner'
 
-/** Ordre d'affichage des offres — du plus autonome pour l'utilisateur au plus autonome pour l'IA. */
-const TIERS: readonly ListingTier[] = [ListingTier.SIMPLE, ListingTier.PREMIUM]
+/**
+ * Offres proposées à la vente. Premium n'apparaît que lorsque la négociation
+ * réelle est branchée (PREMIUM_TIER_ENABLED — l'API refuse de toute façon avec
+ * TIER_DISABLED) : on ne vend jamais « L'IA gère la vente » tant que c'est faux.
+ */
+const TIERS: readonly ListingTier[] = PREMIUM_TIER_ENABLED
+  ? [ListingTier.SIMPLE, ListingTier.PREMIUM]
+  : [ListingTier.SIMPLE]
 
 /** Messages utilisateur pour les codes d'erreur API les plus probables ici. */
 const ERROR_MESSAGES: Readonly<Record<string, string>> = {

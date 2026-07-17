@@ -32,6 +32,16 @@ export interface TierOffer {
   support: string
 }
 
+/**
+ * Premium hors-vente tant que la négociation réelle n'est pas branchée —
+ * règle actée (COMMISSAIRE_PRISEUR_PLAN.md §1 et §10.0) : « ne jamais encaisser
+ * un paiement Premium réel tant que la négociation réelle n'est pas branchée ».
+ * Le mandat (S1) existe, mais S2/S3 (messagerie acheteur, négociation) sont des
+ * stubs : encaisser 2,99 € pour « L'IA vend pour moi » serait un mensonge.
+ * SSOT api (garde POST /listing) + mobile (sélecteur d'offres).
+ */
+export const PREMIUM_TIER_ENABLED = false
+
 /** Descriptif produit des offres — SSOT affichage (écran de validation). */
 export const TIER_FEATURES: Record<ListingTier, TierOffer> = {
   [ListingTier.SIMPLE]: {

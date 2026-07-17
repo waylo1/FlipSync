@@ -93,6 +93,17 @@ describe.skipIf(!DB_URL)('Flux mobile /listing — e2e JWT', () => {
     expect(wallet.balance).toBe(1000)
   })
 
+  it('POST /listing tier PREMIUM → 400 TIER_DISABLED (négociation non branchée, v1)', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/listing',
+      headers: authed(token),
+      payload: { tier: 'PREMIUM' },
+    })
+    expect(res.statusCode).toBe(400)
+    expect(res.json()).toEqual({ error: 'TIER_DISABLED' })
+  })
+
   it('upload photos avec sha256 valide → 201, fichiers enregistrés', async () => {
     // Convention : sha256 de la CHAÎNE base64 (cf. route /photos).
     const base64 = Buffer.from('fake-jpeg-bytes-1').toString('base64')

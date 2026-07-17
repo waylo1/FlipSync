@@ -4,7 +4,7 @@ import { join, resolve } from 'node:path'
 import { FastifyPluginAsync } from 'fastify'
 import { z } from 'zod'
 import { prisma, ListingStatus } from '@flipsync/db'
-import { ItemCondition, ListingTier } from '@flipsync/core'
+import { ItemCondition, ListingTier, PREMIUM_TIER_ENABLED } from '@flipsync/core'
 import { Marketplace } from '@flipsync/marketplace'
 
 /** Répertoire de stockage des photos (dev : disque local ; prod : volume monté). */
@@ -127,6 +127,13 @@ const listingRoutes: FastifyPluginAsync = async app => {
   app.post('/', async (req, reply) => {
     const body = createBody.safeParse(req.body)
     if (!body.success) return reply.code(400).send({ error: 'INVALID_BODY' })
+
+    // Premium hors-vente v1 : la négociation n'est pas branchée, on n'encaisse
+    // pas cette promesse (PREMIUM_TIER_ENABLED, règle COMMISSAIRE_PRISEUR_PLAN §10.0).
+    // Garde serveur : le mobile masque l'offre, mais l'API reste la vérité.
+    if (body.data.tier === ListingTier.PREMIUM && !PREMIUM_TIER_ENABLED) {
+      return reply.code(400).send({ error: 'TIER_DISABLED' })
+    }
 
     const result = await app.listingEngine.createListing(req.userId, body.data.tier)
     return reply.code(201).send(result)

@@ -7,6 +7,7 @@ import servicesPlugin from './plugins/services'
 import errorHandlerPlugin from './plugins/error-handler'
 import metricsPlugin from './plugins/metrics'
 import walletRoutes from './routes/wallet'
+import legalRoutes from './routes/legal'
 import listingRoutes, { UPLOAD_DIR } from './routes/listing'
 import stripeRoutes from './routes/stripe'
 import authRoutes from './routes/auth'
@@ -46,8 +47,12 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(errorHandlerPlugin)
   await app.register(metricsPlugin)
 
-  // /health — seule route publique sans vérification (pas de JWT).
+  // /health — route publique sans vérification (pas de JWT).
   app.get('/health', async () => ({ status: 'ok', ts: new Date().toISOString() }))
+
+  // /legal/* — pages publiques (politique de confidentialité, CGV) : URL exigée
+  // par Google Play, lisible par les robots de vérification des stores.
+  await app.register(legalRoutes, { prefix: '/legal' })
 
   // Photos uploadées — servies statiquement (URLs stockées dans ListingPhoto.url).
   // Accès réservé aux utilisateurs authentifiés : le mobile doit envoyer le JWT

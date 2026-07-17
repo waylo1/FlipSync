@@ -27,7 +27,7 @@ describe.skipIf(!DB_URL)('WalletService.refund — concurrence stricte (Postgres
     const listing = await prisma.listing.create({
       data: {
         userId: user.id,
-        tier: 'OPTIMIZED',
+        tier: 'SIMPLE',
         status: 'USER_VALIDATED',
         paymentSource: 'WALLET',
         cost: 250,

@@ -74,7 +74,7 @@ describe.skipIf(!DB_URL)('Flux mobile /listing — e2e JWT', () => {
       method: 'POST',
       url: '/listing',
       headers: authed(token),
-      payload: { tier: 'OPTIMIZED' },
+      payload: { tier: 'SIMPLE' },
     })
 
     expect(res.statusCode).toBe(201)
@@ -223,7 +223,7 @@ describe.skipIf(!DB_URL)('Flux mobile /listing — e2e JWT', () => {
     expect(listing.prixPublie).toBe(15_000)
 
     const wallet = await prismaRef.userWallet.findUniqueOrThrow({ where: { userId } })
-    expect(wallet.balance).toBe(801)
+    expect(wallet.balance).toBe(901)
   })
 
   it('publish sans credentials partenaire → PUBLISH_FAILED + remboursement auto', async () => {
@@ -257,14 +257,14 @@ describe.skipIf(!DB_URL)('Flux mobile /listing — e2e JWT', () => {
     expect(listing.status).toBe('PUBLISH_FAILED')
     expect(listing.failureReason).toBe('VINTED:CREDENTIALS_MISSING')
 
-    // Remboursement automatique : le débit de 199 est restitué.
+    // Remboursement automatique : le débit de 99 est restitué.
     const after = await prismaRef.userWallet.findUniqueOrThrow({ where: { userId } })
-    expect(after.balance).toBe(before.balance + 199)
+    expect(after.balance).toBe(before.balance + 99)
     const refunds = await prismaRef.walletTransaction.findMany({
       where: { listingId, type: 'REFUND' },
     })
     expect(refunds).toHaveLength(1)
-    expect(refunds[0]?.amount).toBe(199)
+    expect(refunds[0]?.amount).toBe(99)
   })
 
   it('upload après validation (QUEUED) → 409, contenu figé au commit', async () => {

@@ -177,7 +177,7 @@ const baseWallet = (over: Partial<FakeWallet> = {}): FakeWallet => ({
 const baseListing = (over: Partial<FakeListing> = {}): FakeListing => ({
   id: 'l1',
   userId: 'u1',
-  tier: 'OPTIMIZED',
+  tier: 'SIMPLE',
   status: 'USER_VALIDATED',
   paymentSource: 'WALLET',
   cost: 250,

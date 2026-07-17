@@ -52,7 +52,7 @@ describe.skipIf(!DB_URL)('ListingEngine — intégration Postgres', async () => 
     await prisma.$disconnect()
   })
 
-  describe('cycle nominal complet (WALLET, 1,99 €)', () => {
+  describe('cycle nominal complet (WALLET, 0,99 €)', () => {
     let listingId = ''
 
     beforeAll(async () => {
@@ -60,13 +60,13 @@ describe.skipIf(!DB_URL)('ListingEngine — intégration Postgres', async () => 
     })
 
     it('createListing → AUTHORIZED, paymentSource WALLET, 0 débit', async () => {
-      const { listing, auth } = await engine.createListing(userId, ListingTier.OPTIMIZED)
+      const { listing, auth } = await engine.createListing(userId, ListingTier.SIMPLE)
       listingId = listing.id
 
       expect(listing.status).toBe('AUTHORIZED')
       expect(listing.paymentSource).toBe('WALLET')
-      expect(listing.cost).toBe(199)
-      expect(auth.walletBalanceAfter).toBe(801) // projection seulement
+      expect(listing.cost).toBe(99)
+      expect(auth.walletBalanceAfter).toBe(901) // projection seulement
       expect(await getBalance()).toBe(1000) // AUCUN débit réel
     })
 
@@ -87,7 +87,7 @@ describe.skipIf(!DB_URL)('ListingEngine — intégration Postgres', async () => 
       expect(listing.status).toBe('QUEUED') // plus d'état intermédiaire exposé
       expect(listing.prixPublie).toBe(15_000)
       expect(listing.isPriceFlagged).toBe(true)
-      expect(await getBalance()).toBe(801) // débit 199 dans la MÊME transaction
+      expect(await getBalance()).toBe(901) // débit 99 dans la MÊME transaction
     })
 
     it('publish failed → remboursement automatique + failureReason', async () => {
@@ -101,7 +101,7 @@ describe.skipIf(!DB_URL)('ListingEngine — intégration Postgres', async () => 
         where: { listingId, type: 'REFUND' },
       })
       expect(refunds).toHaveLength(1)
-      expect(refunds[0]?.amount).toBe(199)
+      expect(refunds[0]?.amount).toBe(99)
     })
 
     it('PUBLISH_FAILED est terminal — aucune transition possible', async () => {
@@ -155,7 +155,7 @@ describe.skipIf(!DB_URL)('ListingEngine — intégration Postgres', async () => 
 
     it('annulation pré-commit : USER_CANCELLED, 0 débit', async () => {
       await resetUser(1000, 0)
-      const { listing } = await engine.createListing(userId, ListingTier.OPTIMIZED)
+      const { listing } = await engine.createListing(userId, ListingTier.SIMPLE)
       await engine.startAiProcessing(listing.id)
       await engine.completeAiDraft(listing.id, DRAFT)
 
@@ -167,11 +167,11 @@ describe.skipIf(!DB_URL)('ListingEngine — intégration Postgres', async () => 
 
     it('annulation post-commit depuis QUEUED : USER_CANCELLED, remboursement intégral', async () => {
       await resetUser(1000, 0)
-      const { listing } = await engine.createListing(userId, ListingTier.OPTIMIZED)
+      const { listing } = await engine.createListing(userId, ListingTier.SIMPLE)
       await engine.startAiProcessing(listing.id)
       await engine.completeAiDraft(listing.id, DRAFT)
       await engine.validate(listing.id, 10_000) // → QUEUED
-      expect(await getBalance()).toBe(801) // débité
+      expect(await getBalance()).toBe(901) // débité
 
       const cancelled = await engine.cancel(listing.id)
 
@@ -182,12 +182,12 @@ describe.skipIf(!DB_URL)('ListingEngine — intégration Postgres', async () => 
         where: { listingId: listing.id, type: 'REFUND' },
       })
       expect(refunds).toHaveLength(1)
-      expect(refunds[0]?.amount).toBe(199)
+      expect(refunds[0]?.amount).toBe(99)
     })
 
     it('annulation impossible depuis PUBLISHED (retrait marketplace hors scope)', async () => {
       await resetUser(1000, 0)
-      const { listing } = await engine.createListing(userId, ListingTier.OPTIMIZED)
+      const { listing } = await engine.createListing(userId, ListingTier.SIMPLE)
       await engine.startAiProcessing(listing.id)
       await engine.completeAiDraft(listing.id, DRAFT)
       await engine.validate(listing.id, 10_000) // → QUEUED
@@ -198,7 +198,7 @@ describe.skipIf(!DB_URL)('ListingEngine — intégration Postgres', async () => 
 
     it('editContent : corrige titre/prix post-validation sans impact wallet, recalcule le flag prix', async () => {
       await resetUser(1000, 0)
-      const { listing } = await engine.createListing(userId, ListingTier.OPTIMIZED)
+      const { listing } = await engine.createListing(userId, ListingTier.SIMPLE)
       await engine.startAiProcessing(listing.id)
       await engine.completeAiDraft(listing.id, DRAFT)
       await engine.validate(listing.id, 10_000) // pas de flag (10000 <= 12000*1.2)
@@ -211,12 +211,12 @@ describe.skipIf(!DB_URL)('ListingEngine — intégration Postgres', async () => 
       expect(edited.titre).toBe('Veste cuir — révisée')
       expect(edited.prixPublie).toBe(20_000)
       expect(edited.isPriceFlagged).toBe(true)
-      expect(await getBalance()).toBe(801) // aucun mouvement d'argent
+      expect(await getBalance()).toBe(901) // aucun mouvement d'argent
     })
 
     it('queue() reste un chemin de récupération pour une ligne historique USER_VALIDATED (pré-F1)', async () => {
       await resetUser(1000, 0)
-      const { listing } = await engine.createListing(userId, ListingTier.OPTIMIZED)
+      const { listing } = await engine.createListing(userId, ListingTier.SIMPLE)
       await engine.startAiProcessing(listing.id)
       await engine.completeAiDraft(listing.id, DRAFT)
       await engine.validate(listing.id, 10_000) // → QUEUED (flux nominal)
@@ -233,7 +233,7 @@ describe.skipIf(!DB_URL)('ListingEngine — intégration Postgres', async () => 
 
     it('editContent refusé sur un listing pré-validation (pas encore "vivant")', async () => {
       await resetUser(1000, 0)
-      const { listing } = await engine.createListing(userId, ListingTier.OPTIMIZED)
+      const { listing } = await engine.createListing(userId, ListingTier.SIMPLE)
 
       await expect(
         engine.editContent(listing.id, { titre: 'Trop tôt' }),
@@ -258,7 +258,7 @@ describe.skipIf(!DB_URL)('ListingEngine — intégration Postgres', async () => 
 
     it('publication réussie : PUBLISHED + flags plateformes + publishedAt', async () => {
       await resetUser(1000, 0)
-      const { listing } = await engine.createListing(userId, ListingTier.OPTIMIZED)
+      const { listing } = await engine.createListing(userId, ListingTier.SIMPLE)
       await engine.startAiProcessing(listing.id)
       await engine.completeAiDraft(listing.id, DRAFT)
       await engine.validate(listing.id, 10_000) // → QUEUED

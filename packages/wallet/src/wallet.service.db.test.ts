@@ -41,7 +41,7 @@ describe.skipIf(!DB_URL)('WalletService — intégration Postgres', async () => 
     const listing = await prisma.listing.create({
       data: {
         userId,
-        tier: 'OPTIMIZED',
+        tier: 'SIMPLE',
         status: 'USER_VALIDATED',
         paymentSource: 'WALLET',
         cost: 250, // 2,50 €

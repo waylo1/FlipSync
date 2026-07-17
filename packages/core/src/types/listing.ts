@@ -14,16 +14,15 @@ export { ItemCondition, ListingStatus, ListingTier }
  * Source de vérité unique — ne jamais hardcoder les prix ailleurs.
  */
 export const TIER_PRICING: Record<ListingTier, number> = {
-  [ListingTier.SIMPLE]:     99,   // 0,99 €
-  [ListingTier.OPTIMIZED]: 199,   // 1,99 €
-  [ListingTier.PREMIUM]:   299,   // 2,99 €
+  [ListingTier.SIMPLE]:   99,   // 0,99 € — l'IA rédige votre annonce
+  [ListingTier.PREMIUM]: 299,   // 2,99 € — mandat commissaire-priseur (v2)
 }
 
 // ─── Différenciation des paliers ───────────────────────────────────────────────
-// Le nombre de photos ne différencie plus les paliers (toutes les offres
-// capturent autant de photos que l'utilisateur le souhaite). La différence
-// entre offres est désormais uniquement le niveau d'assistance IA — cf.
-// TIER_FEATURES ci-dessous.
+// Deux offres seulement (fusion Essentiel/Optimisé, 2026-07-17) : elles
+// délivraient le même brouillon IA. Reste l'offre de base (l'IA rédige) et
+// Premium (mandat commissaire-priseur — négociation, v2). Toutes les offres
+// capturent autant de photos que l'utilisateur le souhaite.
 
 export interface TierOffer {
   label: string
@@ -36,14 +35,9 @@ export interface TierOffer {
 /** Descriptif produit des offres — SSOT affichage (écran de validation). */
 export const TIER_FEATURES: Record<ListingTier, TierOffer> = {
   [ListingTier.SIMPLE]: {
-    label: 'Essentiel',
-    tagline: 'Je publie.',
-    support: 'Vous menez votre vente.',
-  },
-  [ListingTier.OPTIMIZED]: {
-    label: 'Optimisé',
-    tagline: 'L’IA m’aide.',
-    support: 'Elle rédige votre annonce avec vous.',
+    label: 'Annonce IA',
+    tagline: 'L’IA rédige votre annonce.',
+    support: 'Titre, description et prix estimé en quelques secondes.',
   },
   [ListingTier.PREMIUM]: {
     label: 'Premium',

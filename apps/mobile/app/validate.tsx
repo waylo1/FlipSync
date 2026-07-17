@@ -34,7 +34,7 @@ import { Tappable } from '../src/ui/Tappable'
 import { ErrorBanner } from '../src/ui/ErrorBanner'
 
 /** Ordre d'affichage des offres — du plus autonome pour l'utilisateur au plus autonome pour l'IA. */
-const TIERS: readonly ListingTier[] = [ListingTier.SIMPLE, ListingTier.OPTIMIZED, ListingTier.PREMIUM]
+const TIERS: readonly ListingTier[] = [ListingTier.SIMPLE, ListingTier.PREMIUM]
 
 /** Messages utilisateur pour les codes d'erreur API les plus probables ici. */
 const ERROR_MESSAGES: Readonly<Record<string, string>> = {
@@ -94,7 +94,7 @@ function ValidateForm({ draft, photos, resume, clearSession, goHome }: FormProps
   const [etat, setEtat] = useState<ItemCondition>(draft.etat)
   // Offre choisie ICI, au paiement — pas à la capture. En reprise, elle est
   // déjà figée côté serveur (coût fixé à createListing) : non modifiable.
-  const [tier, setTier] = useState<ListingTier>(resume?.tier ?? ListingTier.OPTIMIZED)
+  const [tier, setTier] = useState<ListingTier>(resume?.tier ?? ListingTier.SIMPLE)
   // Prix saisi en euros (affichage) — converti en centimes Int pour tout calcul.
   // En reprise : re-seed du prix saisi lors de l'essai interrompu.
   const [prixInput, setPrixInput] = useState(

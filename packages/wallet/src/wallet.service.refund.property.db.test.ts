@@ -36,7 +36,7 @@ describe.skipIf(!DB_URL)('P-06 — remboursement unique (Postgres réel)', async
         const listing = await prisma.listing.create({
           data: {
             userId: user.id,
-            tier: 'OPTIMIZED',
+            tier: 'SIMPLE',
             status: 'USER_VALIDATED',
             paymentSource: 'WALLET',
             cost: 250,

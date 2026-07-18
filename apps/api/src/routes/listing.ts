@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { FastifyPluginAsync } from 'fastify'
+import rateLimit from '@fastify/rate-limit'
 import { z } from 'zod'
 import { prisma, ListingStatus } from '@flipsync/db'
 import { ItemCondition, ListingTier, PREMIUM_TIER_ENABLED } from '@flipsync/core'
@@ -116,6 +117,11 @@ const photosBody = z.object({
 const listingRoutes: FastifyPluginAsync = async app => {
   app.addHook('preHandler', app.authenticate)
 
+  // Opt-in par route (global: false) — seule /publish appelle des APIs
+  // partenaires externes (Vinted/LBC) ; le reste (création, photos, édition)
+  // n'a pas besoin d'être limité au-delà des quotas déjà en place.
+  await app.register(rateLimit, { global: false })
+
   /** Garde de propriété : retourne le listing seulement s'il appartient au user. */
   const ownedListing = async (listingId: string, userId: string) =>
     prisma.listing.findFirst({ where: { id: listingId, userId } })
@@ -157,7 +163,9 @@ const listingRoutes: FastifyPluginAsync = async app => {
         }),
       },
       orderBy: { createdAt: 'desc' },
-      include: { photos: { orderBy: { order: 'asc' }, select: { id: true, url: true, order: true } } },
+      include: {
+        photos: { orderBy: { order: 'asc' }, select: { id: true, url: true, order: true } },
+      },
     })
     return { listings }
   })
@@ -310,19 +318,30 @@ const listingRoutes: FastifyPluginAsync = async app => {
    * Règle du Jeton Global : ≥1 plateforme publiée ⇒ PUBLISHED sans
    * remboursement ; 100% d'échec ⇒ PUBLISH_FAILED + remboursement total.
    */
-  app.post('/:id/publish', async (req, reply) => {
-    const params = idParams.safeParse(req.params)
-    const body = publishBody.safeParse(req.body ?? {})
-    if (!params.success || !body.success) return reply.code(400).send({ error: 'INVALID_BODY' })
+  app.post(
+    '/:id/publish',
+    {
+      config: {
+        rateLimit: {
+          max: Number(process.env.LISTING_PUBLISH_RATE_LIMIT_MAX ?? 10),
+          timeWindow: '1 minute',
+        },
+      },
+    },
+    async (req, reply) => {
+      const params = idParams.safeParse(req.params)
+      const body = publishBody.safeParse(req.body ?? {})
+      if (!params.success || !body.success) return reply.code(400).send({ error: 'INVALID_BODY' })
 
-    const owned = await ownedListing(params.data.id, req.userId)
-    if (!owned) return reply.code(404).send({ error: 'LISTING_NOT_FOUND' })
+      const owned = await ownedListing(params.data.id, req.userId)
+      if (!owned) return reply.code(404).send({ error: 'LISTING_NOT_FOUND' })
 
-    const targets =
-      body.data.marketplaces ?? (body.data.marketplace ? [body.data.marketplace] : undefined)
-    const outcome = await app.publicationService.publish(params.data.id, targets)
-    return outcome
-  })
+      const targets =
+        body.data.marketplaces ?? (body.data.marketplace ? [body.data.marketplace] : undefined)
+      const outcome = await app.publicationService.publish(params.data.id, targets)
+      return outcome
+    },
+  )
 
   /**
    * Annulation utilisateur — gratuite pré-commit, remboursée intégralement

@@ -1,4 +1,5 @@
 import { FastifyPluginAsync } from 'fastify'
+import rateLimit from '@fastify/rate-limit'
 import { z } from 'zod'
 import { EngineError } from '@flipsync/ai'
 import { prisma, DraftJobStatus, Prisma } from '@flipsync/db'
@@ -47,39 +48,62 @@ const STALE_JOB_MS = 5 * 60 * 1000
 const aiRoutes: FastifyPluginAsync = async app => {
   app.addHook('preHandler', app.authenticate)
 
+  // Opt-in par route (global: false) — le polling GET /draft/:jobId (toutes les
+  // 3-5 s côté mobile, cf. CLAUDE.md Sprint 4) ne doit jamais être limité, seule
+  // l'inférence elle-même a un coût réel à borner.
+  await app.register(rateLimit, { global: false })
+
   // Même plafond que l'upload photos : 6 × ~1 Mo base64 + marge.
-  app.post('/draft/start', { bodyLimit: 12 * 1024 * 1024 }, async (req, reply) => {
-    const body = draftBody.safeParse(req.body)
-    if (!body.success) return reply.code(400).send({ error: 'INVALID_BODY' })
+  app.post(
+    '/draft/start',
+    {
+      bodyLimit: 12 * 1024 * 1024,
+      config: {
+        rateLimit: {
+          max: Number(process.env.AI_DRAFT_RATE_LIMIT_MAX ?? 10),
+          timeWindow: '10 minutes',
+        },
+      },
+    },
+    async (req, reply) => {
+      const body = draftBody.safeParse(req.body)
+      if (!body.success) return reply.code(400).send({ error: 'INVALID_BODY' })
 
-    const job = await prisma.draftJob.create({
-      data: { userId: req.userId, status: DraftJobStatus.RUNNING },
-      select: { id: true },
-    })
-
-    // DÉTACHÉ : ne pas attendre ici — la requête mobile répond tout de suite,
-    // l'inférence continue même si le mobile se déconnecte ou est tué par l'OS.
-    const started = Date.now()
-    void app.visionService
-      .analyze(body.data.photos)
-      .then(async draft => {
-        req.log.info({ ms: Date.now() - started, titre: draft.titre }, 'brouillon IA généré (job)')
-        await prisma.draftJob.update({
-          where: { id: job.id },
-          data: { status: DraftJobStatus.READY, draft: draft as unknown as Prisma.InputJsonValue },
-        })
-      })
-      .catch(async (err: unknown) => {
-        const code = err instanceof EngineError ? err.code : 'AI_BACKEND_ERROR'
-        req.log.warn({ err, jobId: job.id }, 'brouillon IA échoué (job)')
-        await prisma.draftJob.update({
-          where: { id: job.id },
-          data: { status: DraftJobStatus.FAILED, errorCode: code },
-        })
+      const job = await prisma.draftJob.create({
+        data: { userId: req.userId, status: DraftJobStatus.RUNNING },
+        select: { id: true },
       })
 
-    return reply.code(202).send({ jobId: job.id })
-  })
+      // DÉTACHÉ : ne pas attendre ici — la requête mobile répond tout de suite,
+      // l'inférence continue même si le mobile se déconnecte ou est tué par l'OS.
+      const started = Date.now()
+      void app.visionService
+        .analyze(body.data.photos)
+        .then(async draft => {
+          req.log.info(
+            { ms: Date.now() - started, titre: draft.titre },
+            'brouillon IA généré (job)',
+          )
+          await prisma.draftJob.update({
+            where: { id: job.id },
+            data: {
+              status: DraftJobStatus.READY,
+              draft: draft as unknown as Prisma.InputJsonValue,
+            },
+          })
+        })
+        .catch(async (err: unknown) => {
+          const code = err instanceof EngineError ? err.code : 'AI_BACKEND_ERROR'
+          req.log.warn({ err, jobId: job.id }, 'brouillon IA échoué (job)')
+          await prisma.draftJob.update({
+            where: { id: job.id },
+            data: { status: DraftJobStatus.FAILED, errorCode: code },
+          })
+        })
+
+      return reply.code(202).send({ jobId: job.id })
+    },
+  )
 
   /** Statut d'un job — appartenance vérifiée (pas de fuite entre utilisateurs). */
   app.get('/draft/:jobId', async (req, reply) => {
@@ -89,7 +113,10 @@ const aiRoutes: FastifyPluginAsync = async app => {
     let job = await prisma.draftJob.findUnique({ where: { id: params.data.jobId } })
     if (!job || job.userId !== req.userId) return reply.code(404).send({ error: 'JOB_NOT_FOUND' })
 
-    if (job.status === DraftJobStatus.RUNNING && Date.now() - job.createdAt.getTime() > STALE_JOB_MS) {
+    if (
+      job.status === DraftJobStatus.RUNNING &&
+      Date.now() - job.createdAt.getTime() > STALE_JOB_MS
+    ) {
       req.log.warn({ jobId: job.id }, 'job IA orphelin (RUNNING au-delà du délai) — marqué FAILED')
       job = await prisma.draftJob.update({
         where: { id: job.id },

@@ -51,6 +51,12 @@
         {
           "color": "#B8542F"
         }
+      ],
+      [
+        "@stripe/stripe-react-native",
+        {
+          "enableGooglePay": false
+        }
       ]
     ],
     "experiments": {

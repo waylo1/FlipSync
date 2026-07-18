@@ -18,13 +18,24 @@ import { EmptyState } from '../../src/ui/EmptyState'
 import { Skeleton } from '../../src/ui/Skeleton'
 
 /**
- * Paiement en carte native (Apple/Google Pay via Payment Sheet) — nécessite
- * @stripe/stripe-react-native lié au projet natif (expo prebuild) + une clé
- * publiable configurée. Aucun des deux n'est encore en place sur ce build
- * device (cf. gotchas.md) : le bouton crée bien l'intent serveur (preuve que
- * Stripe est opérationnel côté API) mais s'arrête avant la feuille de
- * paiement plutôt que de crasher l'app sur un module natif absent.
+ * Paiement par la feuille Stripe native (Payment Sheet). Le module
+ * @stripe/stripe-react-native est chargé DYNAMIQUEMENT au moment de payer :
+ * sur un build qui ne l'embarque pas encore (dev-client antérieur), on affiche
+ * un message clair au lieu de crasher sur un module natif absent. La clé
+ * publiable vient de GET /wallet/recharge/config (jamais inlinée au build).
+ * Le crédit du solde reste l'affaire EXCLUSIVE du webhook serveur.
  */
+type StripeModule = typeof import('@stripe/stripe-react-native')
+
+const loadStripeModule = (): StripeModule | null => {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    return require('@stripe/stripe-react-native') as StripeModule
+  } catch {
+    return null // build sans le module natif — dégradation, jamais un crash
+  }
+}
+
 const RECHARGE_ERROR_MESSAGES: Readonly<Record<string, string>> = {
   STRIPE_NOT_CONFIGURED: 'Paiement pas encore configuré côté serveur.',
   INVALID_AMOUNT: 'Montant invalide.',
@@ -70,10 +81,36 @@ function RechargeSection({ onRecharged }: { onRecharged: () => void }) {
     setLoading(true)
     setNotice(null)
     try {
-      await api.createRechargeIntent(amount)
-      // Intent créé côté Stripe — reste à présenter la feuille de paiement
-      // native une fois le module lié (cf. note en tête de fichier).
-      setNotice('Paiement carte bientôt disponible — revenez très vite.')
+      const stripe = loadStripeModule()
+      if (stripe === null) {
+        setNotice('Mettez à jour l’application pour payer par carte.')
+        return
+      }
+
+      const [{ publishableKey }, { clientSecret }] = await Promise.all([
+        api.getRechargeConfig(),
+        api.createRechargeIntent(amount),
+      ])
+
+      await stripe.initStripe({ publishableKey })
+      const init = await stripe.initPaymentSheet({
+        paymentIntentClientSecret: clientSecret,
+        merchantDisplayName: 'FlipSync',
+      })
+      if (init.error) {
+        setNotice(`Paiement indisponible (${init.error.code}).`)
+        return
+      }
+
+      const result = await stripe.presentPaymentSheet()
+      if (result.error) {
+        // Canceled = l'utilisateur a fermé la feuille — pas une erreur à afficher.
+        if (result.error.code !== 'Canceled') setNotice(`Paiement refusé (${result.error.code}).`)
+        return
+      }
+
+      // Le crédit arrive par le webhook serveur — quelques secondes de délai.
+      setNotice('Paiement confirmé — votre cagnotte est créditée dans un instant.')
     } catch (err) {
       const code = err instanceof ApiError ? err.code : 'UNKNOWN'
       setNotice(RECHARGE_ERROR_MESSAGES[code] ?? `Impossible de préparer le paiement (${code}).`)

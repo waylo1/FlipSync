@@ -213,6 +213,8 @@ export const api = {
   // ─── Wallet ────────────────────────────────────────────────────────────────
   getWallet: () => request<ApiWallet>('/wallet'),
   getTransactions: () => request<{ transactions: ApiTransaction[] }>('/wallet/transactions'),
+  /** Clé publiable Stripe — servie par l'API (rotation sans re-publier l'app). */
+  getRechargeConfig: () => request<{ publishableKey: string }>('/wallet/recharge/config'),
   /** Crédit effectif via /stripe/webhook uniquement — ceci ne fait que créer l'intent. */
   createRechargeIntent: (amountCents: number) =>
     post<{ clientSecret: string }>('/wallet/recharge/intent', { amountCents }),
